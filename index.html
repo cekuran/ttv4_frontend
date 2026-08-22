@@ -65,6 +65,7 @@
   button.del:hover { background: rgba(186,26,26,0.08); color: var(--error); }
   button.del:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   table.data { background: white; border-collapse: collapse; width: 100%; box-shadow: var(--shadow-1); border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--outline-variant); }
+  #log-table tbody tr.grp-row.collapsed { display: none; }
   table.data th, table.data td { padding: 12px 14px; border-bottom: 1px solid var(--outline-variant); text-align: left; vertical-align: middle; }
   table.data th { background: var(--surface-low); font-weight: 600; color: var(--on-surface-variant); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
   table.data tr:last-child td { border-bottom: 0; }
@@ -122,6 +123,11 @@
     display: inline-flex; align-items: center; justify-content: center;
   }
   .icon-btn:hover { background: var(--surface-low); color: var(--primary); }
+  #log-table tr.live-row { background: rgba(0,108,77,0.06); }
+  #log-table tr.live-row td { border-bottom-color: rgba(0,108,77,0.20); }
+  #log-table tr.live-row .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--secondary); box-shadow: 0 0 0 3px rgba(0,108,77,0.25); animation: pulse 1.6s ease-in-out infinite; margin-right: 6px; vertical-align: middle; }
+  #log-table tr.live-row .stop-btn { background: var(--error); color: #fff; border: 0; padding: 6px 14px; border-radius: var(--r-md); font-size: 12px; font-weight: 600; cursor: pointer; }
+  #log-table tr.live-row .stop-btn:hover { background: #93000a; }
 
   /* ==== Login screen ==== */
   .login-screen {
@@ -615,9 +621,6 @@
   .task-card:hover { box-shadow: var(--shadow-2); }
   .task-card .task-info { flex: 1; min-width: 0; }
   .task-card .task-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-  .task-card .task-name input { font-size: 15px; font-weight: 600; padding: 4px 8px; width: 100%; border: 1px solid transparent; border-radius: var(--r-sm); }
-  .task-card .task-name input:hover { border-color: var(--outline-variant); }
-  .task-card .task-name input:focus { border-color: var(--primary); background: #fff; box-shadow: 0 0 0 3px rgba(16,43,138,0.10); }
   .task-card .task-meta { font-size: 12px; color: var(--on-surface-variant); display: flex; align-items: center; gap: 8px; }
   .task-card .task-meta select { padding: 2px 8px; font-size: 12px; border-radius: var(--r-sm); }
   .task-card .task-total { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 14px; font-weight: 600; color: var(--on-surface-variant); font-variant-numeric: tabular-nums; min-width: 70px; text-align: right; }
@@ -745,7 +748,6 @@
     #log-table tbody tr.grp-hdr { background: var(--surface-low); padding: 8px 12px; cursor: pointer; margin-bottom: 6px; }
     #log-table tbody tr.grp-hdr td { padding: 0; border: 0; display: flex; align-items: center; gap: 8px; }
     #log-table td.grp-hdr-cell::before { content: none; }
-    #log-table tbody tr.grp-row.collapsed { display: none; }
     #log-table .grp-name { font-weight: 600; }
     #log-table td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 4px 0; border: 0; white-space: normal; }
     #log-table td::before { content: attr(data-label); color: var(--on-surface-variant); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; flex: 0 0 auto; }
@@ -753,10 +755,9 @@
     #log-table td[data-label=""]::before { content: none; }
     #log-table td:last-child { justify-content: flex-end; padding-top: 6px; }
     .task-card { flex-wrap: wrap; padding: 14px; gap: 8px 10px; }
-    /* ponytail: title + meta own the full first row — input goes full width and scrolls horizontally, so long titles never get cut */
+    /* ponytail: title + meta own the full first row — single-line clamp keeps long titles from breaking the card */
     .task-card .task-info { flex: 1 1 100%; min-width: 0; }
-    .task-card .task-name { font-size: 15px; }
-    .task-card .task-name input { font-size: 15px; padding: 6px 10px; min-width: 0; }
+    .task-card .task-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .task-card .task-meta { font-size: 12px; flex-wrap: wrap; gap: 8px; }
     .task-card .task-meta select { font-size: 12px; padding: 4px 10px; }
     /* action row pinned below: total flush right, then play, then delete */
@@ -1934,6 +1935,9 @@ function tick() {
   if (!state.activeTimer) return;
   const ms = Date.now() - new Date(state.activeTimer.startTime).getTime();
   $('#active-elapsed').textContent = fmtHMS(ms);
+  // ponytail: keep the live row inside the Logs table ticking in step with the dashboard card
+  const liveElapsed = $('#log-live-elapsed');
+  if (liveElapsed) liveElapsed.textContent = fmtHMS(ms);
   // ponytail: also fold live elapsed into "time today" while a timer is running
   const start = new Date(state.activeTimer.startTime);
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
@@ -2021,7 +2025,37 @@ function renderLogs() {
 
   const total = filtered.reduce((s,e) => s + Number(e.durationMinutes || 0), 0);
 
-  if (filtered.length === 0) {
+  // ponytail: live session becomes its own row — must match the same filters and sit inside its group when grouping
+  const buildLiveRow = t => {
+    const tid = t.taskId;
+    const lid = taskLabelId(tid);
+    const ms = Date.now() - new Date(t.startTime).getTime();
+    const labelHtml = lid
+      ? `<span class="chip" style="background:${labelColor(lid)}">${escapeHtml(labelName(lid))}</span>`
+      : '<span style="color:#80868b">—</span>';
+    return `<tr class="live-row grp-row" id="log-live-row">`
+      + `<td data-label="Date"><span class="live-dot"></span>${fmtDate(t.startTime)}</td>`
+      + `<td data-label="Task" class="log-task">${escapeHtml(taskName(tid))}</td>`
+      + `<td data-label="Label">${labelHtml}</td>`
+      + `<td data-label="Start" id="log-live-start">${fmtTime(t.startTime)}</td>`
+      + `<td data-label="End" style="color:#80868b">—</td>`
+      + `<td data-label="Duration"><b id="log-live-elapsed">${fmtHMS(ms)}</b></td>`
+      + `<td data-label="Source" style="color:var(--secondary); font-weight:600; font-size:12px;">live</td>`
+      + `<td data-label=""><button class="stop-btn" id="log-live-stop">Stop</button></td>`
+      + `</tr>`;
+  };
+  const liveTimer = state.activeTimer;
+  const liveVisible = liveTimer && (() => {
+    const d = new Date(liveTimer.startTime);
+    if (fromStart && d < fromStart) return false;
+    if (toEnd && d > toEnd) return false;
+    if (taskFilter && liveTimer.taskId !== taskFilter) return false;
+    if (labelFilter && taskLabelId(liveTimer.taskId) !== labelFilter) return false;
+    return true;
+  })();
+  const liveRowHtml = liveVisible ? buildLiveRow(liveTimer) : '';
+
+  if (filtered.length === 0 && !liveVisible) {
     $('#log-summary').innerHTML = `<div class="empty">No entries match the filters.</div>`;
     return;
   }
@@ -2043,7 +2077,11 @@ function renderLogs() {
   };
 
   const groupBy = $('#log-group').value;
+  const liveGroupKey = liveVisible && groupBy
+    ? (groupBy === 'task' ? liveTimer.taskId : (taskLabelId(liveTimer.taskId) || ''))
+    : null;
   if (!groupBy) {
+    if (liveRowHtml) html += liveRowHtml;
     filtered.forEach(e => { html += `<tr>${rowCells(e)}</tr>`; });
   } else {
     const groups = new Map();
@@ -2052,6 +2090,8 @@ function renderLogs() {
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(e);
     });
+    // ponytail: if grouping by task/label, the live row belongs inside its own group — synthesize one if no entries match
+    if (liveGroupKey != null && !groups.has(liveGroupKey)) groups.set(liveGroupKey, []);
     // sort groups by total time desc, biggest first
     const ordered = [...groups.entries()]
       .map(([k, list]) => [k, list, list.reduce((s, e) => s + Number(e.durationMinutes || 0), 0)])
@@ -2064,13 +2104,22 @@ function renderLogs() {
       const dot = groupBy === 'label' && key
         ? ` <span class="dot" style="background:${labelColor(key)}"></span>`
         : '';
+      if (list.length === 0 && key === liveGroupKey) {
+        // ponytail: live-only group (no finished entries for this task/label in range)
+        html += `<tr class="grp-hdr" data-gid="${gid}"><td colspan="8" class="grp-hdr-cell"><button class="fold-btn icon-btn" aria-label="Plegar grupo">▾</button> <span class="grp-name">${escapeHtml(grpName)}</span>${dot} <span style="color:var(--secondary); font-weight:600">· live session</span></td></tr>`;
+        html += liveRowHtml.replace('id="log-live-row"', `id="log-live-row" data-gid="${gid}"`);
+        return;
+      }
       html += `<tr class="grp-hdr" data-gid="${gid}"><td colspan="8" class="grp-hdr-cell"><button class="fold-btn icon-btn" aria-label="Plegar grupo">▾</button> <span class="grp-name">${escapeHtml(grpName)}</span>${dot} <span style="color:#5f6368; font-weight:normal">· ${fmtHM(grpTotal)} · ${list.length} entr${list.length===1?'y':'ies'}</span></td></tr>`;
+      if (key === liveGroupKey) html += liveRowHtml.replace('id="log-live-row"', `id="log-live-row" data-gid="${gid}"`);
       list.forEach(e => { html += `<tr class="grp-row" data-gid="${gid}">${rowCells(e)}</tr>`; });
     });
   }
 
   html += '</tbody></table>';
   $('#log-summary').innerHTML = html;
+  const liveStop = $('#log-live-stop');
+  if (liveStop) liveStop.onclick = onStop;
   $$('#log-summary .del').forEach(b => b.onclick = async () => {
     if (!await showConfirm('Eliminar entrada', '¿Eliminar esta entrada de tiempo? Esta acción no se puede deshacer.', 'Eliminar')) return;
     state.entries = await call('deleteEntry', b.dataset.id);
@@ -2151,7 +2200,7 @@ async function renderTasksView() {
     const labelTag = labelObj ? `<span class="chip" style="background:${labelObj.color}">${escapeHtml(labelObj.name)}</span>` : '<span class="chip" style="background:var(--surface-low);color:var(--on-surface-variant);border:1px dashed var(--outline-variant);">Sin etiqueta</span>';
     html += `<div class="task-card${state.activeTimer && state.activeTimer.taskId === t.id ? ' active' : ''}" data-tid="${t.id}">
       <div class="task-info">
-        <div class="task-name"><input data-id="${t.id}" class="edit-name" value="${escapeHtml(t.name)}"></div>
+        <div class="task-name">${escapeHtml(t.name)}</div>
         <div class="task-meta">
           ${labelTag}
           <button class="task-edit-btn" data-id="${t.id}" title="Editar tarea" aria-label="Editar tarea"><span class="material-icons">edit</span></button>
@@ -2194,18 +2243,13 @@ async function renderTasksView() {
     state.tasks = await call('deleteTask', b.dataset.id);
     renderTasksView(); renderLogs(); refreshAll();
   });
-  $$('#task-table-wrap .edit-name').forEach(inp => inp.onchange = async () => {
-    state.tasks = await call('updateTask', inp.dataset.id, { name: inp.value });
-    renderTasksView(); refreshAll();
-  });
   $$('#task-table-wrap .task-edit-btn').forEach(b => b.onclick = () => openEditTaskModal(b.dataset.id));
   // click card body to toggle entries
   $$('#task-table-wrap .task-card').forEach(card => {
     const tid = card.dataset.tid;
     const row = $(`#task-entries-${tid}`);
-    const inp = card.querySelector('.edit-name');
     if (row) card.querySelector('.task-info').addEventListener('click', e => {
-      if (e.target === inp || e.target.closest('.task-edit-btn')) return;
+      if (e.target.closest('.task-edit-btn')) return;
       const shown = row.style.display !== 'none';
       row.style.display = shown ? 'none' : 'block';
     });
