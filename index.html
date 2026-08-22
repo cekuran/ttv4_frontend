@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Hanken+Grotesk:wght@600;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <style>
   /* === Chronos Precision — design tokens === */
   :root {
@@ -75,6 +75,33 @@
   .dot { display: inline-block; width: 18px; height: 18px; border-radius: 50%; vertical-align: middle; }
   .empty { text-align: center; padding: 48px; color: var(--outline); }
   canvas { background: white; padding: 18px; border-radius: var(--r-lg); box-shadow: var(--shadow-1); border: 1px solid var(--outline-variant); }
+  #stats-chart-wrap { background: #fff; padding: 18px 20px 22px; border-radius: var(--r-lg); box-shadow: var(--shadow-1); border: 1px solid var(--outline-variant); overflow: hidden; }
+  #stats-chart { display: block; width: 100%; height: 360px; font: 12px/1.5 'Inter', sans-serif; color: var(--on-surface-variant); }
+  #stats-chart .axis path, #stats-chart .axis line { stroke: var(--outline-variant); shape-rendering: crispEdges; }
+  #stats-chart .axis .tick line { stroke: rgba(117,118,131,0.15); }
+  #stats-chart .axis text { fill: var(--on-surface-variant); font-size: 11px; }
+  #stats-chart .bar { cursor: default; transition: opacity .15s; }
+  #stats-chart .bar:hover { opacity: .82; }
+  #stats-chart .pie-slice { cursor: default; transition: transform .15s, opacity .15s; transform-origin: center; transform-box: fill-box; }
+  #stats-chart .pie-slice:hover { opacity: .85; }
+  .d3-tip {
+    position: absolute; pointer-events: none; z-index: 50;
+    background: var(--on-surface); color: #fff;
+    padding: 8px 12px; border-radius: var(--r-md);
+    font: 500 12px/1.4 'Inter', sans-serif;
+    box-shadow: var(--shadow-2);
+    transform: translate(-50%, 0);
+    white-space: nowrap;
+  }
+  .d3-tip b { font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 600; }
+  .d3-tip::after {
+    content: ''; position: absolute; left: 50%; top: 100%;
+    transform: translateX(-50%);
+    border: 4px solid transparent; border-top-color: var(--on-surface);
+  }
+  /* ponytail: format-toggle inside .filters — wrap inline so it sits next to the label */
+  .filters .format-toggle { padding: 2px; }
+  .filters label:has(.format-toggle) { display: inline-flex; align-items: center; gap: 8px; }
   h3.section { margin: 24px 0 12px; font-size: 12px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
   .fold-btn { background: none; color: var(--on-surface-variant); border: 0; cursor: pointer; font-size: 12px; padding: 4px 8px; width: 28px; line-height: 1; border-radius: var(--r-sm); }
   .fold-btn:hover { background: var(--surface-low); color: var(--primary); }
@@ -586,6 +613,7 @@
 
   /* === Dashboard widgets === */
   .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+  #stats-cards { grid-template-columns: repeat(4, 1fr); } /* ponytail: overrides the 3-col default so the 4 stat cards sit in one row */
   .stat-card { background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-1); }
   .stat-card .stat-label { font-size: 11px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 10px; }
   .stat-card .stat-value { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 26px; font-weight: 700; color: var(--on-surface); line-height: 1.1; font-variant-numeric: tabular-nums; }
@@ -723,6 +751,7 @@
     .view-header h1 { font-size: 24px; line-height: 1.2; }
     .view-header p  { font-size: 13px; }
     .stat-grid { grid-template-columns: 1fr; gap: 12px; }
+    #stats-cards { grid-template-columns: repeat(2, 1fr); }
     .stat-card { padding: 18px; }
     .stat-card .stat-label { font-size: 11px; margin-bottom: 10px; }
     .stat-card .stat-value { font-size: 26px; line-height: 1.1; }
@@ -1087,11 +1116,18 @@
           <option value="task">Task</option>
           <option value="label">Label</option>
         </select></label>
+        <label>Chart
+          <div class="format-toggle">
+            <button type="button" class="active" data-chart-type="bar">Bar</button>
+            <button type="button" data-chart-type="pie">Pie</button>
+          </div>
+        </label>
       </div>
 
-      <div class="stat-grid" id="stats-cards" style="grid-template-columns: repeat(4, 1fr);"></div>
+      <div class="stat-grid" id="stats-cards"></div>
       <div id="stats-totals"></div>
-      <div style="margin-top:20px;"><canvas id="stats-chart"></canvas></div>
+      <div id="stats-chart-wrap" style="margin-top:20px;"><svg id="stats-chart" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <div id="stats-chart-tip" class="d3-tip" hidden></div>
     </section>
 
     <!-- ====== Reports (NEW) ====== -->
@@ -1409,11 +1445,21 @@
 </div>
 
 <script>
+// ==== Preferences (declared before state so readChartType() can be called from the initializer) ====
+const CHART_TYPE_KEY = 'tasktime_chart_type';
+function readChartType() {
+  const v = localStorage.getItem(CHART_TYPE_KEY);
+  return v === 'pie' || v === 'bar' ? v : 'bar';
+}
+function writeChartType(t) { localStorage.setItem(CHART_TYPE_KEY, t); }
+
 // ==== State ====
 const state = {
   tasks: [], labels: [], entries: [],
   activeTimer: null,
-  tickInterval: null, chart: null,
+  tickInterval: null, chart: null, chartType: readChartType(),
+  lastStatsSeries: null,        // ponytail: cache for ResizeObserver so re-render skips the filter pass
+  chartResizeObs: null,         // ponytail: so we can disconnect on logout if ever needed
   sinHojas: false,
   expandedSheets: new Set(),  // ponytail: ids de hojas con fila expandida en el admin
   expandedUsers: new Set()    // ponytail: usernames con fila expandida en el admin (hojas vinculadas)
@@ -1890,6 +1936,22 @@ function bindGlobal() {
     renderLogs();
   });
   ['stats-range','stats-group','stats-anchor'].forEach(id => $('#'+id).addEventListener('change', renderStats));
+  // Reflect persisted chart type on the toggle buttons
+  $$('[data-chart-type]').forEach(x => x.classList.toggle('active', x.dataset.chartType === state.chartType));
+  $$('[data-chart-type]').forEach(b => b.addEventListener('click', () => {
+    state.chartType = b.dataset.chartType;
+    writeChartType(state.chartType);
+    $$('[data-chart-type]').forEach(x => x.classList.toggle('active', x === b));
+    renderStats();
+  }));
+  // ponytail: rAF-debounced observer — re-renders only the chart, not the full data pipeline
+  if (state.chartResizeObs) state.chartResizeObs.disconnect();
+  let rafId = 0;
+  state.chartResizeObs = new ResizeObserver(() => {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => { rafId = 0; renderChartOnly(); });
+  });
+  state.chartResizeObs.observe($('#stats-chart-wrap'));
   $('#timer-label-filter').addEventListener('change', populateTimerTaskSelect);
   // Reports
   ['report-from','report-to'].forEach(id => $('#'+id).addEventListener('change', renderReports));
@@ -2381,6 +2443,35 @@ function _testStats() {
   console.log('_testStats done');
 }
 
+// ponytail: paste into DevTools console to verify both chart renderers produce the expected DOM
+function _testChart() {
+  const labels = ['Design', 'Coding', 'Meetings', 'Reviews'];
+  const data   = [3.5, 7.25, 1.0, 2.5];
+  const colors = PALETTE_C.slice(0, labels.length);
+
+  // Force a deterministic viewport so the SVG has real pixel dimensions
+  const wrap = $('#stats-chart-wrap');
+  wrap.style.minWidth = '640px';
+
+  state.chartType = 'bar';
+  renderBarChart(labels, data, colors);
+  const bars = d3.select('#stats-chart').selectAll('.bar').size();
+  console.assert(bars === labels.length, `bar: expected ${labels.length} rects, got ${bars}`);
+
+  state.chartType = 'pie';
+  renderPieChart(labels, data, colors);
+  const slices = d3.select('#stats-chart').selectAll('.pie-slice').size();
+  console.assert(slices === labels.length, `pie: expected ${labels.length} arcs, got ${slices}`);
+
+  // Smoke: cached series round-trips
+  state.lastStatsSeries = { labels, data, colors };
+  renderChartOnly();
+  console.assert(d3.select('#stats-chart').selectAll('.pie-slice').size() === labels.length,
+                 'renderChartOnly should redraw from cache without throwing');
+
+  console.log('_testChart done');
+}
+
 function renderStats() {
   const range = $('#stats-range').value;
   const groupBy = $('#stats-group').value;
@@ -2415,13 +2506,12 @@ function renderStats() {
     <div class="stat-card"><div class="stat-label">Average / session</div><div class="stat-value">${fmtHM(avgMin)}</div><div class="stat-sub">Per entry</div></div>
   `;
 
-  if (state.chart) state.chart.destroy();
-  state.chart = null;
+  // Clear previous chart + tooltip
+  d3.select('#stats-chart').selectAll('*').remove();
+  $('#stats-chart-tip').hidden = true;
 
   if (inRange.length === 0) {
     $('#stats-totals').innerHTML = `<div class="empty">No time logged in this range.</div>`;
-    const ctx = $('#stats-chart').getContext('2d');
-    ctx.clearRect(0, 0, $('#stats-chart').width, $('#stats-chart').height);
     return;
   }
 
@@ -2434,28 +2524,145 @@ function renderStats() {
   totalsHtml += '</tbody></table>';
   $('#stats-totals').innerHTML = totalsHtml;
 
-  // Bar chart
   const labels = sorted.map(([k]) => k);
   const data   = sorted.map(([,v]) => v / 60);  // hours
   const colors = labels.map((k, idx) => groupBy === 'label'
     ? (labelById(state.labels.find(l => l.name === k)?.id)?.color || PALETTE_C[idx % PALETTE_C.length])
     : PALETTE_C[idx % PALETTE_C.length]);
 
-  state.chart = new Chart($('#stats-chart'), {
-    type: 'bar',
-    data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 6, borderSkipped: false }] },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(1)}h` } }
-      },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: '#454652' } },
-        y: { beginAtZero: true, grid: { color: 'rgba(117,118,131,0.15)' }, ticks: { color: '#454652', callback: v => `${v}h` } }
-      }
-    }
+  if (state.chartType === 'pie') renderPieChart(labels, data, colors);
+  else                             renderBarChart(labels, data, colors);
+
+  state.lastStatsSeries = { labels, data, colors };
+}
+
+// ponytail: cheap re-draw used by ResizeObserver — skips the entry aggregation pass.
+function renderChartOnly() {
+  const s = state.lastStatsSeries;
+  if (!s) return;
+  d3.select('#stats-chart').selectAll('*').remove();
+  $('#stats-chart-tip').hidden = true;
+  if (state.chartType === 'pie') renderPieChart(s.labels, s.data, s.colors);
+  else                             renderBarChart(s.labels, s.data, s.colors);
+}
+
+function fmtHMFromHours(h) {
+  const total = Math.round(h * 60);
+  return fmtHM(total);
+}
+
+// Shared tooltip helper — positioned absolutely inside the chart wrap
+function chartTip() { return d3.select('#stats-chart-tip'); }
+function showChartTip(html, evt) {
+  const tip = chartTip();
+  tip.html(html).classed('hidden', false).attr('hidden', null);
+  const wrap = $('#stats-chart-wrap').getBoundingClientRect();
+  tip.style('left', (evt.clientX - wrap.left) + 'px')
+     .style('top',  (evt.clientY - wrap.top  - 12) + 'px');
+}
+function hideChartTip() {
+  chartTip().attr('hidden', '').classed('hidden', true);
+}
+
+function renderBarChart(labels, data, colors) {
+  const svg = d3.select('#stats-chart');
+  const W = svg.node().clientWidth  || 800;
+  const H = svg.node().clientHeight || 360;
+  svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
+
+  const m = { top: 16, right: 24, bottom: 56, left: 56 };
+  const iw = W - m.left - m.right;
+  const ih = H - m.top - m.bottom;
+
+  const x = d3.scaleBand().domain(labels).range([0, iw]).padding(0.28);
+  const y = d3.scaleLinear().domain([0, d3.max(data) * 1.1 || 1]).nice().range([ih, 0]);
+
+  const g = svg.append('g').attr('transform', `translate(${m.left},${m.top})`);
+
+  // Y axis with "Xh" ticks
+  g.append('g').attr('class', 'axis y-axis')
+    .call(d3.axisLeft(y).ticks(5).tickFormat(v => `${v}h`));
+
+  // X axis — rotated labels for long task names
+  const xAxis = g.append('g').attr('class', 'axis x-axis').attr('transform', `translate(0,${ih})`).call(d3.axisBottom(x).tickSizeOuter(0));
+  xAxis.selectAll('.tick text')
+    .attr('transform', 'rotate(-22)')
+    .attr('text-anchor', 'end')
+    .attr('dx', '-6').attr('dy', '6');
+
+  // Bars
+  g.selectAll('.bar')
+    .data(data.map((v, i) => ({ v, i })))
+    .enter()
+    .append('rect')
+      .attr('class', 'bar')
+      .attr('x',      d => x(labels[d.i]))
+      .attr('width',  x.bandwidth())
+      .attr('y',      ih)
+      .attr('height', 0)
+      .attr('rx', 6).attr('ry', 6)
+      .attr('fill',   d => colors[d.i])
+      .on('mousemove', (e, d) => {
+        const pct = ((d.v / data.reduce((s,v)=>s+v,0)) * 100).toFixed(1);
+        showChartTip(`<b>${escapeHtml(labels[d.i])}</b><br>${d.v.toFixed(1)}h · ${pct}%`, e);
+      })
+      .on('mouseleave', hideChartTip)
+    .transition().duration(450).ease(d3.easeCubicOut)
+      .attr('y',      d => y(d.v))
+      .attr('height', d => ih - y(d.v));
+}
+
+function renderPieChart(labels, data, colors) {
+  const svg = d3.select('#stats-chart');
+  const W = svg.node().clientWidth  || 800;
+  const H = svg.node().clientHeight || 360;
+  svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
+
+  const cx = W * 0.38, cy = H / 2;
+  const r  = Math.min(W * 0.32, H * 0.42);
+
+  const pie = d3.pie().value(d => d).sort(null);
+  const arc = d3.arc().innerRadius(r * 0.55).outerRadius(r).cornerRadius(4).padAngle(0.012);
+
+  const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
+
+  const arcs = pie(data);
+  g.selectAll('.pie-slice')
+    .data(arcs)
+    .enter()
+    .append('path')
+      .attr('class', 'pie-slice')
+      .attr('fill', (_, i) => colors[i])
+      .attr('d', d3.arc().innerRadius(r * 0.55).outerRadius(r * 0.6).cornerRadius(4))  // ponytail: start collapsed for enter transition
+      .on('mousemove', (e, d) => {
+        const total = data.reduce((s,v)=>s+v,0);
+        const pct = ((d.data / total) * 100).toFixed(1);
+        showChartTip(`<b>${escapeHtml(labels[d.index])}</b><br>${d.data.toFixed(1)}h · ${pct}%`, e);
+      })
+      .on('mouseleave', hideChartTip)
+    .transition().duration(450).ease(d3.easeCubicOut)
+      .attrTween('d', function(d) {
+        const i = d3.interpolate({ startAngle: d.startAngle, endAngle: d.startAngle },
+                                 { startAngle: d.startAngle, endAngle: d.endAngle });
+        return t => arc(i(t));
+      });
+
+  // Legend — stacked rows on the right
+  const total = data.reduce((s,v)=>s+v,0);
+  const legend = svg.append('g').attr('transform', `translate(${W * 0.72}, ${H * 0.18})`);
+  const lineH = Math.min(28, (H - 32) / Math.max(labels.length, 1));
+  labels.forEach((label, i) => {
+    const row = legend.append('g').attr('transform', `translate(0, ${i * lineH})`);
+    row.append('rect').attr('width', 12).attr('height', 12).attr('rx', 3).attr('fill', colors[i]);
+    row.append('text')
+      .attr('x', 20).attr('y', 10)
+      .attr('font-size', 12).attr('fill', 'var(--on-surface)')
+      .text(label.length > 22 ? label.slice(0, 21) + '…' : label);
+    row.append('text')
+      .attr('x', 170).attr('y', 10)
+      .attr('font-family', "'JetBrains Mono', ui-monospace, monospace")
+      .attr('font-size', 11).attr('fill', 'var(--outline)')
+      .text(`${data[i].toFixed(1)}h · ${((data[i]/total)*100).toFixed(0)}%`);
   });
 }
 
