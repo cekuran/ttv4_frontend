@@ -48,6 +48,8 @@
   .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding: 14px 18px; background: #fff; border-radius: var(--r-lg); box-shadow: var(--shadow-1); margin-bottom: 16px; border: 1px solid var(--outline-variant); }
   .filters label { color: var(--on-surface-variant); font-size: 13px; margin-right: 4px; font-weight: 500; }
   form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  #manual-form > select, #manual-form > input { min-width: 160px; }
+  #manual-form > input#manual-notes { flex: 1; min-width: 200px; }
   input, select, button { font: inherit; padding: 8px 14px; border: 1px solid var(--outline-variant); border-radius: var(--r-md); background: white; color: var(--on-surface); transition: border-color .15s, box-shadow .15s; }
   input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(16,43,138,0.12); }
   .pw-wrap { position: relative; }
@@ -59,8 +61,9 @@
   button:hover { background: var(--primary-container); }
   button.secondary { background: #fff; color: var(--primary); border: 1px solid var(--outline-variant); }
   button.secondary:hover { background: var(--surface-low); border-color: var(--primary); }
-  button.del { background: var(--error); padding: 5px 12px; font-size: 12px; }
-  button.del:hover { background: #93000a; }
+  button.del { background: transparent; color: var(--on-surface-variant); border: 0; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+  button.del:hover { background: rgba(186,26,26,0.08); color: var(--error); }
+  button.del:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   table.data { background: white; border-collapse: collapse; width: 100%; box-shadow: var(--shadow-1); border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--outline-variant); }
   table.data th, table.data td { padding: 12px 14px; border-bottom: 1px solid var(--outline-variant); text-align: left; vertical-align: middle; }
   table.data th { background: var(--surface-low); font-weight: 600; color: var(--on-surface-variant); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -722,9 +725,10 @@
     .active-card .stop-btn { font-size: 14px; padding: 8px 18px; }
     .panel { padding: 18px; border-radius: var(--r-lg); }
     .panel h3 { font-size: 11px; margin-bottom: 12px; }
-    .filters { flex-direction: column; align-items: stretch; padding: 14px; gap: 12px; }
-    .filters label { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
-    .filters input, .filters select { flex: 1; min-width: 0; max-width: 60%; }
+    .filters { flex-direction: column; align-items: stretch; padding: 14px; gap: 10px; }
+    .filters label { display: block; font-size: 13px; }
+    .filters input, .filters select, .filters button { width: 100%; min-width: 0; }
+    .filters input[type="date"] { max-width: 100%; }
     .quickstart-form { flex-direction: column; align-items: stretch; }
     .quickstart-form select, .quickstart-form button { width: 100%; }
     form#task-form, form#manual-form { flex-direction: column; align-items: stretch; }
@@ -733,6 +737,21 @@
     input, select, button { padding: 10px 14px; font-size: 15px; }
     table.data, .preview-table { display: block; overflow-x: auto; white-space: nowrap; border-radius: var(--r-md); -webkit-overflow-scrolling: touch; }
     table.data th, table.data td, .preview-table th, .preview-table td { padding: 10px 12px; font-size: 13px; }
+    /* ponytail: log entries become cards on mobile so task names wrap and every field is visible */
+    #log-table, #log-table thead, #log-table tbody, #log-table tr { display: block; }
+    #log-table { white-space: normal; overflow: visible; }
+    #log-table thead { display: none; }
+    #log-table tbody tr { border: 1px solid var(--outline-variant); border-radius: var(--r-md); margin-bottom: 8px; padding: 8px 12px; background: #fff; }
+    #log-table tbody tr.grp-hdr { background: var(--surface-low); padding: 8px 12px; cursor: pointer; margin-bottom: 6px; }
+    #log-table tbody tr.grp-hdr td { padding: 0; border: 0; display: flex; align-items: center; gap: 8px; }
+    #log-table td.grp-hdr-cell::before { content: none; }
+    #log-table tbody tr.grp-row.collapsed { display: none; }
+    #log-table .grp-name { font-weight: 600; }
+    #log-table td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 4px 0; border: 0; white-space: normal; }
+    #log-table td::before { content: attr(data-label); color: var(--on-surface-variant); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; flex: 0 0 auto; }
+    #log-table td.log-task { white-space: normal; overflow-wrap: anywhere; text-align: right; }
+    #log-table td[data-label=""]::before { content: none; }
+    #log-table td:last-child { justify-content: flex-end; padding-top: 6px; }
     .task-card { flex-wrap: wrap; padding: 14px; gap: 8px 10px; }
     /* ponytail: title + meta own the full first row — input goes full width and scrolls horizontally, so long titles never get cut */
     .task-card .task-info { flex: 1 1 100%; min-width: 0; }
@@ -1026,6 +1045,15 @@
         <p>Your time log, by day, task, or label.</p>
       </div>
 
+      <form class="panel" id="manual-form">
+        <h3>Add manual entry</h3>
+        <select id="manual-task" required></select>
+        <input type="datetime-local" id="manual-start" required>
+        <input type="datetime-local" id="manual-end" required>
+        <input type="text" id="manual-notes" placeholder="Notes (optional)">
+        <button type="submit">Add</button>
+      </form>
+
       <div class="filters">
         <label>From <input type="date" id="log-from"></label>
         <label>To <input type="date" id="log-to"></label>
@@ -1036,15 +1064,6 @@
       </div>
 
       <div id="log-summary"></div>
-
-      <h3 class="section">Add manual entry</h3>
-      <form class="panel" id="manual-form">
-        <select id="manual-task" required style="min-width:200px;"></select>
-        <input type="datetime-local" id="manual-start" required>
-        <input type="datetime-local" id="manual-end" required>
-        <input type="text" id="manual-notes" placeholder="Notes (optional)" style="flex:1; min-width:200px;">
-        <button type="submit">Add</button>
-      </form>
     </section>
 
     <!-- ====== Stats ====== -->
@@ -2008,19 +2027,19 @@ function renderLogs() {
   }
 
   let html = `<div class="panel"><b>Total: ${fmtHM(total)}</b> · ${filtered.length} entr${filtered.length===1?'y':'ies'}</div>`;
-  html += `<table class="data"><thead><tr><th>Date</th><th>Task</th><th>Label</th><th>Start</th><th>End</th><th>Duration</th><th>Source</th><th></th></tr></thead><tbody>`;
+  html += `<table class="data" id="log-table"><thead><tr><th>Date</th><th>Task</th><th>Label</th><th>Start</th><th>End</th><th>Duration</th><th>Source</th><th></th></tr></thead><tbody>`;
 
   const rowCells = e => {
     const lid = taskLabelId(e.taskId);
     return `
-      <td>${fmtDate(e.startTime)}</td>
-      <td>${escapeHtml(taskName(e.taskId))}</td>
-      <td>${lid ? `<span class="chip" style="background:${labelColor(lid)}">${escapeHtml(labelName(lid))}</span>` : '<span style="color:#80868b">—</span>'}</td>
-      <td>${fmtTime(e.startTime)}</td>
-      <td>${fmtTime(e.endTime)}</td>
-      <td><b>${fmtHM(Number(e.durationMinutes))}</b></td>
-      <td style="color:#5f6368; font-size:12px;">${escapeHtml(e.source || '')}</td>
-      <td><button class="del" data-id="${e.id}">Delete</button></td>`;
+      <td data-label="Date">${fmtDate(e.startTime)}</td>
+      <td data-label="Task" class="log-task">${escapeHtml(taskName(e.taskId))}</td>
+      <td data-label="Label">${lid ? `<span class="chip" style="background:${labelColor(lid)}">${escapeHtml(labelName(lid))}</span>` : '<span style="color:#80868b">—</span>'}</td>
+      <td data-label="Start">${fmtTime(e.startTime)}</td>
+      <td data-label="End">${fmtTime(e.endTime)}</td>
+      <td data-label="Duration"><b>${fmtHM(Number(e.durationMinutes))}</b></td>
+      <td data-label="Source" style="color:#5f6368; font-size:12px;">${escapeHtml(e.source || '')}</td>
+      <td data-label=""><button class="del icon-btn" data-id="${e.id}" aria-label="Eliminar entrada"><span class="material-icons">delete</span></button></td>`;
   };
 
   const groupBy = $('#log-group').value;
@@ -2045,7 +2064,7 @@ function renderLogs() {
       const dot = groupBy === 'label' && key
         ? ` <span class="dot" style="background:${labelColor(key)}"></span>`
         : '';
-      html += `<tr class="grp-hdr" data-gid="${gid}"><td colspan="8"><button class="fold-btn">▾</button> ${escapeHtml(grpName)}${dot} <span style="color:#5f6368; font-weight:normal">· ${fmtHM(grpTotal)} · ${list.length} entr${list.length===1?'y':'ies'}</span></td></tr>`;
+      html += `<tr class="grp-hdr" data-gid="${gid}"><td colspan="8" class="grp-hdr-cell"><button class="fold-btn icon-btn" aria-label="Plegar grupo">▾</button> <span class="grp-name">${escapeHtml(grpName)}</span>${dot} <span style="color:#5f6368; font-weight:normal">· ${fmtHM(grpTotal)} · ${list.length} entr${list.length===1?'y':'ies'}</span></td></tr>`;
       list.forEach(e => { html += `<tr class="grp-row" data-gid="${gid}">${rowCells(e)}</tr>`; });
     });
   }
@@ -2061,7 +2080,7 @@ function renderLogs() {
     const gid = hdr.dataset.gid;
     const btn = hdr.querySelector('.fold-btn');
     const collapsed = btn.textContent === '▸';
-    $$(`#log-summary .grp-row[data-gid="${gid}"]`).forEach(r => { r.hidden = !collapsed; });
+    $$(`#log-summary .grp-row[data-gid="${gid}"]`).forEach(r => r.classList.toggle('collapsed', !collapsed));
     btn.textContent = collapsed ? '▾' : '▸';
   });
 }
