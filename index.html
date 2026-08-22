@@ -633,6 +633,9 @@
   .task-card .del-btn:hover { background: rgba(186,26,26,0.08); color: var(--error); }
   .task-card.collapsed .task-entries { display: none; }
   .task-card.active { border-color: var(--secondary); background: linear-gradient(135deg, rgba(0,108,77,0.05), rgba(0,108,77,0.02)); box-shadow: 0 0 0 1px var(--secondary), var(--shadow-2); }
+  .task-card .task-edit-btn { background: transparent; border: 0; padding: 4px 6px; border-radius: var(--r-sm); cursor: pointer; color: var(--on-surface-variant); display: inline-flex; align-items: center; transition: background .15s, color .15s; }
+  .task-card .task-edit-btn:hover { background: var(--surface-low); color: var(--primary); }
+  .task-card .task-edit-btn .material-icons { font-size: 16px; line-height: 1; }
 
   /* === Reports === */
   .report-filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 20px; }
@@ -730,18 +733,21 @@
     input, select, button { padding: 10px 14px; font-size: 15px; }
     table.data, .preview-table { display: block; overflow-x: auto; white-space: nowrap; border-radius: var(--r-md); -webkit-overflow-scrolling: touch; }
     table.data th, table.data td, .preview-table th, .preview-table td { padding: 10px 12px; font-size: 13px; }
-    .task-card { flex-wrap: wrap; padding: 14px; gap: 10px; }
-    .task-card .task-info { min-width: 0; }
+    .task-card { flex-wrap: wrap; padding: 14px; gap: 8px 10px; }
+    /* ponytail: title + meta own the full first row — input goes full width and scrolls horizontally, so long titles never get cut */
+    .task-card .task-info { flex: 1 1 100%; min-width: 0; }
     .task-card .task-name { font-size: 15px; }
-    .task-card .task-name input { font-size: 15px; padding: 6px 10px; }
+    .task-card .task-name input { font-size: 15px; padding: 6px 10px; min-width: 0; }
     .task-card .task-meta { font-size: 12px; flex-wrap: wrap; gap: 8px; }
     .task-card .task-meta select { font-size: 12px; padding: 4px 10px; }
-    .task-card .task-total { width: auto; min-width: 60px; order: 0; font-size: 14px; }
-    .task-card .play-btn { width: 40px; height: 40px; }
+    /* action row pinned below: total flush right, then play, then delete */
+    .task-card .task-total { order: 10; width: auto; min-width: 60px; font-size: 14px; margin-left: auto; }
+    .task-card .play-btn { order: 11; width: 40px; height: 40px; }
     .task-card .play-btn::before, .task-card .play-btn::after { width: 14px; height: 14px; }
-    .task-card .del-btn { order: 99; margin-left: auto; font-size: 12px; padding: 6px 12px; }
-    .task-card.active { flex-direction: column; align-items: stretch; }
-    .task-card.active .play-btn.stop { align-self: flex-end; }
+    .task-card .del-btn { order: 12; font-size: 12px; padding: 6px 12px; }
+    /* keep the row+wrap layout even when this card is the active timer */
+    .task-card.active { flex-direction: row; align-items: center; }
+    .task-card.active .play-btn.stop { align-self: auto; }
     .chip-row { gap: 8px; }
     .chip-filter { padding: 6px 14px; font-size: 13px; }
     .chip-filter .dot { width: 8px; height: 8px; }
@@ -939,7 +945,7 @@
     </div>
     <button class="nav-item active" data-view="dashboard"><span class="material-icons">dashboard</span>Dashboard</button>
     <button class="nav-item" data-view="tasks"><span class="material-icons">checklist</span>Tasks</button>
-    <button class="nav-item" data-view="habits"><span class="material-icons">cached</span>Habits</button>
+    <button class="nav-item" data-view="logs"><span class="material-icons">history</span>Logs</button>
     <button class="nav-item" data-view="stats"><span class="material-icons">bar_chart</span>Stats</button>
     <button class="nav-item" data-view="reports"><span class="material-icons">description</span>Reports</button>
     <button class="nav-item hidden" data-view="admin" id="nav-admin"><span class="material-icons">admin_panel_settings</span>Admin</button>
@@ -1013,10 +1019,10 @@
       <div id="task-table-wrap"></div>
     </section>
 
-    <!-- ====== Habits (was Log) ====== -->
-    <section id="view-habits" class="view">
+    <!-- ====== Logs ====== -->
+    <section id="view-logs" class="view">
       <div class="view-header">
-        <h1>Habits</h1>
+        <h1>Logs</h1>
         <p>Your time log, by day, task, or label.</p>
       </div>
 
@@ -1202,7 +1208,7 @@
   <nav class="bottom-nav">
     <button class="nav-item active" data-view="dashboard"><span class="material-icons">dashboard</span>Dashboard</button>
     <button class="nav-item" data-view="tasks"><span class="material-icons">checklist</span>Tasks</button>
-    <button class="nav-item" data-view="habits"><span class="material-icons">cached</span>Habits</button>
+    <button class="nav-item" data-view="logs"><span class="material-icons">history</span>Logs</button>
     <button class="nav-item" data-view="stats"><span class="material-icons">bar_chart</span>Stats</button>
     <button class="nav-item" data-view="reports"><span class="material-icons">description</span>Reports</button>
     <button class="nav-item hidden" data-view="admin" id="nav-admin-mobile"><span class="material-icons">admin_panel_settings</span>Admin</button>
@@ -1349,6 +1355,33 @@
         <button type="button" class="ac-btn-secondary" data-modal-close>Cancelar</button>
         <button type="submit" form="form-edit-sheet" class="ac-btn-primary">Guardar cambios</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit task modal (rename + relabel from the pencil icon in each card) -->
+<div class="ac-modal" id="edit-task-modal" hidden>
+  <div class="ac-modal-overlay" data-modal-close></div>
+  <div class="ac-modal-card" role="dialog" aria-modal="true" aria-labelledby="edit-task-title">
+    <div class="ac-modal-header">
+      <h2 id="edit-task-title">Editar tarea</h2>
+      <button class="ac-icon-btn" data-modal-close aria-label="Cerrar"><span class="material-icons">close</span></button>
+    </div>
+    <form id="form-edit-task" class="ac-modal-body">
+      <input type="hidden" id="et-id">
+      <div>
+        <label for="et-name">Nombre</label>
+        <input type="text" id="et-name" required maxlength="120">
+      </div>
+      <div>
+        <label for="et-label">Etiqueta</label>
+        <select id="et-label"></select>
+      </div>
+    </form>
+    <div class="ac-modal-actions">
+      <div class="ac-modal-spacer"></div>
+      <button type="button" class="ac-btn-secondary" data-modal-close>Cancelar</button>
+      <button type="submit" form="form-edit-task" class="ac-btn-primary">Guardar</button>
     </div>
   </div>
 </div>
@@ -1786,7 +1819,7 @@ function togglePw(btn) {
   btn.setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
 }
 
-const VIEWS = ['dashboard','tasks','habits','stats','reports','admin','account'];
+const VIEWS = ['dashboard','tasks','logs','stats','reports','admin','account'];
 
 function bindNav() {
   $$('.nav-item').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
@@ -1817,7 +1850,7 @@ function showView(name) {
   $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   $$('.view').forEach(v => v.classList.toggle('active', v.id === `view-${name}`));
   if (name === 'dashboard') renderDashboard();
-  if (name === 'habits')    renderHabits();
+  if (name === 'logs')    renderLogs();
   if (name === 'tasks')     renderTasksView();
   if (name === 'stats')     renderStats();
   if (name === 'reports')   renderReports();
@@ -1829,10 +1862,10 @@ function bindGlobal() {
   $('#stop-btn').addEventListener('click', onStop);
   $('#manual-form').addEventListener('submit', onManualSubmit);
   $('#task-form').addEventListener('submit', onTaskCreate);
-  ['log-from','log-to','log-task','log-label','log-group'].forEach(id => $('#'+id).addEventListener('change', renderHabits));
+  ['log-from','log-to','log-task','log-label','log-group'].forEach(id => $('#'+id).addEventListener('change', renderLogs));
   $('#log-clear').addEventListener('click', () => {
     ['log-from','log-to','log-task','log-label'].forEach(id => $('#'+id).value = '');
-    renderHabits();
+    renderLogs();
   });
   ['stats-range','stats-group','stats-anchor'].forEach(id => $('#'+id).addEventListener('change', renderStats));
   $('#timer-label-filter').addEventListener('change', populateTimerTaskSelect);
@@ -1850,7 +1883,7 @@ function refreshAll() {
   populateTimerTaskSelect();
   populateTaskSelect($('#manual-task'));
   renderActiveCard();
-  renderHabits();
+  renderLogs();
   renderDashboard();
 }
 
@@ -1869,7 +1902,7 @@ async function onStop() {
   state.entries = await call('getEntries');
   if ($('#view-dashboard').classList.contains('active')) renderDashboard();
   if ($('#view-tasks').classList.contains('active'))    renderTasksView();
-  if ($('#view-habits').classList.contains('active'))    renderHabits();
+  if ($('#view-logs').classList.contains('active'))    renderLogs();
   if ($('#view-stats').classList.contains('active'))     renderStats();
 }
 function startTicker() {
@@ -1931,8 +1964,8 @@ function renderActiveCard() {
   }
 }
 
-// ==== Habits (was Log) ====
-function renderHabits() {
+// ==== Logs ====
+function renderLogs() {
   populateTaskSelect($('#log-task'), 'All tasks');
   populateLabelSelect($('#log-label'), 'All labels');
   // defaults: last 30 days (local dates so they line up with entry timestamps)
@@ -2022,7 +2055,7 @@ function renderHabits() {
   $$('#log-summary .del').forEach(b => b.onclick = async () => {
     if (!await showConfirm('Eliminar entrada', '¿Eliminar esta entrada de tiempo? Esta acción no se puede deshacer.', 'Eliminar')) return;
     state.entries = await call('deleteEntry', b.dataset.id);
-    renderHabits();
+    renderLogs();
   });
   $$('#log-summary .grp-hdr').forEach(hdr => hdr.onclick = () => {
     const gid = hdr.dataset.gid;
@@ -2044,7 +2077,7 @@ async function onManualSubmit(e) {
     await call('createEntry', { taskId, startTime: parseLocalInput(start).toISOString(), endTime: parseLocalInput(end).toISOString(), source: 'manual', notes });
     e.target.reset();
     state.entries = await call('getEntries');
-    renderHabits();
+    renderLogs();
   } catch (err) { alert(err.message); }
 }
 
@@ -2096,14 +2129,13 @@ async function renderTasksView() {
     const entries = byTask[t.id] || [];
     const total = entries.reduce((s,e) => s + Number(e.durationMinutes || 0), 0);
     const labelObj = lid ? labelById(lid) : null;
-    const labelTag = labelObj ? `<span class="chip" style="background:${labelObj.color}">${escapeHtml(labelObj.name)}</span>` : '';
-    const labelOpts = `<option value="">—</option>` + state.labels.map(l => `<option value="${l.id}" ${l.id===lid?'selected':''}>${escapeHtml(l.name)}</option>`).join('');
+    const labelTag = labelObj ? `<span class="chip" style="background:${labelObj.color}">${escapeHtml(labelObj.name)}</span>` : '<span class="chip" style="background:var(--surface-low);color:var(--on-surface-variant);border:1px dashed var(--outline-variant);">Sin etiqueta</span>';
     html += `<div class="task-card${state.activeTimer && state.activeTimer.taskId === t.id ? ' active' : ''}" data-tid="${t.id}">
       <div class="task-info">
         <div class="task-name"><input data-id="${t.id}" class="edit-name" value="${escapeHtml(t.name)}"></div>
         <div class="task-meta">
           ${labelTag}
-          <select data-id="${t.id}" class="edit-label" title="Change label">${labelOpts}</select>
+          <button class="task-edit-btn" data-id="${t.id}" title="Editar tarea" aria-label="Editar tarea"><span class="material-icons">edit</span></button>
           <span>· ${entries.length} entr${entries.length===1?'y':'ies'}</span>
         </div>
         <div class="task-entries" id="task-entries-${t.id}" style="display:none; margin-top:10px;"></div>
@@ -2141,24 +2173,20 @@ async function renderTasksView() {
   $$('#task-table-wrap .del-btn').forEach(b => b.onclick = async () => {
     if (!await showConfirm('Eliminar tarea', '¿Eliminar esta tarea? Las entradas pasadas se conservan pero se muestran como "(deleted)".', 'Eliminar')) return;
     state.tasks = await call('deleteTask', b.dataset.id);
-    renderTasksView(); renderHabits(); refreshAll();
+    renderTasksView(); renderLogs(); refreshAll();
   });
   $$('#task-table-wrap .edit-name').forEach(inp => inp.onchange = async () => {
     state.tasks = await call('updateTask', inp.dataset.id, { name: inp.value });
     renderTasksView(); refreshAll();
   });
-  $$('#task-table-wrap .edit-label').forEach(sel => sel.onchange = async () => {
-    state.tasks = await call('updateTask', sel.dataset.id, { labelId: sel.value });
-    renderTasksView(); renderHabits();
-  });
+  $$('#task-table-wrap .task-edit-btn').forEach(b => b.onclick = () => openEditTaskModal(b.dataset.id));
   // click card body to toggle entries
   $$('#task-table-wrap .task-card').forEach(card => {
     const tid = card.dataset.tid;
     const row = $(`#task-entries-${tid}`);
     const inp = card.querySelector('.edit-name');
-    const sel = card.querySelector('.edit-label');
     if (row) card.querySelector('.task-info').addEventListener('click', e => {
-      if (e.target === inp || e.target === sel) return;
+      if (e.target === inp || e.target.closest('.task-edit-btn')) return;
       const shown = row.style.display !== 'none';
       row.style.display = shown ? 'none' : 'block';
     });
@@ -2836,6 +2864,35 @@ function openEditUserModal(username) {
 }
 function closeEditUserModal() { $('#edit-user-modal').hidden = true; }
 
+// === Edit task modal (opens from the pencil icon in each task card) ===
+function openEditTaskModal(tid) {
+  const t = taskById(tid);
+  if (!t) return;
+  $('#et-id').value = tid;
+  $('#et-name').value = t.name;
+  populateLabelSelect($('#et-label'), '— sin etiqueta —');
+  $('#et-label').value = t.labelId || '';
+  $('#edit-task-modal').hidden = false;
+  setTimeout(() => $('#et-name').focus(), 50);
+}
+function closeEditTaskModal() { $('#edit-task-modal').hidden = true; }
+
+async function onEditTaskSubmit(ev) {
+  ev.preventDefault();
+  const tid = $('#et-id').value;
+  const t = taskById(tid);
+  if (!t) return;
+  const name = $('#et-name').value.trim();
+  const labelId = $('#et-label').value;
+  if (!name) return;
+  try {
+    if (t.name !== name) state.tasks = await call('updateTask', tid, { name });
+    if ((t.labelId || '') !== labelId) state.tasks = await call('updateTask', tid, { labelId });
+    closeEditTaskModal();
+    renderTasksView(); renderLogs(); refreshAll();
+  } catch (e) { toast(e.message, 'warn'); }
+}
+
 async function onEditUserSubmit(ev) {
   ev.preventDefault();
   const username = $('#eu-username').value;
@@ -2927,12 +2984,17 @@ function bindAdmin() {
     if (!$('#edit-user-modal').hidden)     closeEditUserModal();
     if (!$('#edit-sheet-modal').hidden)    closeEditSheetModal();
     if (!$('#view-sheet-id-modal').hidden) closeSheetIdModal();
+    if (!$('#edit-task-modal').hidden)     closeEditTaskModal();
   });
 
   // Edit sheet modal
   $$('#edit-sheet-modal [data-modal-close]').forEach(el => el.addEventListener('click', closeEditSheetModal));
   $('#form-edit-sheet').addEventListener('submit', onEditSheetSubmit);
   $('#es-delete').addEventListener('click', onEditSheetDelete);
+
+  // Edit task modal (pencil icon in each task card)
+  $$('#edit-task-modal [data-modal-close]').forEach(el => el.addEventListener('click', closeEditTaskModal));
+  $('#form-edit-task').addEventListener('submit', onEditTaskSubmit);
 
   // Sheet ID viewer modal
   $$('#view-sheet-id-modal [data-modal-close]').forEach(el => el.addEventListener('click', closeSheetIdModal));
