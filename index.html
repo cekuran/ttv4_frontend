@@ -84,9 +84,14 @@
   .task-total { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
   .task-total.zero { color: var(--outline); font-weight: normal; }
   tr.task-entries > td { background: var(--surface-low); padding: 4px 14px 14px; }
-  table.entries-sub { width: 100%; border-collapse: collapse; }
-  table.entries-sub th, table.entries-sub td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--outline-variant); font-size: 13px; }
+  .task-card .task-entries { min-width: 0; }
+  table.entries-sub { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  table.entries-sub th, table.entries-sub td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--outline-variant); font-size: 13px; overflow-wrap: anywhere; }
   table.entries-sub th { color: var(--on-surface-variant); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  table.entries-sub th:nth-child(1) { width: 32%; }
+  table.entries-sub th:nth-child(2) { width: 18%; }
+  table.entries-sub th:nth-child(3) { width: 18%; }
+  table.entries-sub th:nth-child(4) { width: 32%; }
   table.entries-sub tr:last-child td { border-bottom: 0; }
   table.entries-sub .none { color: var(--outline); }
   /* numerics in tables — keep digits aligned */
@@ -599,17 +604,19 @@
   .quickstart-form select { flex: 1; min-width: 200px; }
   .quickstart-form button { width: auto; }
 
-  .up-next { background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); padding: 18px 20px; box-shadow: var(--shadow-1); }
-  .up-next h3 { margin: 0 0 12px; font-size: 12px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
-  .up-next .row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--surface-low); }
-  .up-next .row:last-child { border-bottom: 0; }
-  .up-next .row.active { background: rgba(0,108,77,0.06); border-radius: var(--r-md); padding-left: 10px; margin-left: -10px; padding-right: 10px; margin-right: -10px; }
-  .up-next .row-stop-btn { width: 32px; height: 32px; border-radius: 50%; background: var(--secondary); color: var(--on-secondary); border: 0; cursor: pointer; flex-shrink: 0; position: relative; transition: background-color .2s; }
-  .up-next .row-stop-btn:hover { background: #005a40; }
-  .up-next .row-stop-btn::after { content: ''; position: absolute; top: 50%; left: 50%; width: 11px; height: 11px; background: currentColor; transform: translate(-50%, -50%); clip-path: polygon(18% 18%, 82% 18%, 82% 82%, 18% 82%); }
-  .up-next .row .name { flex: 1; font-weight: 500; font-size: 14px; }
-  .up-next .row .time { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 13px; color: var(--on-surface-variant); font-variant-numeric: tabular-nums; }
-  .up-next .empty-row { color: var(--outline); font-size: 13px; padding: 8px 0; }
+  .activity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .activity-panel { background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); padding: 18px 20px; box-shadow: var(--shadow-1); }
+  .activity-panel h3 { margin: 0 0 4px; font-size: 12px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+  .activity-panel .activity-total { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 24px; font-weight: 700; color: var(--on-surface); margin-bottom: 14px; font-variant-numeric: tabular-nums; }
+  .activity-panel h4 { margin: 14px 0 6px; font-size: 11px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+  .activity-panel h4:first-of-type { margin-top: 0; }
+  .activity-panel .row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--surface-low); font-size: 13px; }
+  .activity-panel .row:last-child { border-bottom: 0; }
+  .activity-panel .row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .activity-panel .row .time { font-family: 'JetBrains Mono', ui-monospace, monospace; color: var(--on-surface-variant); font-variant-numeric: tabular-nums; }
+  .activity-panel .empty-row { color: var(--outline); font-size: 13px; padding: 4px 0; }
+  .activity-panel .row.active { background: rgba(0,108,77,0.06); border-radius: var(--r-md); padding-left: 8px; margin-left: -8px; padding-right: 8px; margin-right: -8px; }
+  .activity-panel .row.active .time { color: var(--secondary); font-weight: 600; }
 
   /* === Task cards === */
   .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -772,14 +779,9 @@
     .chip-filter { padding: 6px 14px; font-size: 13px; }
     .chip-filter .dot { width: 8px; height: 8px; }
     .chip { font-size: 12px; padding: 3px 12px; }
-    .up-next { padding: 18px; }
-    .up-next h3 { font-size: 12px; margin-bottom: 12px; }
-    .up-next .row { gap: 12px; padding: 10px 0; }
-    .up-next .row .name { font-size: 14px; }
-    .up-next .row .time { font-size: 13px; }
-    .up-next .row.active { padding-left: 10px; margin-left: -10px; padding-right: 10px; margin-right: -10px; }
-    .up-next .row-stop-btn { width: 32px; height: 32px; }
-    .up-next .row-stop-btn::after { width: 11px; height: 11px; }
+    .activity-grid { grid-template-columns: 1fr; gap: 12px; }
+    .activity-panel { padding: 16px 18px; }
+    .activity-panel .activity-total { font-size: 22px; margin-bottom: 10px; }
     .format-toggle { width: 100%; }
     .format-toggle button { flex: 1; font-size: 13px; padding: 8px 16px; }
     .download-btn { width: 100%; font-size: 14px; padding: 10px 20px; }
@@ -1016,9 +1018,9 @@
         </div>
       </div>
 
-      <div class="up-next" id="up-next">
-        <h3>Up next · top tasks</h3>
-        <div id="up-next-list"></div>
+      <div class="activity-grid">
+        <div class="activity-panel" id="activity-week"></div>
+        <div class="activity-panel" id="activity-day"></div>
       </div>
     </section>
 
@@ -1946,12 +1948,30 @@ function tick() {
     $('#stat-time-today').textContent = fmtHMS((todayBaseMinutes() + liveMin) * 60000);
     $('#stat-time-today-sub').textContent = '+ live session';
   }
-  // ponytail: tick the active task's row in "Up next" if it appears there
-  const upTime = document.querySelector(`#up-next-list .row[data-tid="${state.activeTimer.taskId}"] .time`);
-  if (upTime) {
-    const wkMin = Number(upTime.dataset.wkMin) || 0;
-    upTime.textContent = fmtHMS((wkMin + ms / 60000) * 60000);
-  }
+  // ponytail: tick the activity panels (day + week) with the running session
+  const liveMin = ms / 60000;
+  const activeLid = taskLabelId(state.activeTimer.taskId) || '';
+  const tickPanel = (host, inRange) => {
+    if (!host) return;
+    const add = inRange ? liveMin : 0;
+    const totalEl = host.querySelector('.activity-total');
+    if (totalEl) {
+      const base = Number(totalEl.dataset.baseMin) || 0;
+      totalEl.textContent = fmtHMS((base + add) * 60000);
+    }
+    const taskRow = host.querySelector(`.row[data-tid="${state.activeTimer.taskId}"]`);
+    if (taskRow) {
+      const tEl = taskRow.querySelector('.time');
+      if (tEl) tEl.textContent = fmtHM((Number(taskRow.dataset.baseMin) || 0) + add);
+    }
+    const labelRow = host.querySelector(`.row[data-lid="${activeLid}"]`);
+    if (labelRow) {
+      const tEl = labelRow.querySelector('.time');
+      if (tEl) tEl.textContent = fmtHM((Number(labelRow.dataset.baseMin) || 0) + add);
+    }
+  };
+  tickPanel($('#activity-day'),  start >= todayStart);
+  tickPanel($('#activity-week'), start.getTime() >= weekStartMs());
   // ponytail: tick the active task's card in Tasks view (if rendered)
   const liveEl = document.querySelector(`.task-total[data-tid="${state.activeTimer.taskId}"] .task-live`);
   if (liveEl) {
@@ -1973,6 +1993,12 @@ function todayBaseMinutes() {
   return state.entries
     .filter(e => { const d = new Date(e.startTime); return d >= todayStart && d < todayEnd; })
     .reduce((s, e) => s + Number(e.durationMinutes || 0), 0);
+}
+// ponytail: rangeStart is midnight of the Monday of the current ISO week (Mon=0).
+function weekStartMs() {
+  const d = new Date(); d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d.getTime();
 }
 function renderActiveCard() {
   const card = $('#active-card');
@@ -2221,13 +2247,12 @@ async function renderTasksView() {
     const wrap = $(`#task-entries-${t.id}`);
     if (!wrap) return;
     if (!entries.length) { wrap.innerHTML = `<div style="color:var(--outline); font-size:13px; padding:6px 0;">No entries logged yet.</div>`; return; }
-    wrap.innerHTML = `<table class="entries-sub"><thead><tr><th>Date</th><th>Start</th><th>End</th><th>Duration</th><th>Notes</th></tr></thead><tbody>` +
+    wrap.innerHTML = `<table class="entries-sub"><thead><tr><th>Date</th><th>Start</th><th>End</th><th>Duration</th></tr></thead><tbody>` +
       entries.map(e => `<tr>
         <td>${fmtDate(e.startTime)}</td>
         <td>${fmtTime(e.startTime)}</td>
         <td>${fmtTime(e.endTime)}</td>
         <td><b>${fmtHM(Number(e.durationMinutes))}</b></td>
-        <td style="color:var(--on-surface-variant);">${escapeHtml(e.notes || '')}</td>
       </tr>`).join('') + `</tbody></table>`;
   });
 
@@ -2451,29 +2476,48 @@ function renderDashboard() {
   $('#stat-tasks-today').textContent    = todayTasks;
   $('#stat-entries-today').textContent  = todayCount;
 
-  // Up next: top 5 tasks by all-time total (matches Tasks view totals)
-  const taskTotals = new Map();
-  state.entries.forEach(e => {
-    taskTotals.set(e.taskId, (taskTotals.get(e.taskId) || 0) + Number(e.durationMinutes||0));
-  });
-  const top5 = [...taskTotals.entries()].sort((a,b) => b[1]-a[1]).slice(0,5);
-  const list = $('#up-next-list');
-  if (top5.length === 0) {
-    list.innerHTML = `<div class="empty-row">No time logged yet.</div>`;
-  } else {
-    list.innerHTML = top5.map(([tid, min]) => {
-      const lid = taskLabelId(tid);
-      const tag = lid ? `<span class="chip" style="background:${labelColor(lid)}">${escapeHtml(labelName(lid))}</span>` : '';
-      const isActive = state.activeTimer && state.activeTimer.taskId === tid;
-      const stopBtn = isActive ? `<button class="row-stop-btn" data-tid="${tid}" title="Stop timer" aria-label="Stop timer"></button>` : '';
-      return `<div class="row${isActive ? ' active' : ''}" data-tid="${tid}"><div class="name">${escapeHtml(taskName(tid))} ${tag}</div><div class="time" data-wk-min="${min}">${fmtHMS(min * 60000)}</div>${stopBtn}</div>`;
-    }).join('');
-    $$('.row-stop-btn').forEach(b => b.onclick = onStop);
-  }
+  // Actividad del día / de la semana: total + breakdown por tarea y por etiqueta
+  renderActivityPanel($('#activity-day'),  'Actividad del día', todayEntries);
+  const weekStart = new Date(todayStart); weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7)); // ponytail: Monday=0
+  const weekEntries = state.entries.filter(e => new Date(e.startTime) >= weekStart);
+  renderActivityPanel($('#activity-week'), 'Actividad de la semana', weekEntries);
 
   // Populate quickstart
   populateLabelSelect($('#timer-label-filter'), 'All labels');
   populateTimerTaskSelect();
+}
+
+function renderActivityPanel(host, title, entries) {
+  const totalMin = entries.reduce((s,e) => s + Number(e.durationMinutes||0), 0);
+  const taskTotals = new Map(), labelTotals = new Map();
+  entries.forEach(e => {
+    taskTotals.set(e.taskId, (taskTotals.get(e.taskId) || 0) + Number(e.durationMinutes||0));
+    const lid = taskLabelId(e.taskId) || '';
+    labelTotals.set(lid, (labelTotals.get(lid) || 0) + Number(e.durationMinutes||0));
+  });
+  // ponytail: si hay timer activo, la tarea/etiqueta en curso debe verse aunque no tenga entradas en el periodo
+  const activeTid = state.activeTimer && state.activeTimer.taskId;
+  const activeLid = activeTid ? (taskLabelId(activeTid) || '') : '';
+  if (activeTid && !taskTotals.has(activeTid)) taskTotals.set(activeTid, 0);
+  if (state.activeTimer && !labelTotals.has(activeLid)) labelTotals.set(activeLid, 0);
+  const taskRows = [...taskTotals.entries()]
+    .sort((a,b) => b[1]-a[1])
+    .map(([tid, min]) => {
+      const lid = taskLabelId(tid);
+      const tag = lid ? `<span class="chip" style="background:${labelColor(lid)}">${escapeHtml(labelName(lid))}</span>` : '';
+      const cls = tid === activeTid ? ' active' : '';
+      return `<div class="row${cls}" data-tid="${tid}" data-base-min="${min}"><div class="name">${escapeHtml(taskName(tid))} ${tag}</div><div class="time">${fmtHM(min)}</div></div>`;
+    }).join('') || `<div class="empty-row">Sin registros.</div>`;
+  const labelRows = [...labelTotals.entries()]
+    .sort((a,b) => b[1]-a[1])
+    .map(([lid, min]) => {
+      const name = lid ? labelName(lid) : 'Sin etiqueta';
+      const color = lid ? labelColor(lid) : 'var(--outline)';
+      const chip = `<span class="chip" style="background:${color}">${escapeHtml(name)}</span>`;
+      const cls = lid === activeLid ? ' active' : '';
+      return `<div class="row${cls}" data-lid="${lid}" data-base-min="${min}"><div class="name">${chip}</div><div class="time">${fmtHM(min)}</div></div>`;
+    }).join('') || `<div class="empty-row">Sin registros.</div>`;
+  host.innerHTML = `<h3>${title}</h3><div class="activity-total" data-base-min="${totalMin}">${fmtHMS(totalMin * 60000)}</div><h4>Tareas</h4>${taskRows}<h4>Etiquetas</h4>${labelRows}`;
 }
 
 // ==== Reports ====
