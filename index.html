@@ -790,6 +790,24 @@
     #log-table td.log-task { white-space: normal; overflow-wrap: anywhere; text-align: right; }
     #log-table td[data-label=""]::before { content: none; }
     #log-table td:last-child { justify-content: flex-end; padding-top: 6px; }
+    /* ponytail: stats totals + reports preview also become cards on mobile — same pattern as #log-table */
+    #stats-totals table.data, #stats-totals table.data thead, #stats-totals table.data tbody, #stats-totals table.data tr,
+    #report-preview .preview-table > table, #report-preview .preview-table > table thead, #report-preview .preview-table > table tbody, #report-preview .preview-table > table tr { display: block; }
+    #stats-totals table.data, #report-preview .preview-table > table { background: transparent; padding: 0; box-shadow: none; border: 0; overflow: visible; white-space: normal; }
+    #stats-totals table.data thead, #report-preview .preview-table > table thead { display: none; }
+    #stats-totals table.data tbody tr, #report-preview .preview-table > table tbody tr {
+      border: 1px solid var(--outline-variant); border-radius: var(--r-md);
+      margin-bottom: 8px; padding: 8px 12px; background: #fff;
+    }
+    #stats-totals table.data td, #report-preview .preview-table > table td {
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      padding: 4px 0; border: 0; white-space: normal; font-size: 13px;
+    }
+    #stats-totals table.data td::before, #report-preview .preview-table > table td::before {
+      content: attr(data-label); color: var(--on-surface-variant); font-size: 11px;
+      text-transform: uppercase; letter-spacing: 0.04em; flex: 0 0 auto;
+    }
+    #report-preview .preview-table > table td[data-label="Duration"] { justify-content: flex-end; }
     .task-card { flex-wrap: wrap; padding: 14px; gap: 8px 10px; }
     /* ponytail: title + meta own the full first row — single-line clamp keeps long titles from breaking the card */
     .task-card .task-info { flex: 1 1 100%; min-width: 0; }
@@ -2516,10 +2534,11 @@ function renderStats() {
   }
 
   const sorted = [...byGroup.entries()].sort((a,b) => b[1]-a[1]);
+  const nameLabel = groupBy === 'task' ? 'Task' : 'Label';
   let totalsHtml = `<div class="panel"><b>Total: ${fmtHM(totalMin)}</b> · ${sessions} session${sessions===1?'':'s'}</div>`;
-  totalsHtml += `<table class="data"><thead><tr><th>${groupBy==='task'?'Task':'Label'}</th><th>Total</th></tr></thead><tbody>`;
+  totalsHtml += `<table class="data"><thead><tr><th>${nameLabel}</th><th>Total</th></tr></thead><tbody>`;
   sorted.forEach(([k,v]) => {
-    totalsHtml += `<tr><td>${escapeHtml(k)}</td><td><b>${fmtHM(v)}</b></td></tr>`;
+    totalsHtml += `<tr><td data-label="${nameLabel}">${escapeHtml(k)}</td><td data-label="Total"><b>${fmtHM(v)}</b></td></tr>`;
   });
   totalsHtml += '</tbody></table>';
   $('#stats-totals').innerHTML = totalsHtml;
@@ -2761,10 +2780,12 @@ function renderReports() {
   const table = `<div class="preview-table"><table>
     <thead><tr><th>Date</th><th>Start</th><th>End</th><th>Task</th><th>Label</th><th>Duration</th></tr></thead>
     <tbody>${preview.map(r => `<tr>
-      <td>${r.date}</td><td>${r.start}</td><td>${r.end}</td>
-      <td>${escapeHtml(r.task)}</td>
-      <td>${r.label ? `<span class="chip" style="background:${r.labelColor}">${escapeHtml(r.label)}</span>` : '—'}</td>
-      <td><b>${fmtHM(r.min)}</b></td>
+      <td data-label="Date">${r.date}</td>
+      <td data-label="Start">${r.start}</td>
+      <td data-label="End">${r.end}</td>
+      <td data-label="Task">${escapeHtml(r.task)}</td>
+      <td data-label="Label">${r.label ? `<span class="chip" style="background:${r.labelColor}">${escapeHtml(r.label)}</span>` : '—'}</td>
+      <td data-label="Duration"><b>${fmtHM(r.min)}</b></td>
     </tr>`).join('')}</tbody></table></div>`;
   const more = rows.length > 20 ? `<div style="text-align:center; color:var(--outline); font-size:13px; margin-top:8px;">Showing 20 of ${rows.length}. Download to see all.</div>` : '';
   $('#report-preview').innerHTML = head + table + more;
