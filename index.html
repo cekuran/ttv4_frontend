@@ -132,21 +132,24 @@
     width: 240px; flex-shrink: 0; background: #fff;
     border-right: 1px solid var(--outline-variant);
     padding: 24px 16px; display: flex; flex-direction: column; gap: 4px;
-    position: fixed; top: 64px; bottom: 0; left: 0; z-index: 5;
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 5;
   }
   .brand {
     display: flex; align-items: center; gap: 10px;
-    padding: 4px 12px 24px; margin-bottom: 12px;
+    padding: 0 12px 8px; margin-bottom: 0;
     border-bottom: 1px solid var(--outline-variant);
   }
   .brand-logo {
-    width: 32px; height: 32px; border-radius: 8px;
+    width: 32px; height: 32px; border-radius: 50%;
     background: linear-gradient(135deg, var(--primary), var(--primary-container));
     display: flex; align-items: center; justify-content: center;
     color: var(--on-primary); font-weight: 700; font-size: 14px;
+    cursor: pointer; user-select: none;
   }
-  .brand-name { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
-  .brand-sub  { font-size: 11px; color: var(--outline); font-weight: 500; }
+  .brand-logo:hover { box-shadow: 0 0 0 3px rgba(16,43,138,0.16); }
+  .brand-logo:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .brand-name { font-weight: 700; font-size: 17px; line-height: 1.1; letter-spacing: -0.01em; } /* ponytail: line-height corto — el brand no necesita la 1.5 del body */
+  .brand-sub  { font-size: 11px; color: var(--outline); font-weight: 500; line-height: 1.2; }
   .brand-actions { margin-left: auto; display: flex; gap: 4px; }
   .icon-btn {
     width: 32px; height: 32px; padding: 0; border-radius: 8px;
@@ -155,6 +158,24 @@
     display: inline-flex; align-items: center; justify-content: center;
   }
   .icon-btn:hover { background: var(--surface-low); color: var(--primary); }
+  .sidebar-timer {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    background: linear-gradient(135deg, var(--primary), var(--primary-container));
+    color: var(--on-primary); border: 0;
+    padding: 12px; border-radius: var(--r-md); margin-bottom: 8px;
+    text-align: left; cursor: pointer;
+    box-shadow: var(--shadow-1);
+  }
+  .sidebar-timer[hidden] { display: none; }
+  .sidebar-timer:hover { box-shadow: var(--shadow-2); }
+  .sidebar-timer:focus-visible { outline: 2px solid var(--on-primary-cnt); outline-offset: 2px; }
+  .sidebar-timer .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--secondary); box-shadow: 0 0 0 3px rgba(0,108,77,0.30); animation: pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
+  .sidebar-timer .info { flex: 1; min-width: 0; }
+  .sidebar-timer .info .name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sidebar-timer .info .elapsed { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; color: var(--on-primary-cnt); font-weight: 500; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .sidebar-timer .stop-btn { width: 28px; height: 28px; padding: 0; border-radius: 50%; background: rgba(255,255,255,0.18); color: var(--on-primary); border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .sidebar-timer .stop-btn:hover { background: rgba(255,255,255,0.32); }
+  .sidebar-timer .stop-btn .material-icons { font-size: 16px; line-height: 1; }
   #log-table tr.live-row { background: rgba(0,108,77,0.06); }
   #log-table tr.live-row td { border-bottom-color: rgba(0,108,77,0.20); }
   #log-table tr.live-row .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--secondary); box-shadow: 0 0 0 3px rgba(0,108,77,0.25); animation: pulse 1.6s ease-in-out infinite; margin-right: 6px; vertical-align: middle; }
@@ -517,6 +538,24 @@
   .ac-modal-delete:hover { background: rgba(186, 26, 26, 0.08); }
   .ac-modal-delete .material-icons { font-size: 16px; line-height: 1; }
 
+  /* === Timer details modal — uses .active-card as the card itself === */
+  .active-card.timer-modal-card {
+    position: relative;
+    margin: 0; max-width: 520px; width: 100%;
+    padding: 22px 24px;
+  }
+  .active-card.timer-modal-card .timer-details-close {
+    position: absolute; top: 8px; right: 8px;
+    color: rgba(255,255,255,0.85);
+    background: rgba(255,255,255,0.10);
+    border-radius: 50%;
+  }
+  .active-card.timer-modal-card .timer-details-close:hover { background: rgba(255,255,255,0.22); color: white; }
+  .active-card.timer-modal-card .info .meta {
+    font-size: 12px; opacity: 0.78; margin-top: 4px;
+    text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500;
+  }
+
   .ac-btn-danger {
     background: var(--error); color: var(--on-primary);
     border: 0; padding: 0 16px; border-radius: var(--r-sm);
@@ -604,7 +643,7 @@
 
   .bottom-nav { display: none; }
 
-  main { margin-left: 240px; flex: 1; padding: 76px 40px 28px; }
+  main { margin-left: 240px; flex: 1; padding: 28px 40px 28px; } /* ponytail: default sin espacio para banner (sólo mobile lo necesita) */
   .view-header { margin-bottom: 24px; }
   .view-header h1 { font-size: 28px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.01em; }
   .view-header p  { color: var(--on-surface-variant); font-size: 14px; margin: 0; }
@@ -691,9 +730,10 @@
   .preview-table tr:last-child td { border-bottom: 0; }
   .preview-table td b { font-family: 'JetBrains Mono', ui-monospace, monospace; }
 
-  /* === Top bar — Stitch-style app-bar with avatar dropdown (visible on all screens) === */
+  /* === Top bar — sólo vive en mobile (default oculto, se muestra dentro del @media mobile) === */
   .mobile-top {
-    display: flex; align-items: center; justify-content: flex-end;
+    display: none; /* ponytail: invertir default — antes mostraba en desktop y se ocultaba con override */
+    align-items: center; justify-content: flex-end;
     position: fixed; top: 0; left: 0; right: 0; z-index: 110;
     padding: 12px 24px;
     background: rgba(255,255,255,0.92);
@@ -701,7 +741,19 @@
     -webkit-backdrop-filter: saturate(180%) blur(12px);
     border-bottom: 1px solid var(--outline-variant);
   }
-  .mobile-top-brand { display: none; }  /* desktop: sidebar ya tiene la marca; mobile: se muestra en @media */
+  .mobile-top-timer {
+    display: none; align-items: center; gap: 6px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-container));
+    color: var(--on-primary); border: 0;
+    padding: 6px 12px; border-radius: 9999px;
+    font: 500 12px/1 'Inter', sans-serif;
+    cursor: pointer; font-family: inherit;
+    margin-right: auto;
+    box-shadow: var(--shadow-1);
+  }
+  .mobile-top-timer[hidden] { display: none; }
+  .mobile-top-timer .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--secondary); box-shadow: 0 0 0 2px rgba(0,108,77,0.30); animation: pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
+  .mobile-top-timer .elapsed { font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 600; font-variant-numeric: tabular-nums; }
   .avatar-btn {
     width: 40px; height: 40px; border-radius: 50%;
     background: linear-gradient(135deg, var(--primary), var(--primary-container));
@@ -714,10 +766,11 @@
   .avatar-btn:hover { transform: scale(1.05); }
   .avatar-btn:active { transform: scale(0.97); }
   .user-menu {
-    position: absolute; top: calc(100% + 6px); right: 24px;
+    position: fixed; /* ponytail: anclado por JS al trigger (avatar en mobile, brand en desktop) */
     min-width: 240px; padding: 6px 0;
     background: #fff; border: 1px solid var(--outline-variant);
     border-radius: var(--r-md); box-shadow: var(--shadow-2);
+    z-index: 150;
   }
   .user-menu[hidden] { display: none; }
   .user-menu-info { padding: 12px 16px; border-bottom: 1px solid var(--outline-variant); }
@@ -736,12 +789,11 @@
   /* === Mobile/Tablet (≤1280px) — Stitch-like 390px viewport === */
   @media (max-width: 1280px) {
     .mobile-top {
+      display: flex;
       padding: 12px 16px calc(12px + env(safe-area-inset-top));
       padding-top: max(12px, env(safe-area-inset-top));
     }
-    .mobile-top-brand {
-      display: block; font-weight: 700; font-size: 17px; letter-spacing: -0.01em; color: var(--on-surface);
-    }
+    .mobile-top-timer { display: inline-flex; }
     .user-menu { right: 16px; }
     body { font-size: 15px; }
     .sidebar { display: none; }
@@ -915,6 +967,9 @@
   }
   /* === Desktop: sheets table usa layout automático — el ID se ve completo === */
   @media (min-width: 1281px) {
+    .mobile-top { display: none !important; } /* ponytail: banner sólo vive en mobile */
+    .sidebar { padding-top: 0; } /* ponytail: sin banner, el sidebar sube al tope */
+    main { padding-top: 28px; }             /* ponytail: sin banner, recuperamos el padding */
     .ac-table-sheets tbody td:nth-child(1) .ac-user-name,
     .ac-table-sheets tbody td:nth-child(1) .ac-user-meta {
       overflow: visible;
@@ -1006,7 +1061,7 @@
 <div class="app" id="app" hidden>
   <aside class="sidebar">
     <div class="brand">
-      <div class="brand-logo">T</div>
+      <div class="brand-logo" id="brand-avatar-initial" role="button" tabindex="0" aria-label="Menú de usuario" aria-haspopup="menu" aria-expanded="false">T</div>
       <div>
         <div class="brand-name">TaskTime</div>
         <div class="brand-sub" id="brand-user">—</div>
@@ -1014,6 +1069,14 @@
       <div class="brand-actions">
         <button class="icon-btn" id="logout-btn" title="Cerrar sesión"><span class="material-icons">logout</span></button>
       </div>
+    </div>
+    <div class="sidebar-timer" id="sidebar-timer" hidden role="button" tabindex="0" aria-label="Ver sesión activa">
+      <div class="live-dot"></div>
+      <div class="info">
+        <div class="name" id="sidebar-timer-name">—</div>
+        <div class="elapsed" id="sidebar-timer-elapsed">00:00:00</div>
+      </div>
+      <button class="stop-btn" id="sidebar-timer-stop" title="Detener timer" aria-label="Detener timer"><span class="material-icons">stop</span></button>
     </div>
     <button class="nav-item active" data-view="dashboard"><span class="material-icons">dashboard</span>Dashboard</button>
     <button class="nav-item" data-view="tasks"><span class="material-icons">checklist</span>Tasks</button>
@@ -1293,24 +1356,29 @@
     <button class="nav-item hidden" data-view="admin" id="nav-admin-mobile"><span class="material-icons">admin_panel_settings</span>Admin</button>
   </nav>
 
-  <!-- Top bar with avatar dropdown (visible on all screens; on desktop it's the only top element, brand is hidden) -->
+  <!-- Top bar (sólo mobile) con avatar que abre el dropdown de usuario -->
   <div class="mobile-top">
-    <div class="mobile-top-brand">TaskTime</div>
+    <button class="mobile-top-timer" id="mobile-top-timer" hidden aria-label="Ver sesión activa">
+      <span class="live-dot"></span>
+      <span class="elapsed" id="mobile-top-timer-elapsed">00:00</span>
+    </button>
     <button class="avatar-btn" id="user-menu-btn" aria-label="Menú de usuario" aria-haspopup="menu" aria-expanded="false">
       <span id="user-avatar-initial">T</span>
     </button>
-    <div class="user-menu" id="user-menu" hidden role="menu">
-      <div class="user-menu-info">
-        <div class="user-menu-name" id="user-menu-name">—</div>
-        <div class="user-menu-role" id="user-menu-role">—</div>
-      </div>
-      <button class="user-menu-item" id="mobile-account-btn" role="menuitem">
-        <span class="material-icons">account_circle</span>Mi cuenta
-      </button>
-      <button class="user-menu-item" id="mobile-logout-btn" role="menuitem">
-        <span class="material-icons">logout</span>Cerrar sesión
-      </button>
+  </div>
+
+  <!-- Dropdown de usuario (móvil: bajo el avatar del banner; desktop: bajo el icono del sidebar). Vive fuera de .mobile-top porque en desktop el banner está oculto. -->
+  <div class="user-menu" id="user-menu" hidden role="menu">
+    <div class="user-menu-info">
+      <div class="user-menu-name" id="user-menu-name">—</div>
+      <div class="user-menu-role" id="user-menu-role">—</div>
     </div>
+    <button class="user-menu-item" id="mobile-account-btn" role="menuitem">
+      <span class="material-icons">account_circle</span>Mi cuenta
+    </button>
+    <button class="user-menu-item" id="mobile-logout-btn" role="menuitem">
+      <span class="material-icons">logout</span>Cerrar sesión
+    </button>
   </div>
 
   <!-- Edit user modal (Stitch-style overlay) -->
@@ -1435,6 +1503,22 @@
         <button type="submit" form="form-edit-sheet" class="ac-btn-primary">Guardar cambios</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Active timer details modal (opened by sidebar widget / mobile banner) -->
+<div class="ac-modal" id="timer-details-modal" hidden>
+  <div class="ac-modal-overlay" data-modal-close></div>
+  <div class="active-card timer-modal-card" role="dialog" aria-modal="true" aria-labelledby="timer-details-title">
+    <button class="ac-icon-btn timer-details-close" data-modal-close aria-label="Cerrar"><span class="material-icons">close</span></button>
+    <div class="live-dot"></div>
+    <div class="info">
+      <div class="label">Active session</div>
+      <div class="name" id="timer-details-name">—</div>
+      <div class="elapsed" id="timer-details-elapsed">00:00:00</div>
+      <div class="meta" id="timer-details-label"></div>
+    </div>
+    <button class="stop-btn" id="timer-details-stop">Stop</button>
   </div>
 </div>
 
@@ -1729,6 +1813,7 @@ async function startApp() {
   // ponytail: usa la inicial del username como "logo" — sin avatar real, sin uploads, sin libs
   const mobileInitial = (session.user || 'T').trim().charAt(0).toUpperCase() || 'T';
   $('#user-avatar-initial').textContent = mobileInitial;
+  $('#brand-avatar-initial').textContent = mobileInitial;
   $('#user-menu-name').textContent = session.user || '—';
   $('#user-menu-role').textContent = session.rol || '—';
   // Mostrar el item Admin sólo a administradores.
@@ -1857,27 +1942,59 @@ function bindLogout() {
 }
 
 function bindMobileMenu() {
-  const btn = $('#user-menu-btn');
+  const btn = $('#user-menu-btn');      // ponytail: trigger en mobile (avatar del banner)
+  const brandBtn = $('#brand-avatar-initial'); // ponytail: trigger en desktop (logo del sidebar)
   const menu = $('#user-menu');
-  if (!btn || !menu) return;
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
+  if (!menu) return;
+
+  // ponytail: posiciona el menú bajo el trigger que lo abrió — el menú vive en body y es position:fixed
+  const positionUnder = (trigger) => {
+    const r = trigger.getBoundingClientRect();
+    const margin = 6;
+    const w = menu.offsetWidth || 240;
+    // mobile: alineado al borde derecho (donde está el avatar del banner); desktop: bajo el icono del sidebar
+    if (window.matchMedia('(max-width: 1280px)').matches) {
+      menu.style.left = 'auto';
+      menu.style.right = '16px';
+      menu.style.top = (r.bottom + margin) + 'px';
+    } else {
+      const left = Math.min(r.left, window.innerWidth - w - 16);
+      menu.style.left = left + 'px';
+      menu.style.right = 'auto';
+      menu.style.top = (r.bottom + margin) + 'px';
+    }
+  };
+
+  const close = () => {
+    menu.hidden = true;
+    btn?.setAttribute('aria-expanded', 'false');
+    brandBtn?.setAttribute('aria-expanded', 'false');
+  };
+  const toggle = (trigger) => {
     const willOpen = menu.hidden;
+    if (willOpen) positionUnder(trigger);
     menu.hidden = !willOpen;
-    btn.setAttribute('aria-expanded', String(willOpen));
-  });
+    btn?.setAttribute('aria-expanded', String(willOpen));
+    brandBtn?.setAttribute('aria-expanded', String(willOpen));
+  };
+
+  if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); toggle(btn); });
+  if (brandBtn) {
+    brandBtn.addEventListener('click', (e) => { e.stopPropagation(); toggle(brandBtn); });
+    brandBtn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(brandBtn); }
+    });
+  }
   // ponytail: click fuera cierra el dropdown — listener global, sin libs
   document.addEventListener('click', (e) => {
     if (menu.hidden) return;
-    if (menu.contains(e.target) || e.target === btn) return;
-    menu.hidden = true;
-    btn.setAttribute('aria-expanded', 'false');
+    if (menu.contains(e.target) || e.target === btn || e.target === brandBtn) return;
+    close();
   });
   // Item Mi cuenta del dropdown: navega a la vista account, cierra el menú
   const accountBtn = $('#mobile-account-btn');
   if (accountBtn) accountBtn.addEventListener('click', () => {
-    menu.hidden = true;
-    btn.setAttribute('aria-expanded', 'false');
+    close();
     showView('account');
   });
 }
@@ -1949,6 +2066,25 @@ function showView(name) {
 function bindGlobal() {
   $('#start-btn').addEventListener('click', onStart);
   $('#stop-btn').addEventListener('click', onStop);
+  // ponytail: sidebar widget — click body opens details modal; stop button stops the timer (and event.stopPropagation prevents the modal from opening)
+  const sidebarTimer = $('#sidebar-timer');
+  if (sidebarTimer) {
+    sidebarTimer.addEventListener('click', (e) => {
+      if (e.target.closest('.stop-btn')) return;
+      openTimerDetails();
+    });
+    sidebarTimer.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTimerDetails(); }
+    });
+  }
+  const sidebarStop = $('#sidebar-timer-stop');
+  if (sidebarStop) sidebarStop.addEventListener('click', (e) => { e.stopPropagation(); onStop(); });
+  const mobileTimer = $('#mobile-top-timer');
+  if (mobileTimer) mobileTimer.addEventListener('click', openTimerDetails);
+  const detailsStop = $('#timer-details-stop');
+  if (detailsStop) detailsStop.addEventListener('click', () => { $('#timer-details-modal').hidden = true; onStop(); });
+  // ponytail: timer-details modal — overlay + close button
+  $$('#timer-details-modal [data-modal-close]').forEach(el => el.addEventListener('click', () => { $('#timer-details-modal').hidden = true; }));
   $('#manual-form').addEventListener('submit', onManualSubmit);
   $('#task-form').addEventListener('submit', onTaskCreate);
   ['log-from','log-to','log-task','log-label','log-group'].forEach(id => $('#'+id).addEventListener('change', renderLogs));
@@ -1988,6 +2124,7 @@ function refreshAll() {
   populateTimerTaskSelect();
   populateTaskSelect($('#manual-task'));
   renderActiveCard();
+  renderActiveWidget();
   renderLogs();
   renderDashboard();
 }
@@ -2015,11 +2152,20 @@ function startTicker() {
   tick();
   state.tickInterval = setInterval(tick, 1000);
   renderActiveCard();
+  renderActiveWidget();
 }
 function tick() {
   if (!state.activeTimer) return;
   const ms = Date.now() - new Date(state.activeTimer.startTime).getTime();
-  $('#active-elapsed').textContent = fmtHMS(ms);
+  const hms = fmtHMS(ms);
+  $('#active-elapsed').textContent = hms;
+  // ponytail: tick the sidebar widget + mobile banner + details modal in lockstep
+  const sidebarEl = $('#sidebar-timer-elapsed');
+  if (sidebarEl) sidebarEl.textContent = hms;
+  const mobileEl = $('#mobile-top-timer-elapsed');
+  if (mobileEl) mobileEl.textContent = fmtHM(ms / 60000);
+  const modalEl = $('#timer-details-elapsed');
+  if (modalEl) modalEl.textContent = hms;
   // ponytail: keep the live row inside the Logs table ticking in step with the dashboard card
   const liveElapsed = $('#log-live-elapsed');
   if (liveElapsed) liveElapsed.textContent = fmtHMS(ms);
@@ -2069,6 +2215,7 @@ function stopTicker() {
   if (state.tickInterval) clearInterval(state.tickInterval);
   state.tickInterval = null;
   renderActiveCard();
+  renderActiveWidget();
 }
 function todayBaseMinutes() {
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
@@ -2094,6 +2241,44 @@ function renderActiveCard() {
   } else {
     card.hidden = true;
   }
+}
+
+// ponytail: mirrors active-card into the sidebar widget, mobile banner, and timer-details modal
+function renderActiveWidget() {
+  const sidebarEl = $('#sidebar-timer');
+  const mobileEl = $('#mobile-top-timer');
+  const modalEl = $('#timer-details-modal');
+  if (state.activeTimer) {
+    const name = taskName(state.activeTimer.taskId);
+    const lid = taskLabelId(state.activeTimer.taskId);
+    const labelTxt = lid ? labelName(lid) : '';
+    const ms = Date.now() - new Date(state.activeTimer.startTime).getTime();
+    const hms = fmtHMS(ms);
+    if (sidebarEl) {
+      sidebarEl.hidden = false;
+      $('#sidebar-timer-name').textContent = name;
+      $('#sidebar-timer-elapsed').textContent = hms;
+    }
+    if (mobileEl) {
+      mobileEl.hidden = false;
+      $('#mobile-top-timer-elapsed').textContent = fmtHM(ms / 60000);
+    }
+    if (modalEl) {
+      $('#timer-details-name').textContent = name;
+      $('#timer-details-label').textContent = labelTxt || 'Sin etiqueta';
+      $('#timer-details-elapsed').textContent = hms;
+    }
+  } else {
+    if (sidebarEl) sidebarEl.hidden = true;
+    if (mobileEl) mobileEl.hidden = true;
+    if (modalEl && !modalEl.hidden) modalEl.hidden = true;
+  }
+}
+
+function openTimerDetails() {
+  if (!state.activeTimer) return;
+  renderActiveWidget();
+  $('#timer-details-modal').hidden = false;
 }
 
 // ==== Logs ====
