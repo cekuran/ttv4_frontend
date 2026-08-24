@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>TaskTime</title>
+<title>Time Tracker</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23102b8a'/><circle cx='30' cy='32' r='19' fill='white'/><rect x='29' y='14.5' width='2' height='4' rx='1' fill='%23102b8a'/><rect x='29' y='45.5' width='2' height='4' rx='1' fill='%23102b8a'/><rect x='12.5' y='31' width='4' height='2' rx='1' fill='%23102b8a'/><rect x='43.5' y='31' width='4' height='2' rx='1' fill='%23102b8a'/><line x1='30' y1='32' x2='22' y2='24' stroke='%23102b8a' stroke-width='2.5' stroke-linecap='round'/><line x1='30' y1='32' x2='38' y2='26' stroke='%23102b8a' stroke-width='2.5' stroke-linecap='round'/><circle cx='30' cy='32' r='1.8' fill='%23102b8a'/><circle cx='48' cy='16' r='10' fill='white'/><circle cx='48' cy='16' r='8' fill='%23102b8a'/><path d='M44 16 L47 19 L52 13' stroke='white' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Hanken+Grotesk:wght@600;700&display=swap" rel="stylesheet">
@@ -1012,7 +1013,7 @@
 <!-- ==== Setup (primer arranque, sin spreadsheet maestro) ==== -->
 <div class="login-screen" id="setup-screen" hidden>
   <form class="login-card" id="setup-form" autocomplete="off">
-    <h1>TaskTime · Configuración inicial</h1>
+    <h1>Time Tracker · Configuración inicial</h1>
     <div class="sub">Indica el Google Sheet maestro y la contraseña del primer administrador.</div>
     <label for="setup-sheet-id">Spreadsheet ID o URL del Sheet</label>
     <input type="text" id="setup-sheet-id" placeholder="1aBcDeFg…  o  https://docs.google.com/spreadsheets/d/1aBcDeFg…/edit" required autocomplete="off">
@@ -1033,7 +1034,7 @@
 <!-- ==== Boot (cargando, mientras ping() viaja al backend) ==== -->
 <div class="login-screen" id="boot-screen">
   <div class="login-card" style="text-align:center;">
-    <h1 style="margin-bottom: 8px;">TaskTime</h1>
+    <h1 style="margin-bottom: 8px;">Time Tracker</h1>
     <div class="sub" id="boot-status">Conectando con el backend…</div>
     <div id="boot-spinner" style="margin: 18px auto 8px; width: 36px; height: 36px; border-radius: 50%; border: 3px solid var(--outline-variant); border-top-color: var(--primary); animation: spin 0.9s linear infinite;"></div>
     <button type="button" id="boot-retry" hidden onclick="location.reload()" style="margin-top:8px;">Reintentar</button>
@@ -1043,7 +1044,7 @@
 <!-- ==== Login ==== -->
 <div class="login-screen" id="login-screen" hidden>
   <form class="login-card" id="login-form" autocomplete="on">
-    <h1>TaskTime</h1>
+    <h1>Time Tracker</h1>
     <div class="sub">Inicia sesión para continuar</div>
     <label for="login-user">Usuario</label>
     <input type="text" id="login-user" autocomplete="username" required>
@@ -1063,7 +1064,7 @@
     <div class="brand">
       <div class="brand-logo" id="brand-avatar-initial" role="button" tabindex="0" aria-label="Menú de usuario" aria-haspopup="menu" aria-expanded="false">T</div>
       <div>
-        <div class="brand-name">TaskTime</div>
+        <div class="brand-name">Time Tracker</div>
         <div class="brand-sub" id="brand-user">—</div>
       </div>
       <div class="brand-actions">
