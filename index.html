@@ -3447,7 +3447,12 @@ function openEditUserModal(username) {
   // ponytail: autofocus al select de rol — el campo más probable a editar
   setTimeout(() => $('#eu-rol').focus(), 50);
 }
-function closeEditUserModal() { $('#edit-user-modal').hidden = true; }
+function closeEditUserModal() {
+  $('#edit-user-modal').hidden = true;
+  // ponytail: resetea el form de crear al cerrar — si quedó abierto de un flow anterior, el toggle de "Crear usuario" lo cerraría al click y el botón parecería roto
+  $('#form-new-user').hidden = true;
+  $('#form-new-user').reset();
+}
 
 // === Edit task modal (opens from the pencil icon in each task card) ===
 function openEditTaskModal(tid) {
