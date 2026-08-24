@@ -1580,6 +1580,8 @@ const fmtHMS = (ms) => {
   const s = Math.max(0, Math.floor(ms/1000));
   return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 };
+// ponytail: keep one source of truth for the document title — the ticker overwrites it while a timer runs
+const BASE_TITLE = 'Time Tracker';
 const fmtTime = (iso) => {
   const d = new Date(iso);
   if (isNaN(d)) return '—';
@@ -2159,6 +2161,7 @@ function tick() {
   if (!state.activeTimer) return;
   const ms = Date.now() - new Date(state.activeTimer.startTime).getTime();
   const hms = fmtHMS(ms);
+  document.title = `${hms} · ${BASE_TITLE}`;
   $('#active-elapsed').textContent = hms;
   // ponytail: tick the sidebar widget + mobile banner + details modal in lockstep
   const sidebarEl = $('#sidebar-timer-elapsed');
@@ -2215,6 +2218,7 @@ function clearTaskLiveTicks() {
 function stopTicker() {
   if (state.tickInterval) clearInterval(state.tickInterval);
   state.tickInterval = null;
+  document.title = BASE_TITLE;
   renderActiveCard();
   renderActiveWidget();
 }
