@@ -158,8 +158,6 @@
   #log-table tr.live-row { background: rgba(0,108,77,0.06); }
   #log-table tr.live-row td { border-bottom-color: rgba(0,108,77,0.20); }
   #log-table tr.live-row .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--secondary); box-shadow: 0 0 0 3px rgba(0,108,77,0.25); animation: pulse 1.6s ease-in-out infinite; margin-right: 6px; vertical-align: middle; }
-  #log-table tr.live-row .stop-btn { background: var(--error); color: #fff; border: 0; padding: 6px 14px; border-radius: var(--r-md); font-size: 12px; font-weight: 600; cursor: pointer; }
-  #log-table tr.live-row .stop-btn:hover { background: #93000a; }
 
   /* ==== Login screen ==== */
   .login-screen {
@@ -660,16 +658,16 @@
   .task-card .task-meta select { padding: 2px 8px; font-size: 12px; border-radius: var(--r-sm); }
   .task-card .task-total { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 14px; font-weight: 600; color: var(--on-surface-variant); font-variant-numeric: tabular-nums; min-width: 70px; text-align: right; }
   .task-card .task-total.zero { color: var(--outline); font-weight: normal; }
-  .task-card .play-btn { position: relative; width: 38px; height: 38px; border-radius: 50%; background: var(--surface-low); color: var(--primary); border: 0; cursor: pointer; transition: background-color .25s, color .25s; }
-  .task-card .play-btn::before, .task-card .play-btn::after { content: ''; position: absolute; top: 50%; left: 50%; width: 13px; height: 13px; background: currentColor; transition: opacity .22s ease, transform .28s cubic-bezier(.4,0,.2,1); }
-  .task-card .play-btn::before { /* play triangle */ clip-path: polygon(15% 12%, 88% 50%, 15% 88%); transform: translate(-50%,-50%); }
-  .task-card .play-btn::after  { /* stop square  */ clip-path: polygon(18% 18%, 82% 18%, 82% 82%, 18% 82%); opacity: 0; transform: translate(-50%,-50%) rotate(-90deg) scale(.4); }
-  .task-card .play-btn:hover { background: var(--primary); color: var(--on-primary); }
-  .task-card .play-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-  .task-card .play-btn.stop { background: var(--secondary); color: var(--on-secondary); }
-  .task-card .play-btn.stop:hover { background: #005a40; }
-  .task-card .play-btn.stop::before { opacity: 0; transform: translate(-50%,-50%) scale(.4); }
-  .task-card .play-btn.stop::after  { opacity: 1; transform: translate(-50%,-50%) rotate(0) scale(1); }
+  .play-btn { position: relative; width: 38px; height: 38px; border-radius: 50%; background: var(--surface-low); color: var(--primary); border: 0; cursor: pointer; transition: background-color .25s, color .25s; }
+  .play-btn::before, .play-btn::after { content: ''; position: absolute; top: 50%; left: 50%; width: 13px; height: 13px; background: currentColor; transition: opacity .22s ease, transform .28s cubic-bezier(.4,0,.2,1); }
+  .play-btn::before { /* play triangle */ clip-path: polygon(15% 12%, 88% 50%, 15% 88%); transform: translate(-50%,-50%); }
+  .play-btn::after  { /* stop square  */ clip-path: polygon(18% 18%, 82% 18%, 82% 82%, 18% 82%); opacity: 0; transform: translate(-50%,-50%) rotate(-90deg) scale(.4); }
+  .play-btn:hover { background: var(--primary); color: var(--on-primary); }
+  .play-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .play-btn.stop { background: var(--secondary); color: var(--on-secondary); }
+  .play-btn.stop:hover { background: #005a40; }
+  .play-btn.stop::before { opacity: 0; transform: translate(-50%,-50%) scale(.4); }
+  .play-btn.stop::after  { opacity: 1; transform: translate(-50%,-50%) rotate(0) scale(1); }
   .task-card .del-btn { background: transparent; color: var(--outline); border: 0; padding: 6px 10px; cursor: pointer; font-size: 12px; border-radius: var(--r-sm); font-weight: 500; }
   .task-card .del-btn:hover { background: rgba(186,26,26,0.08); color: var(--error); }
   .task-card.collapsed .task-entries { display: none; }
@@ -816,8 +814,8 @@
     .task-card .task-meta select { font-size: 12px; padding: 4px 10px; }
     /* action row pinned below: total flush right, then play, then delete */
     .task-card .task-total { order: 10; width: auto; min-width: 60px; font-size: 14px; margin-left: auto; }
-    .task-card .play-btn { order: 11; width: 40px; height: 40px; }
-    .task-card .play-btn::before, .task-card .play-btn::after { width: 14px; height: 14px; }
+    .play-btn { order: 11; width: 40px; height: 40px; }
+    .play-btn::before, .play-btn::after { width: 14px; height: 14px; }
     .task-card .del-btn { order: 12; font-size: 12px; padding: 6px 12px; }
     /* keep the row+wrap layout even when this card is the active timer */
     .task-card.active { flex-direction: row; align-items: center; }
@@ -2145,14 +2143,14 @@ function renderLogs() {
       ? `<span class="chip" style="background:${labelColor(lid)}">${escapeHtml(labelName(lid))}</span>`
       : '<span style="color:#80868b">—</span>';
     return `<tr class="live-row grp-row" id="log-live-row">`
-      + `<td data-label="Date"><span class="live-dot"></span>${fmtDate(t.startTime)}</td>`
+      + `<td data-label="Date">${fmtDate(t.startTime)}</td>`
       + `<td data-label="Task" class="log-task">${escapeHtml(taskName(tid))}</td>`
       + `<td data-label="Label">${labelHtml}</td>`
       + `<td data-label="Start" id="log-live-start">${fmtTime(t.startTime)}</td>`
       + `<td data-label="End" style="color:#80868b">—</td>`
       + `<td data-label="Duration"><b id="log-live-elapsed">${fmtHMS(ms)}</b></td>`
       + `<td data-label="Source" style="color:var(--secondary); font-weight:600; font-size:12px;">live</td>`
-      + `<td data-label=""><button class="stop-btn" id="log-live-stop">Stop</button></td>`
+      + `<td data-label=""><button class="play-btn stop" id="log-live-stop" title="Stop timer" aria-label="Stop timer"></button></td>`
       + `</tr>`;
   };
   const liveTimer = state.activeTimer;
