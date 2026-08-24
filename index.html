@@ -453,7 +453,8 @@
     display: flex; align-items: center; justify-content: center;
     padding: 16px;
   }
-  .ac-modal[hidden] { display: none; }
+  /* !important: misma trampa que .login-screen — display:flex gana al [hidden] del UA sin esta regla */
+  .ac-modal[hidden] { display: none !important; }
   .ac-modal-overlay {
     position: absolute; inset: 0;
     background: rgba(0, 0, 0, 0.5);
@@ -3344,14 +3345,23 @@ async function onEditSheetSubmit(ev) {
 async function onEditSheetDelete() {
   const sid = $('#es-sid').value;
   const s = adminSheets.find(x => x.spreadsheet_id === sid);
+  // Cerrar edición antes del confirm (evitar overlays apilados)
+  closeEditSheetModal();
   const ok = await showConfirm('Eliminar hoja', `¿Eliminar el spreadsheet "${s?.nombre || sid}"? Las vinculaciones a usuarios se borrarán.`, 'Eliminar');
   if (!ok) return;
   try {
     await call('bajaSpreadsheetAdmin', sid);
+    state.expandedSheets?.delete(sid);
     toast('Hoja eliminada');
-    closeEditSheetModal();
-    renderAdmin();
-  } catch (e) { toast(e.message, 'warn'); }
+    const confirmModal = $('#confirm-modal');
+    if (confirmModal) confirmModal.hidden = true;
+    const form = $('#form-new-sheet');
+    if (form) { form.hidden = true; form.reset(); }
+    await renderAdmin();
+  } catch (e) {
+    toast(e.message, 'warn');
+    if (sid) openEditSheetModal(sid);
+  }
 }
 
 // === Sheet ID viewer modal ===
@@ -3400,21 +3410,29 @@ function showConfirm(title, message, okLabel) {
     $('#confirm-message').textContent = message;
     $('#confirm-ok').textContent = okLabel || 'Eliminar';
 
+    let settled = false;
     const cleanup = (result) => {
+      if (settled) return;
+      settled = true;
       modal.hidden = true;
-      $('#confirm-ok').onclick = null;
-      $$('#confirm-modal [data-modal-close]').forEach(el => el.onclick = null);
+      // Quitar listeners con las mismas referencias
+      okBtn.removeEventListener('click', onOk);
+      closeEls.forEach(el => el.removeEventListener('click', onCancel));
       document.removeEventListener('keydown', escHandler);
       resolve(result);
     };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
     const escHandler = (e) => { if (e.key === 'Escape' && !modal.hidden) cleanup(false); };
 
-    $('#confirm-ok').onclick = () => cleanup(true);
-    $$('#confirm-modal [data-modal-close]').forEach(el => el.onclick = () => cleanup(false));
+    const okBtn = $('#confirm-ok');
+    const closeEls = $$('#confirm-modal [data-modal-close]');
+    okBtn.addEventListener('click', onOk);
+    closeEls.forEach(el => el.addEventListener('click', onCancel));
     document.addEventListener('keydown', escHandler);
 
     modal.hidden = false;
-    setTimeout(() => $('#confirm-ok').focus(), 50);
+    setTimeout(() => okBtn.focus(), 50);
   });
 }
 
@@ -3447,12 +3465,7 @@ function openEditUserModal(username) {
   // ponytail: autofocus al select de rol — el campo más probable a editar
   setTimeout(() => $('#eu-rol').focus(), 50);
 }
-function closeEditUserModal() {
-  $('#edit-user-modal').hidden = true;
-  // ponytail: resetea el form de crear al cerrar — si quedó abierto de un flow anterior, el toggle de "Crear usuario" lo cerraría al click y el botón parecería roto
-  $('#form-new-user').hidden = true;
-  $('#form-new-user').reset();
-}
+function closeEditUserModal() { $('#edit-user-modal').hidden = true; }
 
 // === Edit task modal (opens from the pencil icon in each task card) ===
 function openEditTaskModal(tid) {
@@ -3516,14 +3529,29 @@ async function onEditUserSubmit(ev) {
 
 async function onEditUserDelete() {
   const username = $('#eu-username').value;
+  if (!username) return;
+  // Cerrar el modal de edición ANTES del confirm para no apilar overlays
+  // (un overlay residual bloqueaba el botón "Crear usuario").
+  closeEditUserModal();
   const ok = await showConfirm('Eliminar usuario', `¿Eliminar al usuario "${username}"? Sus vinculaciones también se borrarán.`, 'Eliminar');
   if (!ok) return;
   try {
     await call('eliminarUsuarioAdmin', username);
+    // Quitar de la UI de expansión por si seguía marcado
+    state.expandedUsers?.delete(username);
     toast('Usuario eliminado');
+    // Asegurar que ningún modal quede abierto y el form de alta esté listo
     closeEditUserModal();
-    renderAdmin();
-  } catch (e) { toast(e.message, 'warn'); }
+    const confirmModal = $('#confirm-modal');
+    if (confirmModal) confirmModal.hidden = true;
+    const form = $('#form-new-user');
+    if (form) { form.hidden = true; form.reset(); }
+    await renderAdmin();
+  } catch (e) {
+    toast(e.message, 'warn');
+    // Reabrir el modal de edición si el borrado falló, para no perder el contexto
+    openEditUserModal(username);
+  }
 }
 async function onRenameSheetPrompt(sid) { // ponytail: kept for back-compat — modal flow replaces it
   const current = adminSheets.find(x => x.spreadsheet_id === sid);
@@ -3549,13 +3577,35 @@ function bindAdmin() {
   }));
 
   // Form toggles (Crear / Añadir / Vincular)
+  // Usamos setAttribute/removeAttribute para el atributo HTML `hidden` y así
+  // coincidir siempre con la regla CSS `.ac-add-form[hidden] { display:none }`.
   const toggleForm = (formId, btnId, cancelId) => {
     const form = $('#' + formId);
     const btn  = $('#' + btnId);
     if (!form || !btn) return;
-    btn.addEventListener('click', () => { form.hidden = !form.hidden; if (!form.hidden) form.querySelector('input')?.focus(); });
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      // Forzar cierre de cualquier modal residual que pudiera bloquear clics
+      ['edit-user-modal', 'edit-sheet-modal', 'confirm-modal', 'view-sheet-id-modal', 'edit-task-modal']
+        .forEach(id => { const m = document.getElementById(id); if (m) m.hidden = true; });
+      const opening = form.hasAttribute('hidden') || form.hidden;
+      if (opening) {
+        form.hidden = false;
+        form.removeAttribute('hidden');
+        form.querySelector('input')?.focus();
+      } else {
+        form.hidden = true;
+        form.setAttribute('hidden', '');
+        form.reset();
+      }
+    });
     const cancel = $('#' + cancelId);
-    if (cancel) cancel.addEventListener('click', () => { form.hidden = true; form.reset(); });
+    if (cancel) cancel.addEventListener('click', () => {
+      form.hidden = true;
+      form.setAttribute('hidden', '');
+      form.reset();
+    });
   };
   toggleForm('form-new-user',  'usuarios-new-btn', 'usuarios-cancel-btn');
   toggleForm('form-new-sheet', 'sheets-new-btn',   'sheets-cancel-btn');
