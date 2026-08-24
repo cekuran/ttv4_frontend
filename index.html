@@ -830,7 +830,7 @@
     /* ponytail: nombre + chip pueden desbordar a 390px — permitir wrap y bloquear el chip en lugar seguro */
     .activity-panel .row { flex-wrap: wrap; row-gap: 4px; }
     .activity-panel .row .name { flex: 1 1 100%; min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; }
-    .activity-panel .row .time { margin-left: auto; }
+    .activity-panel .row .time { margin-left: 0; align-self: flex-start; }
     .activity-panel .row .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
     .format-toggle { width: 100%; }
     .format-toggle button { flex: 1; font-size: 13px; padding: 8px 16px; }
