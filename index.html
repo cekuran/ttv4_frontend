@@ -715,6 +715,26 @@
   .task-card .task-edit-btn { background: transparent; border: 0; padding: 4px 6px; border-radius: var(--r-sm); cursor: pointer; color: var(--on-surface-variant); display: inline-flex; align-items: center; transition: background .15s, color .15s; }
   .task-card .task-edit-btn:hover { background: var(--surface-low); color: var(--primary); }
   .task-card .task-edit-btn .material-icons { font-size: 16px; line-height: 1; }
+  /* === Tasks: tab panel + completed toggle === */
+  .task-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--outline-variant); margin-bottom: 16px; }
+  .task-tab { padding: 10px 16px; background: none; border: 0; font: 500 14px/1 'Inter', sans-serif; color: var(--on-surface-variant); border-bottom: 2px solid transparent; cursor: pointer; font-family: inherit; transition: color .15s, border-color .15s, background .15s; }
+  .task-tab:hover { color: var(--on-surface); background: rgba(16,43,138,0.04); }
+  .task-tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+  .task-tab .count { margin-left: 6px; color: var(--outline); font-size: 12px; font-weight: 500; }
+  .task-tab.active .count { color: var(--primary); }
+  .task-card.done .task-name { text-decoration: line-through; color: var(--outline); }
+  .task-card.done .task-meta { opacity: .7; }
+  .task-card.done .task-total { color: var(--outline); font-weight: normal; }
+  .task-toggle-done {
+    background: transparent; border: 1.5px solid var(--outline-variant); color: var(--outline);
+    width: 30px; height: 30px; border-radius: 50%; cursor: pointer; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .task-toggle-done:hover { border-color: var(--secondary); color: var(--secondary); background: rgba(0,108,77,0.08); }
+  .task-toggle-done .material-icons { font-size: 18px; line-height: 1; }
+  .task-card.done .task-toggle-done { background: var(--secondary); border-color: var(--secondary); color: var(--on-secondary); }
+  .task-card.done .task-toggle-done:hover { background: #005a40; border-color: #005a40; color: var(--on-secondary); }
 
   /* === Reports === */
   .report-filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 20px; }
@@ -1151,6 +1171,10 @@
         <button type="submit">Add task</button>
       </form>
 
+      <div class="task-tabs" id="task-tabs" role="tablist">
+        <button class="task-tab active" data-tab="active" role="tab" aria-selected="true">Activas<span class="count" id="task-count-active"></span></button>
+        <button class="task-tab" data-tab="completed" role="tab" aria-selected="false">Completadas<span class="count" id="task-count-completed"></span></button>
+      </div>
       <div class="chip-row" id="task-filter-chips"></div>
       <div id="task-table-wrap"></div>
     </section>
@@ -1708,7 +1732,8 @@ function populateTimerTaskSelect() {
   const filter = $('#timer-label-filter').value;
   const sel = $('#timer-task');
   const prev = sel.value;
-  const visible = filter ? state.tasks.filter(t => t.labelId === filter) : state.tasks;
+  const active = state.tasks.filter(t => !(t.completed === true || String(t.completed || '') === 'true'));
+  const visible = filter ? active.filter(t => t.labelId === filter) : active;
   sel.innerHTML = '';
   if (visible.length === 0) {
     const o = document.createElement('option');
@@ -2450,6 +2475,7 @@ async function onManualSubmit(e) {
 
 // ==== Tasks ====
 let taskFilter = '';
+let taskTab = 'active';
 
 async function renderTasksView() {
   await ensureTaskLabelSelect();
@@ -2474,14 +2500,30 @@ async function renderTasksView() {
     renderTasksView();
   });
 
-  const visible = taskFilter ? state.tasks.filter(t => t.labelId === taskFilter) : state.tasks;
+  // Tab panel (Active / Completed)
+  $$('#task-tabs .task-tab').forEach(b => b.onclick = () => {
+    taskTab = b.dataset.tab;
+    renderTasksView();
+  });
+  const completedMatch = t => t.completed === true || String(t.completed || '') === 'true';
+  const tabFiltered = state.tasks.filter(t => taskTab === 'completed' ? completedMatch(t) : !completedMatch(t));
+  const countActive = state.tasks.filter(t => !completedMatch(t)).length;
+  const countDone = state.tasks.length - countActive;
+  $$('#task-tabs .task-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === taskTab));
+  $('#task-count-active').textContent = countActive ? `(${countActive})` : '';
+  $('#task-count-completed').textContent = countDone ? `(${countDone})` : '';
+
+  const visible = taskFilter ? tabFiltered.filter(t => t.labelId === taskFilter) : tabFiltered;
 
   if (state.tasks.length === 0) {
     $('#task-table-wrap').innerHTML = `<div class="empty">No tasks yet. Add one above.</div>`;
     return;
   }
   if (visible.length === 0) {
-    $('#task-table-wrap').innerHTML = `<div class="empty">No tasks match this filter.</div>`;
+    const msg = taskTab === 'completed'
+      ? 'No completed tasks yet.'
+      : (taskFilter ? 'No tasks match this filter.' : 'No active tasks. Mark a task as done from its card.');
+    $('#task-table-wrap').innerHTML = `<div class="empty">${msg}</div>`;
     return;
   }
 
@@ -2497,7 +2539,10 @@ async function renderTasksView() {
     const total = entries.reduce((s,e) => s + Number(e.durationMinutes || 0), 0);
     const labelObj = lid ? labelById(lid) : null;
     const labelTag = labelObj ? `<span class="chip" style="background:${labelObj.color}">${escapeHtml(labelObj.name)}</span>` : '<span class="chip" style="background:var(--surface-low);color:var(--on-surface-variant);border:1px dashed var(--outline-variant);">Sin etiqueta</span>';
-    html += `<div class="task-card${state.activeTimer && state.activeTimer.taskId === t.id ? ' active' : ''}" data-tid="${t.id}">
+    const isDone = t.completed === true || String(t.completed || '') === 'true';
+    const playDisabled = isDone ? 'disabled' : '';
+    const playTitle = isDone ? 'Tarea completada' : (state.activeTimer && state.activeTimer.taskId === t.id ? 'Stop timer' : 'Start timer');
+    html += `<div class="task-card${state.activeTimer && state.activeTimer.taskId === t.id ? ' active' : ''}${isDone ? ' done' : ''}" data-tid="${t.id}">
       <div class="task-info">
         <div class="task-name">${escapeHtml(t.name)}</div>
         <div class="task-meta">
@@ -2507,8 +2552,9 @@ async function renderTasksView() {
         </div>
         <div class="task-entries" id="task-entries-${t.id}" style="display:none; margin-top:10px;"></div>
       </div>
+      <button class="task-toggle-done" data-id="${t.id}" title="${isDone ? 'Reabrir tarea' : 'Marcar como completada'}" aria-label="${isDone ? 'Reabrir tarea' : 'Marcar como completada'}"><span class="material-icons">${isDone ? 'undo' : 'check'}</span></button>
       <div class="task-total${total ? '' : ' zero'}" data-tid="${t.id}">${fmtHM(total)}<span class="task-live" style="display:none; margin-left:6px; color:var(--secondary); font-weight:600;"></span></div>
-      <button class="play-btn${state.activeTimer && state.activeTimer.taskId === t.id ? ' stop' : ''}" data-id="${t.id}" title="${state.activeTimer && state.activeTimer.taskId === t.id ? 'Stop timer' : 'Start timer'}" ${state.tasks.find(x=>x.id===t.id) ? '' : 'disabled'} aria-label="${state.activeTimer && state.activeTimer.taskId === t.id ? 'Stop timer' : 'Start timer'}"></button>
+      <button class="play-btn${state.activeTimer && state.activeTimer.taskId === t.id ? ' stop' : ''}" data-id="${t.id}" title="${playTitle}" ${playDisabled} aria-label="${state.activeTimer && state.activeTimer.taskId === t.id ? 'Stop timer' : 'Start timer'}"></button>
       <button class="del icon-btn" data-id="${t.id}" aria-label="Eliminar tarea"><span class="material-icons">delete</span></button>
     </div>`;
   });
@@ -2542,6 +2588,16 @@ async function renderTasksView() {
     renderTasksView(); renderLogs(); refreshAll();
   });
   $$('#task-table-wrap .task-edit-btn').forEach(b => b.onclick = () => openEditTaskModal(b.dataset.id));
+  $$('#task-table-wrap .task-toggle-done').forEach(b => b.onclick = async () => {
+    const tid = b.dataset.id;
+    const t = taskById(tid);
+    if (!t) return;
+    const isDone = t.completed === true || String(t.completed || '') === 'true';
+    try {
+      state.tasks = await call('updateTask', tid, { completed: isDone ? '' : 'true' });
+      renderTasksView(); refreshAll();
+    } catch (e) { toast(e.message, 'warn'); }
+  });
   // click card body to toggle entries
   $$('#task-table-wrap .task-card').forEach(card => {
     const tid = card.dataset.tid;
@@ -3200,6 +3256,7 @@ function paintSheets() {
         <td class="ac-sheet-id-cell"><code title="${escapeHtml(s.spreadsheet_id)}">${escapeHtml(s.spreadsheet_id)}</code></td>
         <td>
           <div class="ac-actions" style="opacity:1;">
+            <a class="ac-icon-btn sheet-open" href="https://docs.google.com/spreadsheets/d/${encodeURIComponent(s.spreadsheet_id)}/edit" target="_blank" rel="noopener noreferrer" title="Abrir spreadsheet" aria-label="Abrir spreadsheet"><span class="material-icons">open_in_new</span></a>
             <button class="ac-icon-btn sheet-info" title="Ver ID" aria-label="Ver ID"><span class="material-icons">info_outline</span></button>
             <button class="ac-icon-btn sheet-edit" title="Editar" aria-label="Editar hoja"><span class="material-icons">edit</span></button>
           </div>
