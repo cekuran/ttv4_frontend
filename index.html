@@ -707,8 +707,8 @@
   .play-btn.stop:hover { background: #005a40; }
   .play-btn.stop::before { opacity: 0; transform: translate(-50%,-50%) scale(.4); }
   .play-btn.stop::after  { opacity: 1; transform: translate(-50%,-50%) rotate(0) scale(1); }
-  .task-card .del-btn { background: transparent; color: var(--outline); border: 0; padding: 6px 10px; cursor: pointer; font-size: 12px; border-radius: var(--r-sm); font-weight: 500; }
-  .task-card .del-btn:hover { background: rgba(186,26,26,0.08); color: var(--error); }
+  .task-card .del { color: var(--outline); }
+  .task-card .del:hover { background: rgba(186,26,26,0.08); color: var(--error); }
   .task-card.collapsed .task-entries { display: none; }
   .task-card.active { border-color: var(--secondary); background: linear-gradient(135deg, rgba(0,108,77,0.05), rgba(0,108,77,0.02)); box-shadow: 0 0 0 1px var(--secondary), var(--shadow-2); }
   .task-card .task-edit-btn { background: transparent; border: 0; padding: 4px 6px; border-radius: var(--r-sm); cursor: pointer; color: var(--on-surface-variant); display: inline-flex; align-items: center; transition: background .15s, color .15s; }
@@ -868,7 +868,7 @@
     .task-card .task-total { order: 10; width: auto; min-width: 60px; font-size: 14px; margin-left: auto; }
     .play-btn { order: 11; width: 40px; height: 40px; }
     .play-btn::before, .play-btn::after { width: 14px; height: 14px; }
-    .task-card .del-btn { order: 12; font-size: 12px; padding: 6px 12px; }
+    .task-card .del { order: 12; font-size: 12px; padding: 6px 12px; }
     /* keep the row+wrap layout even when this card is the active timer */
     .task-card.active { flex-direction: row; align-items: center; }
     .task-card.active .play-btn.stop { align-self: auto; }
@@ -2504,7 +2504,7 @@ async function renderTasksView() {
       </div>
       <div class="task-total${total ? '' : ' zero'}" data-tid="${t.id}">${fmtHM(total)}<span class="task-live" style="display:none; margin-left:6px; color:var(--secondary); font-weight:600;"></span></div>
       <button class="play-btn${state.activeTimer && state.activeTimer.taskId === t.id ? ' stop' : ''}" data-id="${t.id}" title="${state.activeTimer && state.activeTimer.taskId === t.id ? 'Stop timer' : 'Start timer'}" ${state.tasks.find(x=>x.id===t.id) ? '' : 'disabled'} aria-label="${state.activeTimer && state.activeTimer.taskId === t.id ? 'Stop timer' : 'Start timer'}"></button>
-      <button class="del-btn" data-id="${t.id}">Delete</button>
+      <button class="del icon-btn" data-id="${t.id}" aria-label="Eliminar tarea"><span class="material-icons">delete</span></button>
     </div>`;
   });
   $('#task-table-wrap').innerHTML = html;
@@ -2531,7 +2531,7 @@ async function renderTasksView() {
     startTicker();
     showView('dashboard');
   });
-  $$('#task-table-wrap .del-btn').forEach(b => b.onclick = async () => {
+  $$('#task-table-wrap .del').forEach(b => b.onclick = async () => {
     if (!await showConfirm('Eliminar tarea', '¿Eliminar esta tarea? Las entradas pasadas se conservan pero se muestran como "(deleted)".', 'Eliminar')) return;
     state.tasks = await call('deleteTask', b.dataset.id);
     renderTasksView(); renderLogs(); refreshAll();
