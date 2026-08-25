@@ -106,6 +106,7 @@
   .day-timeline-svg { display: block; width: 100%; font: 11px/1.4 'Inter', sans-serif; color: var(--on-surface-variant); }
   .day-timeline-svg .tl-row-bg { fill: var(--surface-low); }
   .day-timeline-svg .tl-row-label { font-size: 12px; fill: var(--on-surface); font-weight: 500; }
+  .day-timeline-svg .tl-row-total { font-size: 11px; fill: var(--on-surface-variant); font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
   .day-timeline-svg .tl-bar { cursor: pointer; transition: opacity .15s; }
   .day-timeline-svg .tl-bar:hover { opacity: 0.82; }
   .day-timeline-svg .tl-bar-live { stroke-dasharray: 4 2; }
@@ -775,7 +776,7 @@
   /* === Top bar — sólo vive en mobile (default oculto, se muestra dentro del @media mobile) === */
   .mobile-top {
     display: none; /* ponytail: invertir default — antes mostraba en desktop y se ocultaba con override */
-    align-items: center; justify-content: flex-end;
+    align-items: center; justify-content: flex-end; gap: 12px;
     position: fixed; top: 0; left: 0; right: 0; z-index: 110;
     padding: 12px 24px;
     background: rgba(255,255,255,0.92);
@@ -783,6 +784,7 @@
     -webkit-backdrop-filter: saturate(180%) blur(12px);
     border-bottom: 1px solid var(--outline-variant);
   }
+  .mobile-top .brand-name { font-size: 15px; } /* ponytail: un pelín más chico que el sidebar (17px) para no comerse la barra a 360px */
   .mobile-top-timer {
     display: none; align-items: center; gap: 6px;
     background: linear-gradient(135deg, var(--primary), var(--primary-container));
@@ -1403,6 +1405,7 @@
       <span class="live-dot"></span>
       <span class="elapsed" id="mobile-top-timer-elapsed">00:00</span>
     </button>
+    <span class="brand-name">Time Tracker</span>
     <button class="avatar-btn" id="user-menu-btn" aria-label="Menú de usuario" aria-haspopup="menu" aria-expanded="false">
       <span id="user-avatar-initial">T</span>
     </button>
@@ -3252,8 +3255,9 @@ function renderDayTimeline(opts) {
     r.entries.push(e);
     rows.set(e.taskId, r);
   });
-  // ponytail: timer activo para una tarea sin entradas hoy → fila con live bar
-  const activeTid = state.activeTimer && state.activeTimer.taskId;
+  // ponytail: timer activo → fila con live bar SÓLO cuando se está mostrando hoy
+  // (el live timer es de hoy, no del día seleccionado en stats)
+  const activeTid = isToday && state.activeTimer && state.activeTimer.taskId;
   if (activeTid && !rows.has(activeTid)) rows.set(activeTid, { taskId: activeTid, entries: [] });
 
   // ponytail: orden CRONOLÓGICO por la primera actividad del día
@@ -3279,8 +3283,9 @@ function renderDayTimeline(opts) {
 
   const W = svgNode.clientWidth || 800;
   // ponytail: en mobile los labels se ocultan por CSS, así que el margin izquierdo va a 0 para no dejar hueco muerto
+  // el margin derecho reserva espacio para el total acumulado por tarea
   const isMobile = window.matchMedia('(max-width: 1280px)').matches;
-  const MARGIN = { top: 26, right: 16, bottom: 8, left: isMobile ? 0 : Math.min(140, W * 0.35) };
+  const MARGIN = { top: 26, right: 64, bottom: 8, left: isMobile ? 0 : Math.min(140, W * 0.35) };
   const ROW_H = 28, ROW_GAP = 4;
   const H = MARGIN.top + sorted.length * (ROW_H + ROW_GAP) + MARGIN.bottom;
   svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
@@ -3362,6 +3367,20 @@ function renderDayTimeline(opts) {
        .attr('font-size', 12)
        .text(labelText);
 
+    // ponytail: total acumulado del día para esta tarea (suma de entries + live si es la activa)
+    const rowBaseMin = row.entries.reduce((s, e) => s + Number(e.durationMinutes || 0), 0);
+    const liveMin = (isToday && state.activeTimer && state.activeTimer.taskId === row.taskId)
+      ? (Date.now() - new Date(state.activeTimer.startTime).getTime()) / 60000
+      : 0;
+    svg.append('text')
+       .attr('class', 'tl-row-total')
+       .attr('data-tid', row.taskId)
+       .attr('x', W - 8).attr('y', y + ROW_H/2)
+       .attr('text-anchor', 'end')
+       .attr('dominant-baseline', 'middle')
+       .attr('data-base-min', rowBaseMin)
+       .text(fmtHM(rowBaseMin + liveMin));
+
     const lid = taskLabelId(row.taskId);
     const baseColor = lid ? labelColor(lid) : '#102b8a';
 
@@ -3423,7 +3442,7 @@ function renderDayTimeline(opts) {
   };
 }
 
-// ponytail: tick barato — actualiza el live bar y la línea "now" en TODAS las instancias del timeline
+// ponytail: tick barato — actualiza el live bar, la línea "now" y el total de la fila activa en TODAS las instancias
 function tickDayTimeline() {
   if (!state.activeTimer) return;
   const scales = state.dayTimelineXScales;
@@ -3431,6 +3450,7 @@ function tickDayTimeline() {
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
   const start = new Date(state.activeTimer.startTime);
   const now   = new Date();
+  const liveMin = (now - start) / 60000;
   Object.values(scales).forEach(({ x, svgSel }) => {
     const svg = d3.select(svgSel);
     if (svg.empty()) return;
@@ -3444,6 +3464,12 @@ function tickDayTimeline() {
     if (!nowLine.empty()) {
       const xn = x((now - todayStart) / 3600000);
       nowLine.attr('x1', xn).attr('x2', xn);
+    }
+    // ponytail: actualizar el total de la fila activa (base + live) en cada tick
+    const totalEl = svg.select(`text.tl-row-total[data-tid="${state.activeTimer.taskId}"]`);
+    if (!totalEl.empty()) {
+      const base = Number(totalEl.attr('data-base-min')) || 0;
+      totalEl.text(fmtHM(base + liveMin));
     }
   });
 }
