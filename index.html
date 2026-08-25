@@ -1188,7 +1188,7 @@
     <button class="nav-item" data-view="logs"><span class="material-icons">history</span>Logs</button>
     <button class="nav-item" data-view="stats"><span class="material-icons">bar_chart</span>Stats</button>
     <button class="nav-item" data-view="reports"><span class="material-icons">description</span>Reports</button>
-    <button class="nav-item" data-view="routines"><span class="material-icons">rule</span>Rutinas</button>
+    <button class="nav-item" data-view="routines"><span class="material-icons">rule</span>Recurrentes</button>
     <button class="nav-item hidden" data-view="admin" id="nav-admin"><span class="material-icons">admin_panel_settings</span>Admin</button>
   </aside>
 
@@ -1247,10 +1247,10 @@
         <div class="activity-panel" id="activity-day"></div>
       </div>
 
-      <!-- ponytail: rutinas — tareas rutinarias (checkbox), separadas de las standard -->
+      <!-- ponytail: recurrentes — tareas recurrentes (checkbox), separadas de las standard -->
       <h3 class="section" style="display:flex; align-items:center; justify-content:space-between;">
-        <span>Rutinas</span>
-        <a href="#" id="rutinas-go" style="font-size:13px; font-weight:500; color:var(--primary); text-decoration:none; text-transform:none; letter-spacing:normal;">Gestionar rutinas →</a>
+        <span>Recurrentes</span>
+        <a href="#" id="rutinas-go" style="font-size:13px; font-weight:500; color:var(--primary); text-decoration:none; text-transform:none; letter-spacing:normal;">Gestionar recurrentes →</a>
       </h3>
       <div class="rutinas-grid" id="rutinas-grid"></div>
     </section>
@@ -1365,15 +1365,15 @@
       <div id="report-preview" style="margin-top: 20px;"></div>
     </section>
 
-    <!-- ====== Rutinas ====== -->
+    <!-- ====== Recurrentes ====== -->
     <section id="view-routines" class="view">
       <div class="view-header">
-        <h1>Rutinas</h1>
-        <p>Tareas rutinarias que se repiten a diario, semanal o mensualmente. Marca el checkbox para registrar que la completaste en el periodo actual.</p>
+        <h1>Recurrentes</h1>
+        <p>Tareas recurrentes que se repiten a diario, semanal o mensualmente. Marca el checkbox para registrar que la completaste en el periodo actual.</p>
       </div>
 
       <form class="panel" id="routine-form">
-        <h3>Añadir rutina</h3>
+        <h3>Añadir recurrente</h3>
         <input id="routine-name" placeholder="Ej. Revisar correo, Gimnasio, Pagar facturas…" required maxlength="120" style="flex:1; min-width:240px;">
         <select id="routine-label"><option value="">Sin etiqueta</option></select>
         <select id="routine-period">
@@ -1485,7 +1485,7 @@
     <button class="nav-item" data-view="logs"><span class="material-icons">history</span>Logs</button>
     <button class="nav-item" data-view="stats"><span class="material-icons">bar_chart</span>Stats</button>
     <button class="nav-item" data-view="reports"><span class="material-icons">description</span>Reports</button>
-    <button class="nav-item" data-view="routines"><span class="material-icons">rule</span>Rutinas</button>
+    <button class="nav-item" data-view="routines"><span class="material-icons">rule</span>Recurrentes</button>
     <button class="nav-item hidden" data-view="admin" id="nav-admin-mobile"><span class="material-icons">admin_panel_settings</span>Admin</button>
   </nav>
 
@@ -2497,9 +2497,9 @@ function renderRutinasPanel(host) {
   const totalRoutines = state.routines.length;
   if (totalRoutines === 0) {
     host.innerHTML = `<div class="rutina-empty">
-      <b>Todavía no tienes rutinas.</b>
-      Crea tareas rutinarias (diarias, semanales o mensuales) y márcalas desde aquí cada vez que las completes.
-      <div style="margin-top:10px;"><a href="#" id="rutinas-go-inline">Añadir primera rutina →</a></div>
+      <b>Todavía no tienes tareas recurrentes.</b>
+      Crea tareas recurrentes (diarias, semanales o mensuales) y márcalas desde aquí cada vez que las completes.
+      <div style="margin-top:10px;"><a href="#" id="rutinas-go-inline">Añadir primera tarea recurrente →</a></div>
     </div>`;
     const cta = $('#rutinas-go-inline');
     if (cta) cta.onclick = e => { e.preventDefault(); showView('routines'); };
@@ -2513,7 +2513,7 @@ function renderRutinasPanel(host) {
     const done = list.filter(x => x.completed).length;
     const pct = total ? Math.round(done * 100 / total) : 0;
     const rows = total === 0
-      ? `<li class="empty-row" style="list-style:none; cursor:default;">Sin rutinas ${title.toLowerCase()}.</li>`
+      ? `<li class="empty-row" style="list-style:none; cursor:default;">Sin recurrentes ${title.toLowerCase()}.</li>`
       : list.map(x => `
           <li data-rid="${escapeHtml(x.routine.id)}" data-period="${period}" data-key="${escapeHtml(x.periodKey)}" class="${x.completed ? 'done' : ''}" role="button" tabindex="0" title="${x.completed ? 'Click para desmarcar' : 'Click para marcar como hecha'}">
             <button class="rutina-toggle ${x.completed ? 'checked' : ''}" data-rid="${escapeHtml(x.routine.id)}" data-period="${period}" data-key="${escapeHtml(x.periodKey)}" aria-label="${x.completed ? 'Desmarcar' : 'Marcar como hecha'}">
@@ -2541,9 +2541,9 @@ function renderRutinasPanel(host) {
     </div>`;
   };
   host.innerHTML =
-    build('daily',  'Rutinas de hoy') +
-    build('weekly', 'Rutinas de la semana') +
-    build('monthly','Rutinas del mes');
+    build('daily',  'Recurrentes de hoy') +
+    build('weekly', 'Recurrentes de la semana') +
+    build('monthly','Recurrentes del mes');
 
   // ponytail: el click en CUALQUIER parte de la fila toggla — no hace falta acertar con el checkbox
   host.querySelectorAll('li[data-rid]').forEach(li => {
@@ -2605,7 +2605,7 @@ function renderRoutinesView() {
     const done = list.filter(x => x.completed).length;
     const pct = total ? Math.round(done * 100 / total) : 0;
     const body = total === 0
-      ? `<div class="empty-row">No hay rutinas ${title.toLowerCase()} que coincidan.</div>`
+      ? `<div class="empty-row">No hay recurrentes ${title.toLowerCase()} que coincidan.</div>`
       : list.map(x => `
           <div class="rutina-row ${x.completed ? 'done' : ''}" data-rid="${escapeHtml(x.routine.id)}" data-period="${period}" data-key="${escapeHtml(x.periodKey)}" role="button" tabindex="0" title="${x.completed ? 'Click para desmarcar' : 'Click para marcar como hecha'}">
             <button class="rutina-toggle ${x.completed ? 'checked' : ''}" data-rid="${escapeHtml(x.routine.id)}" data-period="${period}" data-key="${escapeHtml(x.periodKey)}" aria-label="${x.completed ? 'Desmarcar' : 'Marcar como hecha'}">
@@ -2635,8 +2635,8 @@ function renderRoutinesView() {
         <span class="rutina-name">${escapeHtml(r.name)}</span>
         ${rutinaLabelChip(r)}
         <span class="rutina-period-chip">${RUTINA_PERIOD_LABELS[period]}</span>
-        <button class="del icon-btn" data-del-rid="${escapeHtml(r.id)}" title="Eliminar rutina" aria-label="Eliminar rutina"><span class="material-icons">delete</span></button>
-      </div>`).join('') || `<div class="empty-row">Sin rutinas en este periodo${routineFilter ? ' con esta etiqueta' : ''}.</div>`;
+        <button class="del icon-btn" data-del-rid="${escapeHtml(r.id)}" title="Eliminar recurrente" aria-label="Eliminar recurrente"><span class="material-icons">delete</span></button>
+      </div>`).join('') || `<div class="empty-row">Sin recurrentes en este periodo${routineFilter ? ' con esta etiqueta' : ''}.</div>`;
 
   const definedTotal = state.routines.filter(filterFn).length;
 
@@ -2645,7 +2645,7 @@ function renderRoutinesView() {
     buildChecklistCard('weekly', 'Esta semana') +
     buildChecklistCard('monthly','Este mes') +
     `<div class="rutina-list-card">
-      <h3>Rutinas definidas <span class="badge">${definedTotal}</span></h3>
+      <h3>Recurrentes definidas <span class="badge">${definedTotal}</span></h3>
       ${definedByPeriod('daily')}
       ${definedByPeriod('weekly')}
       ${definedByPeriod('monthly')}
@@ -2661,7 +2661,7 @@ function renderRoutinesView() {
     const rid = b.dataset.delRid;
     const r = state.routines.find(x => x.id === rid);
     if (!r) return;
-    if (!await showConfirm('Eliminar rutina', `¿Eliminar la rutina "${r.name}"? Sus completaciones pasadas también se borran.`, 'Eliminar')) return;
+    if (!await showConfirm('Eliminar recurrente', `¿Eliminar la tarea recurrente "${r.name}"? Sus completaciones pasadas también se borran.`, 'Eliminar')) return;
     try {
       state.routines = await call('deleteRoutine', rid);
       state.routineStatus = await call('getRoutineStatus');
