@@ -1112,6 +1112,14 @@
     .task-card { padding: 12px; }
     .task-card .task-total { font-size: 13px; }
     .panel { padding: 16px; }
+    /* ponytail: recurrentes en móvil — menos padding, head que envuelve,
+       label "Hecha/Pendiente" oculto (el icono ya dice el estado), fila permite wrap. */
+    .rutina-card, .rutina-list-card { padding: 12px 14px; }
+    .rutina-card-head { flex-wrap: wrap; row-gap: 4px; }
+    .rutina-card-head .rutina-bulk { padding: 4px 6px; }
+    .rutina-toggle-label { display: none; }
+    .rutina-row { flex-wrap: wrap; row-gap: 6px; }
+    .rutina-row .rutina-name { flex-basis: 100%; order: -1; }
   }
 </style>
 </head>
