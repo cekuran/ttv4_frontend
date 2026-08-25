@@ -100,22 +100,22 @@
     transform: translateX(-50%);
     border: 4px solid transparent; border-top-color: var(--on-surface);
   }
-  /* === Day timeline (24h Gantt en el dashboard) === */
-  #day-timeline-wrap { background: #fff; padding: 18px 20px 22px; border-radius: var(--r-lg); box-shadow: var(--shadow-1); border: 1px solid var(--outline-variant); margin-bottom: 16px; overflow: hidden; }
-  #day-timeline-wrap h3 { margin: 0 0 12px; }
-  #day-timeline-svg { display: block; width: 100%; font: 11px/1.4 'Inter', sans-serif; color: var(--on-surface-variant); }
-  #day-timeline-svg .tl-row-bg { fill: var(--surface-low); }
-  #day-timeline-svg .tl-row-label { font-size: 12px; fill: var(--on-surface); font-weight: 500; }
-  #day-timeline-svg .tl-bar { cursor: pointer; transition: opacity .15s; }
-  #day-timeline-svg .tl-bar:hover { opacity: 0.82; }
-  #day-timeline-svg .tl-bar-live { stroke-dasharray: 4 2; }
-  #day-timeline-svg .tl-grid { stroke: rgba(117,118,131,0.18); shape-rendering: crispEdges; }
-  #day-timeline-svg .tl-hour-label { fill: var(--on-surface-variant); font-size: 10px; font-family: 'JetBrains Mono', ui-monospace, monospace; }
-  #day-timeline-svg .tl-now { stroke: var(--secondary); stroke-width: 1.5; }
-  #day-timeline-svg .tl-empty { fill: var(--outline); font-size: 12px; }
+  /* === Day timeline (24h Gantt en el dashboard y en stats con rango=day) === */
+  .day-timeline-wrap { background: #fff; padding: 18px 20px 22px; border-radius: var(--r-lg); box-shadow: var(--shadow-1); border: 1px solid var(--outline-variant); margin-bottom: 16px; overflow: hidden; }
+  .day-timeline-wrap h3 { margin: 0 0 12px; }
+  .day-timeline-svg { display: block; width: 100%; font: 11px/1.4 'Inter', sans-serif; color: var(--on-surface-variant); }
+  .day-timeline-svg .tl-row-bg { fill: var(--surface-low); }
+  .day-timeline-svg .tl-row-label { font-size: 12px; fill: var(--on-surface); font-weight: 500; }
+  .day-timeline-svg .tl-bar { cursor: pointer; transition: opacity .15s; }
+  .day-timeline-svg .tl-bar:hover { opacity: 0.82; }
+  .day-timeline-svg .tl-bar-live { stroke-dasharray: 4 2; }
+  .day-timeline-svg .tl-grid { stroke: rgba(117,118,131,0.18); shape-rendering: crispEdges; }
+  .day-timeline-svg .tl-hour-label { fill: var(--on-surface-variant); font-size: 10px; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .day-timeline-svg .tl-now { stroke: var(--secondary); stroke-width: 1.5; }
+  .day-timeline-svg .tl-empty { fill: var(--outline); font-size: 12px; }
   /* ponytail: en mobile ocultamos el nombre de tarea a la izquierda para no comerse la línea */
   @media (max-width: 1280px) {
-    #day-timeline-svg .tl-row-label { display: none; }
+    .day-timeline-svg .tl-row-label { display: none; }
   }
   /* ponytail: format-toggle inside .filters — wrap inline so it sits next to the label */
   .filters .format-toggle { padding: 2px; }
@@ -1167,9 +1167,9 @@
         </div>
       </div>
 
-      <div class="panel" id="day-timeline-wrap">
+      <div class="panel day-timeline-wrap" id="day-timeline-wrap">
         <h3>Línea del día</h3>
-        <svg id="day-timeline-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        <svg class="day-timeline-svg" id="day-timeline-svg" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
 
       <div class="panel">
@@ -1263,6 +1263,10 @@
       </div>
 
       <div class="stat-grid" id="stats-cards"></div>
+      <div class="panel day-timeline-wrap" id="stats-day-timeline-wrap" hidden>
+        <h3>Línea del día</h3>
+        <svg class="day-timeline-svg" id="stats-day-timeline-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
       <div id="stats-totals"></div>
       <div id="stats-chart-wrap" style="margin-top:20px;"><svg id="stats-chart" xmlns="http://www.w3.org/2000/svg"></svg></div>
       <div id="stats-chart-tip" class="d3-tip" hidden></div>
@@ -2292,11 +2296,23 @@ function bindGlobal() {
   // ponytail: re-render de la línea del día al cambiar el ancho del wrap (mismo patrón que stats-chart)
   if (state.dayTimelineResizeObs) state.dayTimelineResizeObs.disconnect();
   let tlRafId = 0;
-  state.dayTimelineResizeObs = new ResizeObserver(() => {
+  state.dayTimelineResizeObs = new ResizeObserver((entries) => {
     if (tlRafId) cancelAnimationFrame(tlRafId);
-    tlRafId = requestAnimationFrame(() => { tlRafId = 0; renderDayTimeline(); });
+    tlRafId = requestAnimationFrame(() => {
+      tlRafId = 0;
+      // ponytail: re-render sólo la(s) instancia(s) cuyo wrap cambió
+      // para el de stats, llamar a renderStats() en lugar de renderDayTimeline() directo,
+      // así el día del anchor se preserva (si no, el observer sobreescribiría con "hoy")
+      entries.forEach(entry => {
+        const el = entry.target;
+        if (el.id === 'day-timeline-wrap') renderDayTimeline();
+        else if (el.id === 'stats-day-timeline-wrap' && $('#view-stats').classList.contains('active')) renderStats();
+      });
+    });
   });
   state.dayTimelineResizeObs.observe($('#day-timeline-wrap'));
+  const statsTlWrap = $('#stats-day-timeline-wrap');
+  if (statsTlWrap) state.dayTimelineResizeObs.observe(statsTlWrap);
   $('#timer-label-filter').addEventListener('change', populateTimerTaskSelect);
   // Reports
   ['report-from','report-to'].forEach(id => $('#'+id).addEventListener('change', renderReports));
@@ -2323,6 +2339,8 @@ async function onStart() {
   if (!taskId) { alert('Pick a task'); return; }
   state.activeTimer = await call('startTimer', taskId);
   startTicker();
+  // ponytail: re-render del dashboard para que línea del día y paneles de actividad reflejen el nuevo timer
+  if ($('#view-dashboard').classList.contains('active')) renderDashboard();
 }
 async function onStop() {
   await call('stopTimer');
@@ -2932,6 +2950,15 @@ function renderStats() {
   if (anchor.type !== wantType || !anchor.value) setStatsAnchorType(range);
   const [start, end] = rangeBounds(range, anchor);
 
+  // ponytail: línea del día sólo cuando el rango es day, justo encima de la tabla de tasks
+  // usa el día seleccionado en el anchor (no hoy) para que la stats muestre el histórico
+  const statsTimelineWrap = $('#stats-day-timeline-wrap');
+  if (statsTimelineWrap) {
+    statsTimelineWrap.hidden = range !== 'day';
+    if (range === 'day') renderDayTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', day: start });
+    else d3.select('#stats-day-timeline-svg').selectAll('*').remove();
+  }
+
   const inRange = state.entries.filter(e => {
     const d = new Date(e.startTime);
     return d >= start && d < end;
@@ -3196,18 +3223,26 @@ function formatHourLabel(h) {
   const mm = Math.round((h - Math.floor(h)) * 60);
   return mm === 0 ? `${hh}:00` : `${hh}:${String(mm).padStart(2, '0')}`;
 }
-function renderDayTimeline() {
-  const wrap = $('#day-timeline-wrap');
-  const svgNode = $('#day-timeline-svg');
+function renderDayTimeline(opts) {
+  const wrapSel = (opts && opts.wrapSel) || '#day-timeline-wrap';
+  const svgSel  = (opts && opts.svgSel)  || '#day-timeline-svg';
+  const wrap = $(wrapSel);
+  const svgNode = $(svgSel);
   if (!wrap || !svgNode) return;
   const svg = d3.select(svgNode);
   svg.selectAll('*').remove();
 
-  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-  const todayEnd   = new Date(todayStart); todayEnd.setDate(todayEnd.getDate() + 1);
+  // ponytail: si opts.day viene, filtrar por ese día; si no, usar hoy (dashboard)
+  const dayStart = opts && opts.day
+    ? new Date(opts.day)
+    : (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
+  const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+  // ponytail: el live bar y la línea "now" sólo aparecen cuando se está mostrando hoy
+  const todayMidnight = (() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); })();
+  const isToday = dayStart.getTime() === todayMidnight;
   const todays = state.entries.filter(e => {
     const d = new Date(e.startTime);
-    return d >= todayStart && d < todayEnd;
+    return d >= dayStart && d < dayEnd;
   });
 
   // Agrupar por taskId
@@ -3236,7 +3271,9 @@ function renderDayTimeline() {
        .append('text').attr('class', 'tl-empty')
        .attr('x', 16).attr('y', 36)
        .text('No hay registros hoy.');
-    state.dayTimelineXScale = null;
+    // ponytail: mapa de scales por instancia (dashboard + stats) para tick() barato
+    state.dayTimelineXScales = state.dayTimelineXScales || {};
+    delete state.dayTimelineXScales[wrapSel];
     return;
   }
 
@@ -3262,11 +3299,13 @@ function renderDayTimeline() {
   const firstMs = Math.min(...allTimes);
   const lastMs  = Math.max(...allTimes);
   const PAD_H = 0.5;
-  const firstH = Math.max(0, (firstMs - todayStart.getTime()) / 3600000 - PAD_H);
-  const lastH  = Math.min(24, (lastMs - todayStart.getTime()) / 3600000 + PAD_H);
+  const firstH = Math.max(0, (firstMs - dayStart.getTime()) / 3600000 - PAD_H);
+  const lastH  = Math.min(24, (lastMs - dayStart.getTime()) / 3600000 + PAD_H);
 
   const x = d3.scaleLinear().domain([firstH, lastH]).range([0, W - MARGIN.left - MARGIN.right]);
-  state.dayTimelineXScale = x;
+  // ponytail: mapa de scales por instancia (dashboard + stats) para tick() barato
+  state.dayTimelineXScales = state.dayTimelineXScales || {};
+  state.dayTimelineXScales[wrapSel] = { x, svgSel };
   const rowTop = i => MARGIN.top + i * (ROW_H + ROW_GAP);
   const g = svg.append('g').attr('transform', `translate(${MARGIN.left},0)`);
 
@@ -3329,9 +3368,9 @@ function renderDayTimeline() {
     row.entries.forEach(e => {
       const s = new Date(e.startTime);
       const t = new Date(e.endTime);
-      // ponytail: clampear a [0,24]h desde todayStart por si cruza medianoche
-      const x1 = x(Math.max(0, (s - todayStart) / 3600000));
-      const x2 = x(Math.min(24, (t - todayStart) / 3600000));
+      // ponytail: clampear a [0,24]h desde dayStart por si cruza medianoche
+      const x1 = x(Math.max(0, (s - dayStart) / 3600000));
+      const x2 = x(Math.min(24, (t - dayStart) / 3600000));
       const w  = Math.max(2, x2 - x1);
       g.append('rect')
         .attr('class', 'tl-bar')
@@ -3345,14 +3384,14 @@ function renderDayTimeline() {
     });
   });
 
-  // ponytail: live bar + línea "now"
-  if (activeTid) {
+  // ponytail: live bar + línea "now" sólo si se está mostrando hoy
+  if (isToday && activeTid) {
     const rowIdx = sorted.findIndex(r => r.taskId === activeTid);
     if (rowIdx >= 0) {
       const s   = new Date(state.activeTimer.startTime);
       const now = new Date();
-      const x1  = x(Math.max(0, (s - todayStart) / 3600000));
-      const x2  = x(Math.min(24, (now - todayStart) / 3600000));
+      const x1  = x(Math.max(0, (s - dayStart) / 3600000));
+      const x2  = x(Math.min(24, (now - dayStart) / 3600000));
       const w   = Math.max(2, x2 - x1);
       const lid = taskLabelId(activeTid);
       const c   = lid ? labelColor(lid) : '#102b8a';
@@ -3367,8 +3406,8 @@ function renderDayTimeline() {
         .append('title').text('En curso — click para ver detalles');
     }
     const now = new Date();
-    if (now >= todayStart && now < todayEnd) {
-      const xn = x((now - todayStart) / 3600000);
+    if (now >= dayStart && now < dayEnd) {
+      const xn = x((now - dayStart) / 3600000);
       g.append('line').attr('class', 'tl-now')
        .attr('x1', xn).attr('x2', xn)
        .attr('y1', MARGIN.top - 14).attr('y2', H - MARGIN.bottom);
@@ -3384,24 +3423,29 @@ function renderDayTimeline() {
   };
 }
 
-// ponytail: tick barato — sólo ancho del live bar y posición de la línea "now"
+// ponytail: tick barato — actualiza el live bar y la línea "now" en TODAS las instancias del timeline
 function tickDayTimeline() {
-  if (!state.activeTimer || !state.dayTimelineXScale) return;
-  const svg = d3.select('#day-timeline-svg');
-  const live = svg.select('rect.tl-bar-live');
-  if (live.empty()) return;
+  if (!state.activeTimer) return;
+  const scales = state.dayTimelineXScales;
+  if (!scales || !Object.keys(scales).length) return;
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
   const start = new Date(state.activeTimer.startTime);
   const now   = new Date();
-  const x     = state.dayTimelineXScale;
-  const x1    = x(Math.max(0, (start - todayStart) / 3600000));
-  const x2    = x(Math.min(24, (now - todayStart) / 3600000));
-  live.attr('width', Math.max(2, x2 - x1));
-  const nowLine = svg.select('line.tl-now');
-  if (!nowLine.empty()) {
-    const xn = x((now - todayStart) / 3600000);
-    nowLine.attr('x1', xn).attr('x2', xn);
-  }
+  Object.values(scales).forEach(({ x, svgSel }) => {
+    const svg = d3.select(svgSel);
+    if (svg.empty()) return;
+    const live = svg.select('rect.tl-bar-live');
+    if (!live.empty()) {
+      const x1 = x(Math.max(0, (start - todayStart) / 3600000));
+      const x2 = x(Math.min(24, (now - todayStart) / 3600000));
+      live.attr('width', Math.max(2, x2 - x1));
+    }
+    const nowLine = svg.select('line.tl-now');
+    if (!nowLine.empty()) {
+      const xn = x((now - todayStart) / 3600000);
+      nowLine.attr('x1', xn).attr('x2', xn);
+    }
+  });
 }
 
 // ==== Reports ====
