@@ -2440,7 +2440,8 @@ function refreshAll() {
 }
 
 // ==== Rutinas ====
-// ponytail: las rutinas se guardan en dos tablas separadas (Routines + RoutineCompletions)
+// ponytail: las rutinas viven en Routines (definiciones) + tres hojas por periodo
+// (DailyCompletions / WeeklyCompletions / MonthlyCompletions, shape [periodKey, ids])
 // en el spreadsheet del usuario. El backend computa el status (qué está hecho hoy/esta
 // semana/este mes); el frontend sólo pinta y dispara toggleRoutineCompletion.
 const RUTINA_PERIOD_LABELS = { daily: 'Diaria', weekly: 'Semanal', monthly: 'Mensual' };
