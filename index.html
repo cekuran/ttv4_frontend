@@ -78,13 +78,20 @@
 
   /* === Rutinas (ponytail: reutiliza .panel + estilos existentes; sólo añade lo nuevo) === */
   .rutinas-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
-  .rutina-card { background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); padding: 16px 18px; box-shadow: var(--shadow-1); }
-  .rutina-card h4 { margin: 0 0 4px; font: 600 11px/14px 'Inter', sans-serif; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.04em; }
-  .rutina-card .rutina-progress { font: 600 14px/1.4 'Inter', sans-serif; color: var(--on-surface); margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+  .rutina-card { background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); padding: 16px 18px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 10px; }
+  .rutina-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .rutina-card h4 { margin: 0; font: 600 11px/14px 'Inter', sans-serif; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.04em; }
+  .rutina-card .rutina-bulk { font: 500 12px/1 'Inter', sans-serif; background: transparent; color: var(--primary); border: 0; padding: 4px 8px; border-radius: var(--r-sm); cursor: pointer; }
+  .rutina-card .rutina-bulk:hover { background: var(--surface-low); }
+  .rutina-card .rutina-progress { font: 600 14px/1.4 'Inter', sans-serif; color: var(--on-surface); font-variant-numeric: tabular-nums; display: flex; justify-content: space-between; align-items: baseline; }
   .rutina-card .rutina-progress b { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .rutina-card .rutina-progress .pct { font: 500 12px/1 'Inter', sans-serif; color: var(--secondary); }
+  .rutina-progress-bar { height: 6px; background: var(--surface-low); border-radius: 9999px; overflow: hidden; }
+  .rutina-progress-bar > div { height: 100%; background: var(--secondary); transition: width .25s ease; }
   .rutina-card ul { list-style: none; margin: 0; padding: 0; }
-  .rutina-card li { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--surface-low); }
+  .rutina-card li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin: 0 -10px; font-size: 13px; border-bottom: 1px solid var(--surface-low); cursor: pointer; border-radius: var(--r-sm); transition: background .15s; user-select: none; }
   .rutina-card li:last-child { border-bottom: 0; }
+  .rutina-card li:hover { background: var(--surface-low); }
   .rutina-card li.done .rutina-name { text-decoration: line-through; color: var(--outline); }
   .rutina-card li .rutina-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rutina-card .empty-row { color: var(--outline); font-size: 12px; padding: 6px 0; }
@@ -96,10 +103,33 @@
   .rutina-row .rutina-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .rutina-row.done .rutina-name { text-decoration: line-through; color: var(--outline); }
   .rutina-row .rutina-period-chip { font-size: 11px; padding: 2px 8px; border-radius: 9999px; background: var(--surface-low); color: var(--on-surface-variant); font-weight: 500; }
-  .rutina-checkbox { width: 22px; height: 22px; padding: 0; border: 1.5px solid var(--outline-variant); background: #fff; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background .15s, border-color .15s, color .15s; flex-shrink: 0; }
-  .rutina-checkbox:hover { border-color: var(--secondary); color: var(--secondary); }
-  .rutina-checkbox.checked { background: var(--secondary); border-color: var(--secondary); color: var(--on-secondary); }
-  .rutina-checkbox .material-icons { font-size: 16px; line-height: 1; }
+  /* ponytail: checkbox obvio — icono material dentro SIEMPRE, label "Pendiente/Hecha" al lado.
+     Antes era un cuadrado vacío de 28×28 sin icono: no se leía como checkbox. */
+  .rutina-toggle {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: transparent; border: 0; padding: 4px 8px;
+    border-radius: var(--r-sm); cursor: pointer; font-family: inherit;
+    color: var(--on-surface-variant); transition: background .15s, color .15s;
+  }
+  .rutina-toggle:hover { background: var(--surface-low); color: var(--secondary); }
+  .rutina-toggle-box {
+    width: 28px; height: 28px; border-radius: 6px;
+    border: 2px solid var(--outline-variant); background: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--outline); transition: background .15s, border-color .15s, color .15s;
+    flex-shrink: 0;
+  }
+  .rutina-toggle-box .material-icons { font-size: 22px; line-height: 1; }
+  .rutina-toggle:hover .rutina-toggle-box { border-color: var(--secondary); color: var(--secondary); }
+  .rutina-toggle.checked { color: var(--secondary); font-weight: 600; }
+  .rutina-toggle.checked .rutina-toggle-box {
+    background: var(--secondary); border-color: var(--secondary); color: var(--on-secondary);
+  }
+  .rutina-toggle-label { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+  .rutina-empty { background: #fff; border: 1px dashed var(--outline-variant); border-radius: var(--r-lg); padding: 22px; text-align: center; color: var(--on-surface-variant); margin-bottom: 16px; grid-column: 1 / -1; }
+  .rutina-empty b { color: var(--on-surface); display: block; margin-bottom: 6px; font-size: 15px; }
+  .rutina-empty a { color: var(--primary); font-weight: 600; text-decoration: none; }
+  .rutina-empty a:hover { text-decoration: underline; }
   @media (max-width: 1280px) {
     .rutinas-grid { grid-template-columns: 1fr; gap: 12px; }
   }
@@ -1218,6 +1248,10 @@
       </div>
 
       <!-- ponytail: rutinas — tareas rutinarias (checkbox), separadas de las standard -->
+      <h3 class="section" style="display:flex; align-items:center; justify-content:space-between;">
+        <span>Rutinas</span>
+        <a href="#" id="rutinas-go" style="font-size:13px; font-weight:500; color:var(--primary); text-decoration:none; text-transform:none; letter-spacing:normal;">Gestionar rutinas →</a>
+      </h3>
       <div class="rutinas-grid" id="rutinas-grid"></div>
     </section>
 
@@ -1339,8 +1373,9 @@
       </div>
 
       <form class="panel" id="routine-form">
-        <h3 style="margin: 0 0 12px;">Añadir rutina</h3>
+        <h3>Añadir rutina</h3>
         <input id="routine-name" placeholder="Ej. Revisar correo, Gimnasio, Pagar facturas…" required maxlength="120" style="flex:1; min-width:240px;">
+        <select id="routine-label"><option value="">Sin etiqueta</option></select>
         <select id="routine-period">
           <option value="daily">Diaria</option>
           <option value="weekly">Semanal</option>
@@ -1349,6 +1384,7 @@
         <button type="submit">Añadir</button>
       </form>
 
+      <div class="chip-row" id="routine-filter-chips" style="margin-bottom: 12px;"></div>
       <div id="rutinas-board"></div>
     </section>
 
@@ -2336,6 +2372,9 @@ function bindGlobal() {
   $('#manual-form').addEventListener('submit', onManualSubmit);
   $('#task-form').addEventListener('submit', onTaskCreate);
   $('#routine-form').addEventListener('submit', onRoutineCreate);
+  // ponytail: el heading "Gestionar rutinas →" del dashboard salta a la vista completa
+  const rutinasGo = $('#rutinas-go');
+  if (rutinasGo) rutinasGo.addEventListener('click', e => { e.preventDefault(); showView('routines'); });
   ['log-from','log-to','log-task','log-label','log-group'].forEach(id => $('#'+id).addEventListener('change', renderLogs));
   $('#log-clear').addEventListener('click', () => {
     ['log-from','log-to','log-task','log-label'].forEach(id => $('#'+id).value = '');
@@ -2405,26 +2444,98 @@ function refreshAll() {
 // en el spreadsheet del usuario. El backend computa el status (qué está hecho hoy/esta
 // semana/este mes); el frontend sólo pinta y dispara toggleRoutineCompletion.
 const RUTINA_PERIOD_LABELS = { daily: 'Diaria', weekly: 'Semanal', monthly: 'Mensual' };
+let routineFilter = '';
+
+async function ensureRoutineLabelSelect() {
+  // ponytail: mismo patrón que ensureTaskLabelSelect — opciones reales + "+ Nueva etiqueta…"
+  // crea una etiqueta al vuelo usando createLabel y refresca la lista.
+  const sel = $('#routine-label');
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Sin etiqueta</option>';
+  state.labels.forEach(l => {
+    const o = document.createElement('option');
+    o.value = l.id; o.textContent = l.name;
+    sel.appendChild(o);
+  });
+  const newOpt = document.createElement('option');
+  newOpt.value = '__new__'; newOpt.textContent = '+ Nueva etiqueta…';
+  sel.appendChild(newOpt);
+  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+  // ponytail: handler inline — si elige "+ Nueva etiqueta…", prompt y crea al vuelo
+  sel.onchange = async () => {
+    if (sel.value !== '__new__') return;
+    sel.value = '';
+    const name = (prompt('Nombre de la nueva etiqueta:') || '').trim();
+    if (!name) return;
+    try {
+      state.labels = await call('createLabel', name);
+      await ensureRoutineLabelSelect();
+      const fresh = state.labels.find(l => l.name === name);
+      if (fresh) $('#routine-label').value = fresh.id;
+    } catch (e) { toast(e.message, 'warn'); }
+  };
+}
+
+function rutinaLabelChip(routine) {
+  const lid = routine && routine.labelId;
+  if (!lid) return '';
+  const l = labelById(lid);
+  if (!l) return '';
+  return `<span class="chip" style="background:${l.color}">${escapeHtml(l.name)}</span>`;
+}
+
+// ponytail: backend expone getRoutineStatus con claves {today, week, month}, pero los ids de periodo
+// que viajamos al backend son {daily, weekly, monthly}. Mantenemos los nombres "lógicos" en el cliente
+// y mapeamos sólo al leer status.
+const STATUS_KEY_FOR_PERIOD = { daily: 'today', weekly: 'week', monthly: 'month' };
 
 function renderRutinasPanel(host) {
   // Mini-checklist de 3 columnas en el dashboard
   if (!host) return;
+  const totalRoutines = state.routines.length;
+  if (totalRoutines === 0) {
+    host.innerHTML = `<div class="rutina-empty">
+      <b>Todavía no tienes rutinas.</b>
+      Crea tareas rutinarias (diarias, semanales o mensuales) y márcalas desde aquí cada vez que las completes.
+      <div style="margin-top:10px;"><a href="#" id="rutinas-go-inline">Añadir primera rutina →</a></div>
+    </div>`;
+    const cta = $('#rutinas-go-inline');
+    if (cta) cta.onclick = e => { e.preventDefault(); showView('routines'); };
+    return;
+  }
+  // ponytail: el panel del dashboard IGNORA el filtro de etiqueta — es superficie de marcado rápido,
+  // siempre muestra todas las rutinas para que un click las resuelva sin cambiar de vista.
   const build = (period, title) => {
-    const list = state.routineStatus[period] || [];
+    const list = state.routineStatus[STATUS_KEY_FOR_PERIOD[period]] || [];
     const total = list.length;
     const done = list.filter(x => x.completed).length;
-    const rows = list.length === 0
-      ? `<div class="empty-row">Sin rutinas ${title.toLowerCase()}.</div>`
+    const pct = total ? Math.round(done * 100 / total) : 0;
+    const rows = total === 0
+      ? `<li class="empty-row" style="list-style:none; cursor:default;">Sin rutinas ${title.toLowerCase()}.</li>`
       : list.map(x => `
-          <li class="${x.completed ? 'done' : ''}">
-            <button class="rutina-checkbox ${x.completed ? 'checked' : ''}" data-rid="${escapeHtml(x.routine.id)}" data-period="${period}" data-key="${escapeHtml(x.periodKey)}" title="${x.completed ? 'Desmarcar' : 'Marcar como hecha'}" aria-label="${x.completed ? 'Desmarcar' : 'Marcar como hecha'}">
-              ${x.completed ? '<span class="material-icons">check</span>' : ''}
+          <li data-rid="${escapeHtml(x.routine.id)}" data-period="${period}" data-key="${escapeHtml(x.periodKey)}" class="${x.completed ? 'done' : ''}" role="button" tabindex="0" title="${x.completed ? 'Click para desmarcar' : 'Click para marcar como hecha'}">
+            <button class="rutina-toggle ${x.completed ? 'checked' : ''}" data-rid="${escapeHtml(x.routine.id)}" data-period="${period}" data-key="${escapeHtml(x.periodKey)}" aria-label="${x.completed ? 'Desmarcar' : 'Marcar como hecha'}">
+              <span class="rutina-toggle-box"><span class="material-icons">${x.completed ? 'check_box' : 'check_box_outline_blank'}</span></span>
+              <span class="rutina-toggle-label">${x.completed ? 'Hecha' : 'Pendiente'}</span>
             </button>
             <span class="rutina-name" title="${escapeHtml(x.routine.name)}">${escapeHtml(x.routine.name)}</span>
+            ${rutinaLabelChip(x.routine)}
           </li>`).join('');
+    // ponytail: el botón bulk cambia de label según el estado — "Marcar todas" cuando quedan,
+    // "Desmarcar todas" cuando todo está hecho (útil si te equivocaste marcando).
+    const bulkLabel = (done === 0 || done === total) ? (done === total && total > 0 ? 'Desmarcar todas' : 'Marcar todas') : 'Marcar restantes';
+    const bulkAction = done === total && total > 0 ? 'clear' : done === 0 ? 'all' : 'remaining';
     return `<div class="rutina-card">
-      <h4>${title}</h4>
-      <div class="rutina-progress"><b>${done}</b> / ${total} ${total === 1 ? 'completada' : 'completadas'}</div>
+      <div class="rutina-card-head">
+        <h4>${title}</h4>
+        ${total > 0 ? `<button class="rutina-bulk" data-bulk="${bulkAction}" data-period="${period}" data-key="${escapeHtml(list[0] ? list[0].periodKey : '')}" title="${bulkLabel}">${bulkLabel}</button>` : ''}
+      </div>
+      <div class="rutina-progress">
+        <span><b>${done}</b> / ${total} ${total === 1 ? 'completada' : 'completadas'}</span>
+        <span class="pct">${pct}%</span>
+      </div>
+      <div class="rutina-progress-bar"><div style="width:${pct}%"></div></div>
       <ul>${rows}</ul>
     </div>`;
   };
@@ -2433,7 +2544,30 @@ function renderRutinasPanel(host) {
     build('weekly', 'Rutinas de la semana') +
     build('monthly','Rutinas del mes');
 
-  host.querySelectorAll('.rutina-checkbox').forEach(b => b.onclick = () => toggleRutina(b.dataset.rid, b.dataset.period, b.dataset.key));
+  // ponytail: el click en CUALQUIER parte de la fila toggla — no hace falta acertar con el checkbox
+  host.querySelectorAll('li[data-rid]').forEach(li => {
+    const trigger = () => toggleRutina(li.dataset.rid, li.dataset.period, li.dataset.key);
+    li.addEventListener('click', trigger);
+    li.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); trigger(); }
+    });
+  });
+  host.querySelectorAll('.rutina-bulk').forEach(b => b.onclick = () => bulkToggle(b.dataset.period, b.dataset.bulk));
+}
+
+async function bulkToggle(period, action) {
+  // ponytail: bulk sin iteración cliente→servidor→cliente para cada item —
+  // el backend ya soporta toggleRoutineCompletion, así que llamamos en paralelo.
+  const list = (state.routineStatus[STATUS_KEY_FOR_PERIOD[period]] || []).filter(x => action === 'all' ? !x.completed : action === 'clear' ? x.completed : !x.completed);
+  if (!list.length) return;
+  try {
+    // ponytail: paralelizar con Promise.all — la latencia dominante es el round-trip al WebApp,
+    // así que N toggles en paralelo ≈ 1 toggle. Si el backend añadiera rate-limit, cambiar a chunks.
+    await Promise.all(list.map(x => call('toggleRoutineCompletion', x.routine.id, period, x.periodKey)));
+    state.routineStatus = await call('getRoutineStatus');
+    if ($('#view-dashboard').classList.contains('active')) renderDashboard();
+    if ($('#view-routines').classList.contains('active')) renderRoutinesView();
+  } catch (e) { toast(e.message, 'warn'); }
 }
 
 async function toggleRutina(rid, period, periodKey) {
@@ -2448,36 +2582,62 @@ function renderRoutinesView() {
   // Vista completa Rutinas: lista de rutinas definidas + checklist del periodo actual
   const board = $('#rutinas-board');
   if (!board) return;
+  ensureRoutineLabelSelect();
+
+  // ponytail: chips de filtro por etiqueta (mismo patrón que Tasks)
+  const chipsHost = $('#routine-filter-chips');
+  if (chipsHost) {
+    chipsHost.innerHTML = `<button class="chip-filter ${routineFilter===''?'active':''}" data-lid="">Todas</button>` +
+      state.labels.map(l => `<button class="chip-filter ${routineFilter===l.id?'active':''}" data-lid="${l.id}"><span class="dot" style="background:${l.color}"></span>${escapeHtml(l.name)}</button>`).join('');
+    chipsHost.querySelectorAll('.chip-filter').forEach(b => b.onclick = () => {
+      routineFilter = b.dataset.lid || '';
+      renderRoutinesView();
+      if ($('#view-dashboard').classList.contains('active')) renderDashboard();
+    });
+  }
+
+  const filterFn = routineFilter ? r => r.labelId === routineFilter : () => true;
 
   const buildChecklistCard = (period, title) => {
-    const list = state.routineStatus[period] || [];
+    const list = (state.routineStatus[STATUS_KEY_FOR_PERIOD[period]] || []).filter(x => filterFn(x.routine));
     const total = list.length;
     const done = list.filter(x => x.completed).length;
+    const pct = total ? Math.round(done * 100 / total) : 0;
     const body = total === 0
-      ? `<div class="empty-row">No hay rutinas ${title.toLowerCase()} aún.</div>`
+      ? `<div class="empty-row">No hay rutinas ${title.toLowerCase()} que coincidan.</div>`
       : list.map(x => `
-          <div class="rutina-row ${x.completed ? 'done' : ''}">
-            <button class="rutina-checkbox ${x.completed ? 'checked' : ''}" data-rid="${escapeHtml(x.routine.id)}" data-period="${period}" data-key="${escapeHtml(x.periodKey)}" title="${x.completed ? 'Desmarcar' : 'Marcar como hecha'}" aria-label="${x.completed ? 'Desmarcar' : 'Marcar como hecha'}">
-              ${x.completed ? '<span class="material-icons">check</span>' : ''}
+          <div class="rutina-row ${x.completed ? 'done' : ''}" data-rid="${escapeHtml(x.routine.id)}" data-period="${period}" data-key="${escapeHtml(x.periodKey)}" role="button" tabindex="0" title="${x.completed ? 'Click para desmarcar' : 'Click para marcar como hecha'}">
+            <button class="rutina-toggle ${x.completed ? 'checked' : ''}" data-rid="${escapeHtml(x.routine.id)}" data-period="${period}" data-key="${escapeHtml(x.periodKey)}" aria-label="${x.completed ? 'Desmarcar' : 'Marcar como hecha'}">
+              <span class="rutina-toggle-box"><span class="material-icons">${x.completed ? 'check_box' : 'check_box_outline_blank'}</span></span>
+              <span class="rutina-toggle-label">${x.completed ? 'Hecha' : 'Pendiente'}</span>
             </button>
             <span class="rutina-name">${escapeHtml(x.routine.name)}</span>
+            ${rutinaLabelChip(x.routine)}
           </div>`).join('');
+    // ponytail: bulk button (sólo si la lista no está vacía tras el filtro)
+    const bulkLabel = (done === 0 || done === total) ? (done === total && total > 0 ? 'Desmarcar todas' : 'Marcar todas') : 'Marcar restantes';
+    const bulkAction = done === total && total > 0 ? 'clear' : done === 0 ? 'all' : 'remaining';
     return `<div class="rutina-list-card">
-      <h3>${title} <span class="badge">${done} / ${total}</span></h3>
+      <h3>
+        <span>${title} <span class="badge">${done} / ${total}</span></span>
+        ${total > 0 ? `<button class="rutina-bulk" data-bulk="${bulkAction}" data-period="${period}" data-key="${escapeHtml(list[0] ? list[0].periodKey : '')}" style="margin-left:auto;">${bulkLabel}</button>` : ''}
+      </h3>
+      <div class="rutina-progress-bar" style="margin-bottom:10px;"><div style="width:${pct}%"></div></div>
       ${body}
     </div>`;
   };
 
   const definedByPeriod = period => state.routines
-    .filter(r => r.period === period)
+    .filter(r => r.period === period && filterFn(r))
     .map(r => `
       <div class="rutina-row">
         <span class="rutina-name">${escapeHtml(r.name)}</span>
+        ${rutinaLabelChip(r)}
         <span class="rutina-period-chip">${RUTINA_PERIOD_LABELS[period]}</span>
         <button class="del icon-btn" data-del-rid="${escapeHtml(r.id)}" title="Eliminar rutina" aria-label="Eliminar rutina"><span class="material-icons">delete</span></button>
-      </div>`).join('') || `<div class="empty-row">Sin rutinas.</div>`;
+      </div>`).join('') || `<div class="empty-row">Sin rutinas en este periodo${routineFilter ? ' con esta etiqueta' : ''}.</div>`;
 
-  const definedTotal = state.routines.length;
+  const definedTotal = state.routines.filter(filterFn).length;
 
   board.innerHTML =
     buildChecklistCard('daily',  'Hoy') +
@@ -2490,7 +2650,12 @@ function renderRoutinesView() {
       ${definedByPeriod('monthly')}
     </div>`;
 
-  board.querySelectorAll('.rutina-checkbox').forEach(b => b.onclick = () => toggleRutina(b.dataset.rid, b.dataset.period, b.dataset.key));
+  board.querySelectorAll('.rutina-row[data-rid]').forEach(row => {
+    const trigger = () => toggleRutina(row.dataset.rid, row.dataset.period, row.dataset.key);
+    row.addEventListener('click', trigger);
+    row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); trigger(); } });
+  });
+  board.querySelectorAll('.rutina-bulk').forEach(b => b.onclick = () => bulkToggle(b.dataset.period, b.dataset.bulk));
   board.querySelectorAll('[data-del-rid]').forEach(b => b.onclick = async () => {
     const rid = b.dataset.delRid;
     const r = state.routines.find(x => x.id === rid);
@@ -2509,11 +2674,13 @@ async function onRoutineCreate(e) {
   e.preventDefault();
   const name = $('#routine-name').value.trim();
   const period = $('#routine-period').value;
+  const labelId = $('#routine-label').value;
   if (!name) return;
   try {
-    state.routines = await call('createRoutine', name, period);
+    state.routines = await call('createRoutine', name, period, labelId);
     state.routineStatus = await call('getRoutineStatus');
     $('#routine-name').value = '';
+    $('#routine-label').value = '';
     renderRoutinesView();
     if ($('#view-dashboard').classList.contains('active')) renderDashboard();
   } catch (err) { toast(err.message, 'warn'); }
