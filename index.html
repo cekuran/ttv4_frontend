@@ -88,6 +88,29 @@
   .rutina-card .rutina-progress .pct { font: 500 12px/1 'Inter', sans-serif; color: var(--secondary); }
   .rutina-progress-bar { height: 6px; background: var(--surface-low); border-radius: 9999px; overflow: hidden; }
   .rutina-progress-bar > div { height: 100%; background: var(--secondary); transition: width .25s ease; }
+  /* ponytail: panel semanal del dashboard — una fila por rutina diaria con barra + 7 cuadros.
+     Cuadrícula idéntica L..D para todas las filas, alineada por grid, así se ve un calendario. */
+  .week-rutinas-list, #week-rutinas-list { display: flex; flex-direction: column; gap: 12px; }
+  .week-rutina-row {
+    display: grid; grid-template-columns: minmax(120px, 22%) 1fr 180px; align-items: center; gap: 14px;
+  }
+  .week-rutina-name { font-size: 13px; font-weight: 500; color: var(--on-surface); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .week-rutina-bar {
+    position: relative; height: 10px; background: var(--surface-low); border-radius: 9999px; overflow: hidden;
+  }
+  .week-rutina-bar > div { height: 100%; background: var(--secondary); border-radius: 9999px; transition: width .25s ease; }
+  .week-rutina-count {
+    position: absolute; right: 0; top: -2px; transform: translateY(-100%); font: 500 11px/1 'JetBrains Mono', ui-monospace, monospace;
+    color: var(--on-surface-variant); font-variant-numeric: tabular-nums; padding: 0 2px;
+  }
+  .week-rutina-squares { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .week-rutina-square {
+    aspect-ratio: 1 / 1; min-height: 18px; border-radius: 4px; background: var(--surface-low);
+    border: 1px solid var(--outline-variant); transition: background .15s, border-color .15s;
+  }
+  .week-rutina-square.done { background: var(--secondary); border-color: var(--secondary); }
+  .week-rutina-empty { font-size: 13px; color: var(--on-surface-variant); padding: 8px 0; }
+  .week-rutina-empty a { color: var(--primary); font-weight: 600; text-decoration: none; }
   .rutina-card ul { list-style: none; margin: 0; padding: 0; }
   .rutina-card li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin: 0 -10px; font-size: 13px; border-bottom: 1px solid var(--surface-low); cursor: pointer; border-radius: var(--r-sm); transition: background .15s; user-select: none; }
   .rutina-card li:last-child { border-bottom: 0; }
@@ -1120,6 +1143,9 @@
     .rutina-toggle-label { display: none; }
     .rutina-row { flex-wrap: wrap; row-gap: 6px; }
     .rutina-row .rutina-name { flex-basis: 100%; order: -1; }
+    /* ponytail: barras semanales — apilamos name / bar / squares en columna en lugar de grid 3-col */
+    .week-rutina-row { grid-template-columns: 1fr; gap: 6px; }
+    .week-rutina-squares { grid-template-columns: repeat(7, 1fr); }
   }
 </style>
 </head>
@@ -1242,6 +1268,13 @@
       <div class="panel day-timeline-wrap" id="day-timeline-wrap">
         <h3>Línea del día</h3>
         <svg class="day-timeline-svg" id="day-timeline-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+
+      <!-- ponytail: barras semanales de rutinas diarias — completaciones de la semana ISO actual (L..D).
+           Backend ya guarda DailyCompletions por día, así que sólo pedimos el mask y pintamos. -->
+      <div class="panel week-rutinas" id="week-rutinas-wrap">
+        <h3>Recurrentes diarias — semana</h3>
+        <div id="week-rutinas-list"></div>
       </div>
 
       <div class="panel">
@@ -2553,6 +2586,41 @@ function renderRutinasPanel(host) {
   host.querySelectorAll('.rutina-bulk').forEach(b => b.onclick = () => bulkToggle(b.dataset.period, b.dataset.bulk));
 }
 
+const DOW_LABELS_SHORT = ['L', 'M', 'X', 'J', 'V', 'S', 'D']; // ponytail: lunes..domingo, lunes=0 (igual que backend)
+
+async function renderWeekRutinas() {
+  // ponytail: pide y pinta la cuadrícula semanal de rutinas diarias.
+  // Si no hay rutinas diarias, panel vacío; si falla el call, mostramos pista en consola
+  // (antes lo tragábamos en silencio y el panel quedaba inexplicablemente vacío).
+  const host = $('#week-rutinas-list');
+  const wrap = $('#week-rutinas-wrap');
+  if (!host || !wrap) return;
+  let rows;
+  try { rows = await call('getDailyRoutineWeekStatus'); }
+  catch (e) {
+    console.error('renderWeekRutinas: backend rechazó getDailyRoutineWeekStatus —', e.message);
+    host.innerHTML = `<div class="week-rutina-empty">No se pudo cargar (¿backend sin redeploy?). Mira la consola.</div>`;
+    return;
+  }
+  if (!Array.isArray(rows) || rows.length === 0) {
+    host.innerHTML = `<div class="week-rutina-empty">Aún no hay rutinas diarias. Crea una en <a href="#" id="rutinas-go-week">Recurrentes</a> para verla aquí.</div>`;
+    const cta = $('#rutinas-go-week');
+    if (cta) cta.onclick = e => { e.preventDefault(); showView('routines'); };
+    return;
+  }
+  host.innerHTML = rows.map(r => {
+    const pct = Math.round(r.count * 100 / 7);
+    const squares = r.days.map((done, i) =>
+      `<span class="week-rutina-square ${done ? 'done' : ''}" title="${DOW_LABELS_SHORT[i]}${done ? ' — hecha' : ''}" aria-label="${DOW_LABELS_SHORT[i]}${done ? ' hecha' : ' pendiente'}"></span>`
+    ).join('');
+    return `<div class="week-rutina-row">
+      <span class="week-rutina-name" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
+      <div class="week-rutina-bar"><div style="width:${pct}%"></div><span class="week-rutina-count">${r.count} / 7</span></div>
+      <div class="week-rutina-squares">${squares}</div>
+    </div>`;
+  }).join('');
+}
+
 async function bulkToggle(period, action) {
   // ponytail: bulk sin iteración cliente→servidor→cliente para cada item —
   // el backend ya soporta toggleRoutineCompletion, así que llamamos en paralelo.
@@ -3507,6 +3575,8 @@ function renderDashboard() {
   populateTimerTaskSelect();
   // ponytail: render de la línea del día (24h Gantt) — un solo call, los ticks se hacen aparte
   renderDayTimeline();
+  // ponytail: barras semanales de rutinas diarias (cuadrícula L..D) — fetch async independiente
+  renderWeekRutinas();
   // ponytail: panel de rutinas (separado de las tareas standard) — usa el status cacheado en state
   renderRutinasPanel($('#rutinas-grid'));
 }
