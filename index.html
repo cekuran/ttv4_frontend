@@ -100,6 +100,23 @@
     transform: translateX(-50%);
     border: 4px solid transparent; border-top-color: var(--on-surface);
   }
+  /* === Day timeline (24h Gantt en el dashboard) === */
+  #day-timeline-wrap { background: #fff; padding: 18px 20px 22px; border-radius: var(--r-lg); box-shadow: var(--shadow-1); border: 1px solid var(--outline-variant); margin-bottom: 16px; overflow: hidden; }
+  #day-timeline-wrap h3 { margin: 0 0 12px; }
+  #day-timeline-svg { display: block; width: 100%; font: 11px/1.4 'Inter', sans-serif; color: var(--on-surface-variant); }
+  #day-timeline-svg .tl-row-bg { fill: var(--surface-low); }
+  #day-timeline-svg .tl-row-label { font-size: 12px; fill: var(--on-surface); font-weight: 500; }
+  #day-timeline-svg .tl-bar { cursor: pointer; transition: opacity .15s; }
+  #day-timeline-svg .tl-bar:hover { opacity: 0.82; }
+  #day-timeline-svg .tl-bar-live { stroke-dasharray: 4 2; }
+  #day-timeline-svg .tl-grid { stroke: rgba(117,118,131,0.18); shape-rendering: crispEdges; }
+  #day-timeline-svg .tl-hour-label { fill: var(--on-surface-variant); font-size: 10px; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  #day-timeline-svg .tl-now { stroke: var(--secondary); stroke-width: 1.5; }
+  #day-timeline-svg .tl-empty { fill: var(--outline); font-size: 12px; }
+  /* ponytail: en mobile ocultamos el nombre de tarea a la izquierda para no comerse la línea */
+  @media (max-width: 1280px) {
+    #day-timeline-svg .tl-row-label { display: none; }
+  }
   /* ponytail: format-toggle inside .filters — wrap inline so it sits next to the label */
   .filters .format-toggle { padding: 2px; }
   .filters label:has(.format-toggle) { display: inline-flex; align-items: center; gap: 8px; }
@@ -557,6 +574,9 @@
     font-size: 12px; opacity: 0.78; margin-top: 4px;
     text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500;
   }
+  /* ponytail: el bloque de info del modal se alinea a la izquierda y el nombre hace wrap si se corta */
+  .active-card.timer-modal-card .info { text-align: left; }
+  .active-card.timer-modal-card .info .name { word-wrap: break-word; overflow-wrap: anywhere; line-height: 1.25; }
 
   .ac-btn-danger {
     background: var(--error); color: var(--on-primary);
@@ -1147,6 +1167,11 @@
         </div>
       </div>
 
+      <div class="panel" id="day-timeline-wrap">
+        <h3>Línea del día</h3>
+        <svg id="day-timeline-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+
       <div class="panel">
         <h3>Start a session</h3>
         <div class="quickstart-form">
@@ -1596,6 +1621,20 @@
   </div>
 </div>
 
+<!-- Entry details modal (opened by clicking a bar in the day timeline) -->
+<div class="ac-modal" id="entry-details-modal" hidden>
+  <div class="ac-modal-overlay" data-modal-close></div>
+  <div class="active-card timer-modal-card" role="dialog" aria-modal="true" aria-labelledby="entry-details-title" style="cursor:default;">
+    <button class="ac-icon-btn timer-details-close" data-modal-close aria-label="Cerrar"><span class="material-icons">close</span></button>
+    <div class="info">
+      <div class="label" id="entry-details-label">Tiempo registrado</div>
+      <div class="name" id="entry-details-name">—</div>
+      <div class="elapsed" id="entry-details-elapsed">00m</div>
+      <div class="meta" id="entry-details-meta">—</div>
+    </div>
+  </div>
+</div>
+
 <!-- Edit task modal (rename + relabel from the pencil icon in each card) -->
 <div class="ac-modal" id="edit-task-modal" hidden>
   <div class="ac-modal-overlay" data-modal-close></div>
@@ -1639,6 +1678,8 @@ const state = {
   tickInterval: null, chart: null, chartType: readChartType(),
   lastStatsSeries: null,        // ponytail: cache for ResizeObserver so re-render skips the filter pass
   chartResizeObs: null,         // ponytail: so we can disconnect on logout if ever needed
+  dayTimelineResizeObs: null,   // ponytail: ResizeObserver del timeline, desconectable en logout
+  dayTimelineXScale: null,      // ponytail: cache del scale x para tick() barato
   sinHojas: false,
   expandedSheets: new Set(),  // ponytail: ids de hojas con fila expandida en el admin
   expandedUsers: new Set()    // ponytail: usernames con fila expandida en el admin (hojas vinculadas)
@@ -2246,6 +2287,16 @@ function bindGlobal() {
     rafId = requestAnimationFrame(() => { rafId = 0; renderChartOnly(); });
   });
   state.chartResizeObs.observe($('#stats-chart-wrap'));
+  // ponytail: cierre del modal de detalles de entrada (overlay + botón close)
+  $$('#entry-details-modal [data-modal-close]').forEach(el => el.addEventListener('click', () => { $('#entry-details-modal').hidden = true; }));
+  // ponytail: re-render de la línea del día al cambiar el ancho del wrap (mismo patrón que stats-chart)
+  if (state.dayTimelineResizeObs) state.dayTimelineResizeObs.disconnect();
+  let tlRafId = 0;
+  state.dayTimelineResizeObs = new ResizeObserver(() => {
+    if (tlRafId) cancelAnimationFrame(tlRafId);
+    tlRafId = requestAnimationFrame(() => { tlRafId = 0; renderDayTimeline(); });
+  });
+  state.dayTimelineResizeObs.observe($('#day-timeline-wrap'));
   $('#timer-label-filter').addEventListener('change', populateTimerTaskSelect);
   // Reports
   ['report-from','report-to'].forEach(id => $('#'+id).addEventListener('change', renderReports));
@@ -2345,6 +2396,8 @@ function tick() {
     liveEl.style.display = '';
     liveEl.textContent = '· ' + fmtHMS(ms);
   }
+  // ponytail: tick del live bar y de la línea "now" del timeline — barato, no re-pinta filas
+  tickDayTimeline();
 }
 function clearTaskLiveTicks() {
   $$('.task-live').forEach(el => { el.style.display = 'none'; el.textContent = ''; });
@@ -2406,6 +2459,8 @@ function renderActiveWidget() {
       $('#timer-details-name').textContent = name;
       $('#timer-details-label').textContent = labelTxt || 'Sin etiqueta';
       $('#timer-details-elapsed').textContent = hms;
+      // ponytail: tintar el card del modal con el color de la etiqueta
+      paintModalByLabel(modalEl, lid);
     }
   } else {
     if (sidebarEl) sidebarEl.hidden = true;
@@ -2418,6 +2473,27 @@ function openTimerDetails() {
   if (!state.activeTimer) return;
   renderActiveWidget();
   $('#timer-details-modal').hidden = false;
+}
+
+// ponytail: modal de detalles de entrada (click en una barra del timeline)
+function openEntryDetails(entry) {
+  if (!entry) return;
+  const lid = taskLabelId(entry.taskId);
+  $('#entry-details-label').textContent   = lid ? labelName(lid) : 'Tiempo registrado';
+  $('#entry-details-name').textContent    = taskName(entry.taskId);
+  $('#entry-details-elapsed').textContent = fmtHM(Number(entry.durationMinutes || 0));
+  const dateStr = fmtDate(entry.startTime);
+  const range   = `${fmtTime(entry.startTime)} – ${fmtTime(entry.endTime)}`;
+  $('#entry-details-meta').textContent    = dateStr ? `${dateStr} · ${range}` : range;
+  paintModalByLabel($('#entry-details-modal'), lid);
+  $('#entry-details-modal').hidden = false;
+}
+
+// ponytail: pinta el card del modal con el color de la etiqueta; sin etiqueta → vuelve al gradiente default
+function paintModalByLabel(modalEl, lid) {
+  const card = modalEl.querySelector('.active-card');
+  if (!card) return;
+  card.style.background = lid ? labelColor(lid) : '';
 }
 
 // ==== Logs ====
@@ -3069,6 +3145,8 @@ function renderDashboard() {
   // Populate quickstart
   populateLabelSelect($('#timer-label-filter'), 'All labels');
   populateTimerTaskSelect();
+  // ponytail: render de la línea del día (24h Gantt) — un solo call, los ticks se hacen aparte
+  renderDayTimeline();
 }
 
 function renderActivityPanel(host, title, entries) {
@@ -3102,6 +3180,228 @@ function renderActivityPanel(host, title, entries) {
       return `<div class="row${cls}" data-lid="${lid}" data-base-min="${min}"><div class="name">${chip}</div><div class="time">${fmtHM(min)}</div></div>`;
     }).join('') || `<div class="empty-row">Sin registros.</div>`;
   host.innerHTML = `<h3>${title}</h3><div class="activity-total" data-base-min="${totalMin}">${fmtHMS(totalMin * 60000)}</div><h4>Tareas</h4>${taskRows}<h4>Etiquetas</h4>${labelRows}`;
+}
+
+// ==== Day timeline (24h Gantt en el dashboard) ====
+// ponytail: tick step según el ancho visible del timeline para no apilar labels ni dejar zonas vacías
+function pickTimelineTickStep(span) {
+  if (span <= 2)  return 0.5;
+  if (span <= 6)  return 1;
+  if (span <= 12) return 2;
+  return 3;
+}
+// ponytail: formato HH:00 cuando es hora en punto, HH:MM en general
+function formatHourLabel(h) {
+  const hh = String(Math.floor(h)).padStart(2, '0');
+  const mm = Math.round((h - Math.floor(h)) * 60);
+  return mm === 0 ? `${hh}:00` : `${hh}:${String(mm).padStart(2, '0')}`;
+}
+function renderDayTimeline() {
+  const wrap = $('#day-timeline-wrap');
+  const svgNode = $('#day-timeline-svg');
+  if (!wrap || !svgNode) return;
+  const svg = d3.select(svgNode);
+  svg.selectAll('*').remove();
+
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const todayEnd   = new Date(todayStart); todayEnd.setDate(todayEnd.getDate() + 1);
+  const todays = state.entries.filter(e => {
+    const d = new Date(e.startTime);
+    return d >= todayStart && d < todayEnd;
+  });
+
+  // Agrupar por taskId
+  const rows = new Map();
+  todays.forEach(e => {
+    const r = rows.get(e.taskId) || { taskId: e.taskId, entries: [] };
+    r.entries.push(e);
+    rows.set(e.taskId, r);
+  });
+  // ponytail: timer activo para una tarea sin entradas hoy → fila con live bar
+  const activeTid = state.activeTimer && state.activeTimer.taskId;
+  if (activeTid && !rows.has(activeTid)) rows.set(activeTid, { taskId: activeTid, entries: [] });
+
+  // ponytail: orden CRONOLÓGICO por la primera actividad del día
+  // (entrada más antigua o, si no tiene, el startTime del live timer)
+  const firstTouch = row => {
+    if (row.entries.length) return Math.min(...row.entries.map(e => new Date(e.startTime).getTime()));
+    if (state.activeTimer && state.activeTimer.taskId === row.taskId) return new Date(state.activeTimer.startTime).getTime();
+    return Infinity;
+  };
+  const sorted = [...rows.values()].sort((a, b) => firstTouch(a) - firstTouch(b));
+
+  if (sorted.length === 0) {
+    const w = svgNode.clientWidth || 800;
+    svg.attr('viewBox', `0 0 ${w} 80`).attr('preserveAspectRatio', 'xMidYMid meet')
+       .append('text').attr('class', 'tl-empty')
+       .attr('x', 16).attr('y', 36)
+       .text('No hay registros hoy.');
+    state.dayTimelineXScale = null;
+    return;
+  }
+
+  const W = svgNode.clientWidth || 800;
+  // ponytail: en mobile los labels se ocultan por CSS, así que el margin izquierdo va a 0 para no dejar hueco muerto
+  const isMobile = window.matchMedia('(max-width: 1280px)').matches;
+  const MARGIN = { top: 26, right: 16, bottom: 8, left: isMobile ? 0 : Math.min(140, W * 0.35) };
+  const ROW_H = 28, ROW_GAP = 4;
+  const H = MARGIN.top + sorted.length * (ROW_H + ROW_GAP) + MARGIN.bottom;
+  svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
+
+  // ponytail: dominio DINÁMICO desde el primer hasta el último evento del día
+  // (incluido el live timer y "now"). Padding de 30 min a cada lado, clampeado a [0,24].
+  const allTimes = [];
+  todays.forEach(e => {
+    allTimes.push(new Date(e.startTime).getTime());
+    allTimes.push(new Date(e.endTime).getTime());
+  });
+  if (activeTid) {
+    allTimes.push(new Date(state.activeTimer.startTime).getTime());
+    allTimes.push(Date.now());
+  }
+  const firstMs = Math.min(...allTimes);
+  const lastMs  = Math.max(...allTimes);
+  const PAD_H = 0.5;
+  const firstH = Math.max(0, (firstMs - todayStart.getTime()) / 3600000 - PAD_H);
+  const lastH  = Math.min(24, (lastMs - todayStart.getTime()) / 3600000 + PAD_H);
+
+  const x = d3.scaleLinear().domain([firstH, lastH]).range([0, W - MARGIN.left - MARGIN.right]);
+  state.dayTimelineXScale = x;
+  const rowTop = i => MARGIN.top + i * (ROW_H + ROW_GAP);
+  const g = svg.append('g').attr('transform', `translate(${MARGIN.left},0)`);
+
+  // ponytail: grid de horas DENTRO del dominio visible, con tick step que escala al ancho
+  const tickStep = pickTimelineTickStep(lastH - firstH);
+  const startTick = Math.ceil(firstH / tickStep) * tickStep;
+  const ticks = [];
+  for (let h = startTick; h <= lastH + 0.0001; h += tickStep) {
+    if (h <= 24) ticks.push(h);
+  }
+  ticks.forEach(h => {
+    g.append('line').attr('class', 'tl-grid')
+     .attr('x1', x(h)).attr('x2', x(h))
+     .attr('y1', MARGIN.top - 14).attr('y2', H - MARGIN.bottom);
+    g.append('text').attr('class', 'tl-hour-label')
+     .attr('x', x(h)).attr('y', MARGIN.top - 18)
+     .attr('text-anchor', 'middle')
+     .text(formatHourLabel(h));
+  });
+
+  // Filas
+  sorted.forEach((row, i) => {
+    const y = rowTop(i);
+    g.append('rect').attr('class', 'tl-row-bg')
+     .attr('x', 0).attr('y', y)
+     .attr('width', W - MARGIN.left - MARGIN.right)
+     .attr('height', ROW_H)
+     .attr('rx', 6);
+    // ponytail: truncar con "..." si el nombre no cabe en el área del label (font fijo 12px)
+    const availableW = MARGIN.left - 8;
+    const rawName = taskName(row.taskId);
+    let labelText = rawName;
+    if (availableW > 8) {
+      // medir con un nodo temporal fuera de la vista
+      const measure = svg.append('text')
+        .attr('class', 'tl-row-label')
+        .attr('x', -9999).attr('y', -9999)
+        .attr('font-size', 12);
+      const measureW = txt => { measure.text(txt); return measure.node().getComputedTextLength(); };
+      if (measureW(rawName) > availableW) {
+        let trimmed = rawName;
+        while (trimmed.length > 0 && measureW(trimmed + '...') > availableW) {
+          trimmed = trimmed.slice(0, -1);
+        }
+        labelText = trimmed ? trimmed + '...' : '...';
+      }
+      measure.remove();
+    }
+    svg.append('text')
+       .attr('class', 'tl-row-label')
+       .attr('x', 4).attr('y', y + ROW_H/2)
+       .attr('text-anchor', 'start')
+       .attr('dominant-baseline', 'middle')
+       .attr('font-size', 12)
+       .text(labelText);
+
+    const lid = taskLabelId(row.taskId);
+    const baseColor = lid ? labelColor(lid) : '#102b8a';
+
+    row.entries.forEach(e => {
+      const s = new Date(e.startTime);
+      const t = new Date(e.endTime);
+      // ponytail: clampear a [0,24]h desde todayStart por si cruza medianoche
+      const x1 = x(Math.max(0, (s - todayStart) / 3600000));
+      const x2 = x(Math.min(24, (t - todayStart) / 3600000));
+      const w  = Math.max(2, x2 - x1);
+      g.append('rect')
+        .attr('class', 'tl-bar')
+        .attr('x', x1).attr('y', y + 4)
+        .attr('width', w).attr('height', ROW_H - 8)
+        .attr('rx', 4).attr('fill', baseColor)
+        .attr('data-entry-id', e.id)
+        .append('title')
+        .text(`${taskName(row.taskId)} · ${fmtHM(Number(e.durationMinutes))} · ${fmtTime(s)}–${fmtTime(t)}`)
+        .node().parentNode;
+    });
+  });
+
+  // ponytail: live bar + línea "now"
+  if (activeTid) {
+    const rowIdx = sorted.findIndex(r => r.taskId === activeTid);
+    if (rowIdx >= 0) {
+      const s   = new Date(state.activeTimer.startTime);
+      const now = new Date();
+      const x1  = x(Math.max(0, (s - todayStart) / 3600000));
+      const x2  = x(Math.min(24, (now - todayStart) / 3600000));
+      const w   = Math.max(2, x2 - x1);
+      const lid = taskLabelId(activeTid);
+      const c   = lid ? labelColor(lid) : '#102b8a';
+      g.append('rect')
+        .attr('class', 'tl-bar tl-bar-live')
+        .attr('x', x1).attr('y', rowTop(rowIdx) + 4)
+        .attr('width', w).attr('height', ROW_H - 8)
+        .attr('rx', 4)
+        .attr('fill', c).attr('fill-opacity', 0.55)
+        .attr('stroke', c).attr('stroke-width', 1.2)
+        .attr('data-live', '1')
+        .append('title').text('En curso — click para ver detalles');
+    }
+    const now = new Date();
+    if (now >= todayStart && now < todayEnd) {
+      const xn = x((now - todayStart) / 3600000);
+      g.append('line').attr('class', 'tl-now')
+       .attr('x1', xn).attr('x2', xn)
+       .attr('y1', MARGIN.top - 14).attr('y2', H - MARGIN.bottom);
+    }
+  }
+
+  // ponytail: click delegado en el SVG — un solo listener, no N onclick
+  svgNode.onclick = (e) => {
+    const t = e.target.closest('[data-entry-id],[data-live]');
+    if (!t) return;
+    if (t.dataset.live) openTimerDetails();
+    else openEntryDetails(state.entries.find(en => en.id === t.dataset.entryId));
+  };
+}
+
+// ponytail: tick barato — sólo ancho del live bar y posición de la línea "now"
+function tickDayTimeline() {
+  if (!state.activeTimer || !state.dayTimelineXScale) return;
+  const svg = d3.select('#day-timeline-svg');
+  const live = svg.select('rect.tl-bar-live');
+  if (live.empty()) return;
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const start = new Date(state.activeTimer.startTime);
+  const now   = new Date();
+  const x     = state.dayTimelineXScale;
+  const x1    = x(Math.max(0, (start - todayStart) / 3600000));
+  const x2    = x(Math.min(24, (now - todayStart) / 3600000));
+  live.attr('width', Math.max(2, x2 - x1));
+  const nowLine = svg.select('line.tl-now');
+  if (!nowLine.empty()) {
+    const xn = x((now - todayStart) / 3600000);
+    nowLine.attr('x1', xn).attr('x2', xn);
+  }
 }
 
 // ==== Reports ====
@@ -3728,6 +4028,7 @@ function bindAdmin() {
     if (!$('#edit-task-modal').hidden)     closeEditTaskModal();
     if (!$('#new-user-modal').hidden)      closeNewUserModal();
     if (!$('#new-sheet-modal').hidden)     closeNewSheetModal();
+    if (!$('#entry-details-modal').hidden) $('#entry-details-modal').hidden = true;
   });
 
   // Edit sheet modal
