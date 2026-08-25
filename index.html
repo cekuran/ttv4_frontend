@@ -104,6 +104,14 @@
     color: var(--on-surface-variant); font-variant-numeric: tabular-nums; padding: 0 2px;
   }
   .week-rutina-squares { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  /* ponytail: leyenda L..D alineada con la columna de cuadrados — mismo grid que .week-rutina-row
+     para que las 7 columnas caigan exactamente sobre los cuadrados de cada fila. */
+  .week-rutina-legend {
+    display: grid; grid-template-columns: minmax(120px, 22%) 1fr 180px; gap: 14px;
+    margin-bottom: 6px; font: 600 10px/1 'Inter', sans-serif;
+    color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .week-rutina-squares-labels { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
   .week-rutina-square {
     aspect-ratio: 1 / 1; min-height: 18px; border-radius: 4px; background: var(--surface-low);
     border: 1px solid var(--outline-variant); transition: background .15s, border-color .15s;
@@ -121,6 +129,15 @@
   .rutina-list-card { background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); padding: 16px 18px; box-shadow: var(--shadow-1); margin-bottom: 12px; }
   .rutina-list-card h3 { margin: 0 0 10px; font: 600 12px/14px 'Inter', sans-serif; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.04em; display: flex; align-items: center; gap: 8px; }
   .rutina-list-card h3 .badge { background: var(--surface-low); color: var(--on-surface-variant); border-radius: 9999px; padding: 2px 8px; font-weight: 600; font-size: 11px; }
+  /* ponytail: sub-encabezado dentro de "Recurrentes definidas" — más pequeño que el h3 de la card,
+     separa los tres grupos (Diarias / Semanales / Mensuales) sin saturar. */
+  .rutina-period-heading {
+    margin: 16px 0 6px; font: 600 12px/1 'Inter', sans-serif;
+    color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.04em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .rutina-period-heading:first-of-type { margin-top: 4px; }
+  .rutina-period-heading .badge { background: var(--surface-low); color: var(--on-surface-variant); border-radius: 9999px; padding: 2px 8px; font-weight: 600; font-size: 11px; }
   .rutina-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--surface-low); font-size: 14px; }
   .rutina-row:last-child { border-bottom: 0; }
   .rutina-row .rutina-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -149,6 +166,44 @@
     background: var(--secondary); border-color: var(--secondary); color: var(--on-secondary);
   }
   .rutina-toggle-label { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+  /* ponytail: grid semanal de rutinas diarias — cada fila = 1 rutina, cada celda = 1 día (L..D).
+     El día actual se resalta siempre (con borde + color de marca), esté hecho o no, para anclar
+     al usuario en "qué día es hoy". Click en celda → toggle de ESE día concreto. */
+  .rutina-week-header {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+    margin: 0 0 8px; padding-left: 140px; /* deja sitio para el nombre de la fila */
+    font: 600 11px/1 'Inter', sans-serif; color: var(--on-surface-variant);
+    text-transform: uppercase; letter-spacing: 0.04em; text-align: center; min-width: 0;
+  }
+  .rutina-week-header .today { color: var(--primary); }
+  .rutina-row-week {
+    display: grid; grid-template-columns: 140px 1fr; gap: 10px; align-items: center;
+    border-bottom: 1px solid var(--surface-low); padding: 8px 0;
+  }
+  .rutina-row-week:last-child { border-bottom: 0; }
+  .rutina-row-week .rutina-name { flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rutina-week-cells { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; min-width: 0; }
+  .rutina-day-cell {
+    appearance: none; -webkit-appearance: none;
+    aspect-ratio: 1 / 1; min-height: 22px; max-height: 26px;
+    border-radius: 5px; border: 1.5px solid var(--outline-variant); background: #fff;
+    color: var(--on-surface-variant); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .15s, border-color .15s, color .15s, transform .1s;
+    font-family: inherit; padding: 0;
+  }
+  .rutina-day-cell:hover { border-color: var(--secondary); color: var(--secondary); }
+  .rutina-day-cell:active { transform: scale(.95); }
+  .rutina-day-cell .material-icons { font-size: 14px; line-height: 1; }
+  .rutina-day-cell.done { background: var(--secondary); border-color: var(--secondary); color: var(--on-secondary); }
+  /* ponytail: día de hoy — siempre resaltado, con independencia de si está hecho o no.
+     Borde más grueso + color primario para que se vea cuál es el anchor temporal de la semana. */
+  .rutina-day-cell.today { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 11,99,213), .15); }
+  .rutina-day-cell.today.done { background: var(--secondary); border-color: var(--secondary); box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 11,99,213), .25); }
+  /* ponytail: separador entre semanas — la primera celda de cada semana (a partir de la 2.ª)
+     lleva un margin-left y un borde-izquierdo para que se vea la partición visual sin saturar. */
+  .rutina-week-cells .rutina-day-cell.week-start,
+  .rutina-week-header span.week-start { box-shadow: inset 1px 0 0 var(--outline-variant); }
   .rutina-empty { background: #fff; border: 1px dashed var(--outline-variant); border-radius: var(--r-lg); padding: 22px; text-align: center; color: var(--on-surface-variant); margin-bottom: 16px; grid-column: 1 / -1; }
   .rutina-empty b { color: var(--on-surface); display: block; margin-bottom: 6px; font-size: 15px; }
   .rutina-empty a { color: var(--primary); font-weight: 600; text-decoration: none; }
@@ -1094,7 +1149,11 @@
     .ac-table-sheets tbody td:nth-child(3) { width: 30%; }
     /* ponytail: mostrar el botón info sólo en mobile (desktop sigue mostrando el ID en la columna) */
     .sheet-info { display: inline-flex; }
-  }
+    .ac-actions { opacity: 1; } /* always visible on touch */
+    .ac-toolbar { padding: 10px 12px; }
+    .ac-profile { padding: 16px; gap: 12px; }
+    .ac-profile .ac-avatar { width: 48px; height: 48px; font-size: 16px; }
+    .ac-profile-name { font-size: 16px; }
   }
   /* === Desktop: sheets table usa layout automático — el ID se ve completo === */
   @media (min-width: 1281px) {
@@ -1118,12 +1177,6 @@
     .ac-table-sheets tbody td:nth-child(3) { width: 16%; }
     .sheet-info { display: none; }
   }
-    .ac-actions { opacity: 1; } /* always visible on touch */
-    .ac-toolbar { padding: 10px 12px; }
-    .ac-profile { padding: 16px; gap: 12px; }
-    .ac-profile .ac-avatar { width: 48px; height: 48px; font-size: 16px; }
-    .ac-profile-name { font-size: 16px; }
-  }
   /* === Small phones (≤480px) — Stitch 360px viewport (iPhone SE-ish) === */
   @media (max-width: 480px) {
     main { padding: 16px 16px 92px; }
@@ -1143,9 +1196,27 @@
     .rutina-toggle-label { display: none; }
     .rutina-row { flex-wrap: wrap; row-gap: 6px; }
     .rutina-row .rutina-name { flex-basis: 100%; order: -1; }
+    /* ponytail: grid semanal en móvil — nombre arriba, cabecera alineada con las celdas (sin offset 140px),
+       y celdas un pelín más grandes para tap-target. */
+    .rutina-row-week { grid-template-columns: 1fr; gap: 4px; padding: 6px 0; }
+    .rutina-week-header { padding-left: 0; }
+    /* ponytail: 14 celdas en 360px = ~25px cada una (con gap 4). Usamos repeat(N, minmax(0,1fr))
+       para permitir que las celdas se encojan por debajo del contenido si hace falta —
+       sin esto, min-width empuja la fila a overflow horizontal. */
+    .rutina-row-week { grid-template-columns: 1fr; gap: 4px; padding: 6px 0; }
+    .rutina-week-cells { grid-template-columns: repeat(var(--week-days, 14), minmax(0, 1fr)) !important; gap: 4px; }
+    .rutina-day-cell { aspect-ratio: auto; min-height: 28px; min-width: 0; max-height: 32px; }
+    .rutina-day-cell .material-icons { font-size: 13px; }
+    /* ponytail: el header también — gap 4 para alinear con las celdas. */
+    .rutina-week-header { padding-left: 0; gap: 4px; }
     /* ponytail: barras semanales — apilamos name / bar / squares en columna en lugar de grid 3-col */
     .week-rutina-row { grid-template-columns: 1fr; gap: 6px; }
     .week-rutina-squares { grid-template-columns: repeat(7, 1fr); }
+    /* ponytail: la leyenda replica el mismo grid de filas pero sin las dos primeras celdas —
+       en móvil quedan vacías así que las ocultamos. */
+    .week-rutina-legend { grid-template-columns: 1fr; }
+    .week-rutina-legend > span { display: none; }
+    .week-rutina-legend .week-rutina-squares-labels { text-align: center; }
   }
 </style>
 </head>
@@ -1845,6 +1916,9 @@ const state = {
   tasks: [], labels: [], entries: [],
   // ponytail: rutinas viven en tablas separadas — completions se derivan del backend
   routines: [], routineStatus: { today: [], week: [], month: [] },
+  // ponytail: máscara semanal por rutina diaria (Mon..Sun). El backend la devuelve con
+  // getDailyRoutineWeekStatus; el panel "Días de la semana" en Recurrentes la pinta.
+  routineWeek: [],
   activeTimer: null,
   tickInterval: null, chart: null, chartType: readChartType(),
   lastStatsSeries: null,        // ponytail: cache for ResizeObserver so re-render skips the filter pass
@@ -2127,6 +2201,9 @@ async function startApp() {
       state.routineStatus = rs || { today: [], week: [], month: [] };
       if ($('#view-dashboard').classList.contains('active')) renderDashboard();
     });
+    // ponytail: máscara N-días de rutinas diarias — ventana de 14 (semana actual + anterior) para
+    // poder marcar días pasados. El dashboard usa su propia llamada con default 7.
+    call('getDailyRoutineWeekStatus', 14).then(rs => { state.routineWeek = rs || []; if ($('#view-routines').classList.contains('active')) renderRoutinesView(); });
     bindNav();
     bindGlobal();
     bindLogout();
@@ -2587,6 +2664,10 @@ function renderRutinasPanel(host) {
 }
 
 const DOW_LABELS_SHORT = ['L', 'M', 'X', 'J', 'V', 'S', 'D']; // ponytail: lunes..domingo, lunes=0 (igual que backend)
+const DOW_LABELS_LONG  = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+// ponytail: cliente-side mirror del periodKeyLocal_('daily', d) del backend
+// (yyyy-mm-dd). Lo necesitamos para mandar el día exacto al hacer toggle sobre una day-cell.
+const fmtDailyKey = (d) => { const p = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; };
 
 async function renderWeekRutinas() {
   // ponytail: pide y pinta la cuadrícula semanal de rutinas diarias.
@@ -2608,17 +2689,30 @@ async function renderWeekRutinas() {
     if (cta) cta.onclick = e => { e.preventDefault(); showView('routines'); };
     return;
   }
-  host.innerHTML = rows.map(r => {
-    const pct = Math.round(r.count * 100 / 7);
-    const squares = r.days.map((done, i) =>
-      `<span class="week-rutina-square ${done ? 'done' : ''}" title="${DOW_LABELS_SHORT[i]}${done ? ' — hecha' : ''}" aria-label="${DOW_LABELS_SHORT[i]}${done ? ' hecha' : ' pendiente'}"></span>`
+  host.innerHTML = `
+    <div class="week-rutina-legend" aria-hidden="true">
+      <span></span><span></span>
+      <div class="week-rutina-squares-labels">${DOW_LABELS_SHORT.map(l => `<span>${l}</span>`).join('')}</div>
+    </div>` + rows.map(r => {
+    const total = r.days.length;
+    const pct = total ? Math.round(r.count * 100 / total) : 0;
+    const squares = r.days.map((d, i) =>
+      `<span class="week-rutina-square ${d.completed ? 'done' : ''}" title="${DOW_LABELS_SHORT[i]} ${d.date}${d.completed ? ' — hecha' : ''}" aria-label="${DOW_LABELS_SHORT[i]}${d.completed ? ' hecha' : ' pendiente'}"></span>`
     ).join('');
     return `<div class="week-rutina-row">
       <span class="week-rutina-name" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
-      <div class="week-rutina-bar"><div style="width:${pct}%"></div><span class="week-rutina-count">${r.count} / 7</span></div>
+      <div class="week-rutina-bar"><div style="width:${pct}%"></div><span class="week-rutina-count">${r.count} / ${total}</span></div>
       <div class="week-rutina-squares">${squares}</div>
     </div>`;
   }).join('');
+}
+
+// ponytail: helper — recarga state.routineWeek tras un toggle daily. Lo extraje porque ahora
+// lo llaman bulkToggle, toggleRutina y el propio click en las day-cells del panel semanal.
+// 14 días para que el panel pueda mostrar y marcar la semana actual + la anterior.
+async function refreshRoutineWeek_() {
+  try { state.routineWeek = await call('getDailyRoutineWeekStatus', 14); }
+  catch (e) { /* non-fatal — el panel mostrará datos viejos hasta el siguiente toggle */ }
 }
 
 async function bulkToggle(period, action) {
@@ -2631,6 +2725,7 @@ async function bulkToggle(period, action) {
     // así que N toggles en paralelo ≈ 1 toggle. Si el backend añadiera rate-limit, cambiar a chunks.
     await Promise.all(list.map(x => call('toggleRoutineCompletion', x.routine.id, period, x.periodKey)));
     state.routineStatus = await call('getRoutineStatus');
+    if (period === 'daily') await refreshRoutineWeek_();
     if ($('#view-dashboard').classList.contains('active')) renderDashboard();
     if ($('#view-routines').classList.contains('active')) renderRoutinesView();
   } catch (e) { toast(e.message, 'warn'); }
@@ -2639,6 +2734,7 @@ async function bulkToggle(period, action) {
 async function toggleRutina(rid, period, periodKey) {
   try {
     state.routineStatus = await call('toggleRoutineCompletion', rid, period, periodKey);
+    if (period === 'daily') await refreshRoutineWeek_();
     if ($('#view-dashboard').classList.contains('active')) renderDashboard();
     if ($('#view-routines').classList.contains('active')) renderRoutinesView();
   } catch (e) { toast(e.message, 'warn'); }
@@ -2649,7 +2745,69 @@ function renderRoutinesView() {
   const board = $('#rutinas-board');
   if (!board) return;
 
+  // ponytail: daily rompe el molde — una rutina diaria se completa por DÍA, no por periodo global.
+  // Aquí pintamos una grid 7×N: filas = rutinas, columnas = L..D de la semana actual. La celda
+  // del día actual se resalta siempre (hecha o no), para que sepas en qué día vives.
+  const buildDailyWeekCard = () => {
+    const dailyRoutines = state.routines.filter(r => r.period === 'daily');
+    if (dailyRoutines.length === 0) {
+      return `<div class="rutina-list-card">
+        <h3><span>Días de la semana</span></h3>
+        <div class="empty-row">Aún no tienes rutinas diarias. Añade una en “Añadir recurrente”.</div>
+      </div>`;
+    }
+    // ponytail: ventana de 14 días (semana actual + anterior) — los datos vienen ya en state.routineWeek
+    // desde getDailyRoutineWeekStatus(14). days[0] = hace 13 días, days[13] = hoy.
+    const sample = (state.routineWeek || [])[0];
+    if (!sample || !sample.days || sample.days.length === 0) {
+      return `<div class="rutina-list-card">
+        <h3><span>Días de la semana</span></h3>
+        <div class="empty-row">Cargando…</div>
+      </div>`;
+    }
+    const N = sample.days.length; // 14 normalmente; respeta la ventana real
+    const todayKey = fmtDailyKey(new Date());
+    const todayIdx = sample.days.findIndex(d => d.date === todayKey);
+    const weekById = new Map(state.routineWeek.map(r => [r.id, r]));
+
+    let totalCells = 0, doneCells = 0;
+    const body = dailyRoutines.map(r => {
+      const wk = weekById.get(r.id);
+      const routineDays = wk ? wk.days : Array.from({length: N}, () => ({date:'', completed:false}));
+      totalCells += N; doneCells += (wk ? wk.count : 0);
+      const cells = routineDays.map((d, i) => {
+        const isToday = i === todayIdx;
+        // ponytail: week-start = primera celda de cada semana a partir de la 2.ª — separador visual.
+        const isWeekStart = i > 0 && (i % 7 === 0);
+        return `<button type="button" class="rutina-day-cell ${d.completed ? 'done' : ''} ${isToday ? 'today' : ''} ${isWeekStart ? 'week-start' : ''}"
+          data-rid="${escapeHtml(r.id)}" data-period="daily" data-key="${escapeHtml(d.date)}"
+          title="${DOW_LABELS_LONG[i % 7] || ''} ${d.date}${d.completed ? ' — hecha' : ''}"
+          aria-label="${DOW_LABELS_LONG[i % 7] || ''}${d.completed ? ' hecha' : ' pendiente'}${isToday ? ' (hoy)' : ''}">
+          <span class="material-icons">${d.completed ? 'check' : ''}</span>
+        </button>`;
+      }).join('');
+      return `<div class="rutina-row rutina-row-week">
+        <span class="rutina-name" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
+        <div class="rutina-week-cells" style="--week-days: ${N}; grid-template-columns: repeat(${N}, 1fr);">${cells}</div>
+      </div>`;
+    }).join('');
+
+    const pct = totalCells ? Math.round(doneCells * 100 / totalCells) : 0;
+    // ponytail: cabecera N etiquetas (repite L..D) con separador de semana + columna de hoy resaltada.
+    const headerCells = Array.from({length: N}, (_, i) => {
+      const cls = `${i === todayIdx ? 'today' : ''} ${i > 0 && (i % 7 === 0) ? 'week-start' : ''}`.trim();
+      return `<span class="${cls}">${DOW_LABELS_SHORT[i % 7]}</span>`;
+    }).join('');
+    return `<div class="rutina-list-card">
+      <h3><span>Días de la semana <span class="badge">${doneCells} / ${totalCells}</span></span></h3>
+      <div class="rutina-week-header" style="--week-days: ${N}; grid-template-columns: repeat(${N}, 1fr);">${headerCells}</div>
+      <div class="rutina-progress-bar" style="margin-bottom:10px;"><div style="width:${pct}%"></div></div>
+      ${body}
+    </div>`;
+  };
+
   const buildChecklistCard = (period, title) => {
+    if (period === 'daily') return buildDailyWeekCard(); // ponytail: daily es grid semanal, no single-checkbox
     const list = state.routineStatus[STATUS_KEY_FOR_PERIOD[period]] || [];
     const total = list.length;
     const done = list.filter(x => x.completed).length;
@@ -2688,21 +2846,41 @@ function renderRoutinesView() {
 
   const definedTotal = state.routines.length;
 
+  // ponytail: la card de definidas se agrupa por periodo con un sub-encabezado cada una —
+  // antes era una lista plana de daily+weekly+monthly que no se sabía a qué periodo correspondía cada fila.
+  const definedGroup = (period, heading) => {
+    const count = state.routines.filter(r => r.period === period).length;
+    return `<h4 class="rutina-period-heading">${heading} <span class="badge">${count}</span></h4>${definedByPeriod(period)}`;
+  };
+
   board.innerHTML =
-    buildChecklistCard('daily',  'Hoy') +
+    buildChecklistCard('daily',  'Días de la semana') +
     buildChecklistCard('weekly', 'Esta semana') +
     buildChecklistCard('monthly','Este mes') +
     `<div class="rutina-list-card">
       <h3>Recurrentes definidas <span class="badge">${definedTotal}</span></h3>
-      ${definedByPeriod('daily')}
-      ${definedByPeriod('weekly')}
-      ${definedByPeriod('monthly')}
+      ${definedGroup('daily',  'Diarias')}
+      ${definedGroup('weekly', 'Semanales')}
+      ${definedGroup('monthly','Mensuales')}
     </div>`;
 
-  board.querySelectorAll('.rutina-row[data-rid]').forEach(row => {
+  // ponytail: las filas weekly/monthly siguen siendo "click en cualquier parte togglea";
+  // las filas daily (rutina-row-week) NO — los toggles están en cada day-cell individual.
+  board.querySelectorAll('.rutina-row[data-rid]:not(.rutina-row-week)').forEach(row => {
     const trigger = () => toggleRutina(row.dataset.rid, row.dataset.period, row.dataset.key);
     row.addEventListener('click', trigger);
     row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); trigger(); } });
+  });
+  // ponytail: cada day-cell llama a toggleRutina con SU fecha concreta (data-key).
+  // stopPropagation evita que el click burbujee al row-level (que ya filtramos, pero defensa doble).
+  board.querySelectorAll('.rutina-day-cell').forEach(cell => {
+    cell.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleRutina(cell.dataset.rid, cell.dataset.period, cell.dataset.key);
+    });
+    cell.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cell.click(); }
+    });
   });
   board.querySelectorAll('.rutina-bulk').forEach(b => b.onclick = () => bulkToggle(b.dataset.period, b.dataset.bulk));
   board.querySelectorAll('[data-edit-rid]').forEach(b => b.onclick = () => openEditRoutineModal(b.dataset.editRid));
