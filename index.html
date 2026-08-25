@@ -453,8 +453,7 @@
     display: flex; align-items: center; justify-content: center;
     padding: 16px;
   }
-  /* !important: misma trampa que .login-screen — display:flex gana al [hidden] del UA sin esta regla */
-  .ac-modal[hidden] { display: none !important; }
+  .ac-modal[hidden] { display: none; }
   .ac-modal-overlay {
     position: absolute; inset: 0;
     background: rgba(0, 0, 0, 0.5);
@@ -793,8 +792,10 @@
     background: #fff; border: 1px solid var(--outline-variant);
     border-radius: var(--r-md); box-shadow: var(--shadow-2);
     z-index: 150;
+    display: block; /* explícito para que quitar [hidden] lo muestre siempre */
   }
-  .user-menu[hidden] { display: none; }
+  /* !important: misma trampa que .login-screen / .ac-modal */
+  .user-menu[hidden] { display: none !important; }
   .user-menu-info { padding: 12px 16px; border-bottom: 1px solid var(--outline-variant); }
   .user-menu-name { font-weight: 600; font-size: 14px; color: var(--on-surface); }
   .user-menu-role { font-size: 12px; color: var(--on-surface-variant); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -1978,46 +1979,71 @@ function bindMobileMenu() {
 
   // ponytail: posiciona el menú bajo el trigger que lo abrió — el menú vive en body y es position:fixed
   const positionUnder = (trigger) => {
+    // Temporalmente mostrar off-screen para medir width real si hace falta
+    const wasHidden = menu.hidden;
+    if (wasHidden) {
+      menu.style.visibility = 'hidden';
+      menu.hidden = false;
+    }
     const r = trigger.getBoundingClientRect();
     const margin = 6;
     const w = menu.offsetWidth || 240;
-    // mobile: alineado al borde derecho (donde está el avatar del banner); desktop: bajo el icono del sidebar
     if (window.matchMedia('(max-width: 1280px)').matches) {
       menu.style.left = 'auto';
       menu.style.right = '16px';
       menu.style.top = (r.bottom + margin) + 'px';
     } else {
       const left = Math.min(r.left, window.innerWidth - w - 16);
-      menu.style.left = left + 'px';
+      menu.style.left = Math.max(8, left) + 'px';
       menu.style.right = 'auto';
       menu.style.top = (r.bottom + margin) + 'px';
+    }
+    if (wasHidden) {
+      menu.hidden = true;
+      menu.style.visibility = '';
     }
   };
 
   const close = () => {
     menu.hidden = true;
+    menu.setAttribute('hidden', '');
     btn?.setAttribute('aria-expanded', 'false');
     brandBtn?.setAttribute('aria-expanded', 'false');
   };
+  const open = (trigger) => {
+    positionUnder(trigger);
+    menu.hidden = false;
+    menu.removeAttribute('hidden');
+    btn?.setAttribute('aria-expanded', 'true');
+    brandBtn?.setAttribute('aria-expanded', 'true');
+  };
   const toggle = (trigger) => {
-    const willOpen = menu.hidden;
-    if (willOpen) positionUnder(trigger);
-    menu.hidden = !willOpen;
-    btn?.setAttribute('aria-expanded', String(willOpen));
-    brandBtn?.setAttribute('aria-expanded', String(willOpen));
+    if (menu.hidden || menu.hasAttribute('hidden')) open(trigger);
+    else close();
   };
 
-  if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); toggle(btn); });
+  if (btn) btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggle(btn);
+  });
   if (brandBtn) {
-    brandBtn.addEventListener('click', (e) => { e.stopPropagation(); toggle(brandBtn); });
+    brandBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggle(brandBtn);
+    });
     brandBtn.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(brandBtn); }
     });
   }
-  // ponytail: click fuera cierra el dropdown — listener global, sin libs
+  // Click fuera: usar contains() en los triggers para no fallar si el target es un hijo (span de la inicial)
   document.addEventListener('click', (e) => {
     if (menu.hidden) return;
-    if (menu.contains(e.target) || e.target === btn || e.target === brandBtn) return;
+    const t = e.target;
+    if (menu.contains(t)) return;
+    if (btn && (t === btn || btn.contains(t))) return;
+    if (brandBtn && (t === brandBtn || brandBtn.contains(t))) return;
     close();
   });
   // Item Mi cuenta del dropdown: navega a la vista account, cierra el menú
@@ -3345,23 +3371,14 @@ async function onEditSheetSubmit(ev) {
 async function onEditSheetDelete() {
   const sid = $('#es-sid').value;
   const s = adminSheets.find(x => x.spreadsheet_id === sid);
-  // Cerrar edición antes del confirm (evitar overlays apilados)
-  closeEditSheetModal();
   const ok = await showConfirm('Eliminar hoja', `¿Eliminar el spreadsheet "${s?.nombre || sid}"? Las vinculaciones a usuarios se borrarán.`, 'Eliminar');
   if (!ok) return;
   try {
     await call('bajaSpreadsheetAdmin', sid);
-    state.expandedSheets?.delete(sid);
     toast('Hoja eliminada');
-    const confirmModal = $('#confirm-modal');
-    if (confirmModal) confirmModal.hidden = true;
-    const form = $('#form-new-sheet');
-    if (form) { form.hidden = true; form.reset(); }
-    await renderAdmin();
-  } catch (e) {
-    toast(e.message, 'warn');
-    if (sid) openEditSheetModal(sid);
-  }
+    closeEditSheetModal();
+    renderAdmin();
+  } catch (e) { toast(e.message, 'warn'); }
 }
 
 // === Sheet ID viewer modal ===
@@ -3410,29 +3427,21 @@ function showConfirm(title, message, okLabel) {
     $('#confirm-message').textContent = message;
     $('#confirm-ok').textContent = okLabel || 'Eliminar';
 
-    let settled = false;
     const cleanup = (result) => {
-      if (settled) return;
-      settled = true;
       modal.hidden = true;
-      // Quitar listeners con las mismas referencias
-      okBtn.removeEventListener('click', onOk);
-      closeEls.forEach(el => el.removeEventListener('click', onCancel));
+      $('#confirm-ok').onclick = null;
+      $$('#confirm-modal [data-modal-close]').forEach(el => el.onclick = null);
       document.removeEventListener('keydown', escHandler);
       resolve(result);
     };
-    const onOk = () => cleanup(true);
-    const onCancel = () => cleanup(false);
     const escHandler = (e) => { if (e.key === 'Escape' && !modal.hidden) cleanup(false); };
 
-    const okBtn = $('#confirm-ok');
-    const closeEls = $$('#confirm-modal [data-modal-close]');
-    okBtn.addEventListener('click', onOk);
-    closeEls.forEach(el => el.addEventListener('click', onCancel));
+    $('#confirm-ok').onclick = () => cleanup(true);
+    $$('#confirm-modal [data-modal-close]').forEach(el => el.onclick = () => cleanup(false));
     document.addEventListener('keydown', escHandler);
 
     modal.hidden = false;
-    setTimeout(() => okBtn.focus(), 50);
+    setTimeout(() => $('#confirm-ok').focus(), 50);
   });
 }
 
@@ -3529,29 +3538,14 @@ async function onEditUserSubmit(ev) {
 
 async function onEditUserDelete() {
   const username = $('#eu-username').value;
-  if (!username) return;
-  // Cerrar el modal de edición ANTES del confirm para no apilar overlays
-  // (un overlay residual bloqueaba el botón "Crear usuario").
-  closeEditUserModal();
   const ok = await showConfirm('Eliminar usuario', `¿Eliminar al usuario "${username}"? Sus vinculaciones también se borrarán.`, 'Eliminar');
   if (!ok) return;
   try {
     await call('eliminarUsuarioAdmin', username);
-    // Quitar de la UI de expansión por si seguía marcado
-    state.expandedUsers?.delete(username);
     toast('Usuario eliminado');
-    // Asegurar que ningún modal quede abierto y el form de alta esté listo
     closeEditUserModal();
-    const confirmModal = $('#confirm-modal');
-    if (confirmModal) confirmModal.hidden = true;
-    const form = $('#form-new-user');
-    if (form) { form.hidden = true; form.reset(); }
-    await renderAdmin();
-  } catch (e) {
-    toast(e.message, 'warn');
-    // Reabrir el modal de edición si el borrado falló, para no perder el contexto
-    openEditUserModal(username);
-  }
+    renderAdmin();
+  } catch (e) { toast(e.message, 'warn'); }
 }
 async function onRenameSheetPrompt(sid) { // ponytail: kept for back-compat — modal flow replaces it
   const current = adminSheets.find(x => x.spreadsheet_id === sid);
@@ -3577,35 +3571,13 @@ function bindAdmin() {
   }));
 
   // Form toggles (Crear / Añadir / Vincular)
-  // Usamos setAttribute/removeAttribute para el atributo HTML `hidden` y así
-  // coincidir siempre con la regla CSS `.ac-add-form[hidden] { display:none }`.
   const toggleForm = (formId, btnId, cancelId) => {
     const form = $('#' + formId);
     const btn  = $('#' + btnId);
     if (!form || !btn) return;
-    btn.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      // Forzar cierre de cualquier modal residual que pudiera bloquear clics
-      ['edit-user-modal', 'edit-sheet-modal', 'confirm-modal', 'view-sheet-id-modal', 'edit-task-modal']
-        .forEach(id => { const m = document.getElementById(id); if (m) m.hidden = true; });
-      const opening = form.hasAttribute('hidden') || form.hidden;
-      if (opening) {
-        form.hidden = false;
-        form.removeAttribute('hidden');
-        form.querySelector('input')?.focus();
-      } else {
-        form.hidden = true;
-        form.setAttribute('hidden', '');
-        form.reset();
-      }
-    });
+    btn.addEventListener('click', () => { form.hidden = !form.hidden; if (!form.hidden) form.querySelector('input')?.focus(); });
     const cancel = $('#' + cancelId);
-    if (cancel) cancel.addEventListener('click', () => {
-      form.hidden = true;
-      form.setAttribute('hidden', '');
-      form.reset();
-    });
+    if (cancel) cancel.addEventListener('click', () => { form.hidden = true; form.reset(); });
   };
   toggleForm('form-new-user',  'usuarios-new-btn', 'usuarios-cancel-btn');
   toggleForm('form-new-sheet', 'sheets-new-btn',   'sheets-cancel-btn');
