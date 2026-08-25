@@ -453,7 +453,8 @@
     display: flex; align-items: center; justify-content: center;
     padding: 16px;
   }
-  .ac-modal[hidden] { display: none; }
+  /* !important: display:flex de .ac-modal gana al [hidden] del UA sin esta regla */
+  .ac-modal[hidden] { display: none !important; }
   .ac-modal-overlay {
     position: absolute; inset: 0;
     background: rgba(0, 0, 0, 0.5);
@@ -783,15 +784,17 @@
     font-weight: 700; font-size: 16px; font-family: inherit;
     box-shadow: var(--shadow-2);
     transition: transform .15s;
+    touch-action: manipulation; /* elimina delay de 300ms en móvil */
+    -webkit-tap-highlight-color: transparent;
   }
   .avatar-btn:hover { transform: scale(1.05); }
   .avatar-btn:active { transform: scale(0.97); }
   .user-menu {
-    position: fixed; /* ponytail: anclado por JS al trigger (avatar en mobile, brand en desktop) */
-    min-width: 240px; padding: 6px 0;
+    position: fixed; /* anclado por JS al trigger (avatar en mobile, brand en desktop) */
+    min-width: 240px; max-width: calc(100vw - 24px); padding: 6px 0;
     background: #fff; border: 1px solid var(--outline-variant);
     border-radius: var(--r-md); box-shadow: var(--shadow-2);
-    z-index: 150;
+    z-index: 300; /* por encima de mobile-top (110), bottom-nav (100) y toasts */
     display: block; /* visible cuando no tiene [hidden] */
   }
   .user-menu[hidden] { display: none !important; }
@@ -1286,15 +1289,6 @@
           </div>
           <button class="ac-btn-primary" id="usuarios-new-btn"><span class="material-icons">add</span>Crear usuario</button>
         </div>
-        <form id="form-new-user" class="ac-add-form" hidden>
-          <div><label>Usuario (3-40)</label><input type="text" id="nu-user" required pattern="[A-Za-z0-9_.\-]{3,40}"></div>
-          <div><label>Contraseña (mín. 8)</label><div class="ac-pw-wrap"><input type="password" id="nu-pass" required minlength="8"><button type="button" class="ac-pw-toggle" data-pw="nu-pass" aria-label="Mostrar contraseña" onclick="togglePw(this)"></button></div></div>
-          <div><label>Rol</label><select id="nu-rol"><option value="basico">básico</option><option value="admin">admin</option></select></div>
-          <div class="ac-form-actions">
-            <button type="button" class="ac-btn-secondary" id="usuarios-cancel-btn">Cancelar</button>
-            <button type="submit">Crear</button>
-          </div>
-        </form>
         <div class="ac-toolbar">
           <div class="ac-search"><span class="material-icons">search</span><input type="text" id="usuarios-search" placeholder="Buscar por nombre..."></div>
         </div>
@@ -1317,14 +1311,6 @@
           </div>
           <button class="ac-btn-primary" id="sheets-new-btn"><span class="material-icons">add</span>Añadir hoja</button>
         </div>
-        <form id="form-new-sheet" class="ac-add-form" hidden>
-          <div><label>Spreadsheet ID</label><input type="text" id="ns-id" required></div>
-          <div><label>Nombre</label><input type="text" id="ns-name" required></div>
-          <div class="ac-form-actions">
-            <button type="button" class="ac-btn-secondary" id="sheets-cancel-btn">Cancelar</button>
-            <button type="submit">Añadir</button>
-          </div>
-        </form>
         <div class="ac-card">
           <table class="ac-table ac-table-sheets">
             <thead>
@@ -1527,6 +1513,68 @@
         <div class="ac-modal-spacer"></div>
         <button type="button" class="ac-btn-secondary" data-modal-close>Cancelar</button>
         <button type="submit" form="form-edit-sheet" class="ac-btn-primary">Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New user modal (Crear usuario) -->
+  <div class="ac-modal" id="new-user-modal" hidden>
+    <div class="ac-modal-overlay" data-modal-close></div>
+    <div class="ac-modal-card" role="dialog" aria-modal="true" aria-labelledby="new-user-title">
+      <div class="ac-modal-header">
+        <h2 id="new-user-title">Crear usuario</h2>
+        <button class="ac-icon-btn" data-modal-close aria-label="Cerrar"><span class="material-icons">close</span></button>
+      </div>
+      <form id="form-new-user" class="ac-modal-body">
+        <div>
+          <label for="nu-user">Usuario (3-40)</label>
+          <input type="text" id="nu-user" required pattern="[A-Za-z0-9_.\-]{3,40}" autocomplete="off">
+        </div>
+        <div>
+          <label for="nu-pass">Contraseña (mín. 8)</label>
+          <div class="ac-pw-wrap">
+            <input type="password" id="nu-pass" required minlength="8" autocomplete="new-password">
+            <button type="button" class="ac-pw-toggle" data-pw="nu-pass" aria-label="Mostrar contraseña" onclick="togglePw(this)"></button>
+          </div>
+        </div>
+        <div>
+          <label for="nu-rol">Rol</label>
+          <select id="nu-rol">
+            <option value="basico">básico</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+      </form>
+      <div class="ac-modal-actions">
+        <div class="ac-modal-spacer"></div>
+        <button type="button" class="ac-btn-secondary" data-modal-close>Cancelar</button>
+        <button type="submit" form="form-new-user" class="ac-btn-primary">Crear usuario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New sheet modal (Añadir hoja) -->
+  <div class="ac-modal" id="new-sheet-modal" hidden>
+    <div class="ac-modal-overlay" data-modal-close></div>
+    <div class="ac-modal-card" role="dialog" aria-modal="true" aria-labelledby="new-sheet-title">
+      <div class="ac-modal-header">
+        <h2 id="new-sheet-title">Añadir hoja</h2>
+        <button class="ac-icon-btn" data-modal-close aria-label="Cerrar"><span class="material-icons">close</span></button>
+      </div>
+      <form id="form-new-sheet" class="ac-modal-body">
+        <div>
+          <label for="ns-id">Spreadsheet ID</label>
+          <input type="text" id="ns-id" required autocomplete="off">
+        </div>
+        <div>
+          <label for="ns-name">Nombre</label>
+          <input type="text" id="ns-name" required autocomplete="off">
+        </div>
+      </form>
+      <div class="ac-modal-actions">
+        <div class="ac-modal-spacer"></div>
+        <button type="button" class="ac-btn-secondary" data-modal-close>Cancelar</button>
+        <button type="submit" form="form-new-sheet" class="ac-btn-primary">Añadir hoja</button>
       </div>
     </div>
   </div>
@@ -1879,6 +1927,9 @@ async function startApp() {
       }
       return;
     }
+    // ponytail: reset a la vista por defecto en cada login — evita heredar la vista
+    // activa de la sesión anterior (p.ej. un básico aterrizando en 'admin' tras un logout de admin).
+    showView('dashboard');
   } catch (e) {
     if (/No autenticado/.test(e.message)) { clearSession(); showLogin(); return; }
     showFatal(e);
@@ -1981,20 +2032,23 @@ function bindMobileMenu() {
   if (menu.dataset.menuBound === '1') return;
   menu.dataset.menuBound = '1';
 
-  // Flag: el mismo click que abre el menú no debe cerrarlo por el listener de document
-  let ignoreOutsideClick = false;
+  // Debounce: pointerup + click sintético (~300ms en móvil) no deben
+  // ejecutar toggle dos veces. También evita que "click fuera" cierre al abrir.
+  let lastToggleAt = 0;
+  const TOGGLE_DEBOUNCE_MS = 400;
 
-  const isOpen = () => !menu.hidden && !menu.hasAttribute('hidden');
+  const isOpen = () => !menu.hasAttribute('hidden');
 
   const positionUnder = (trigger) => {
     const r = trigger.getBoundingClientRect();
     const margin = 6;
-    const w = 240;
-    if (window.matchMedia('(max-width: 1280px)').matches) {
+    const isMobile = window.matchMedia('(max-width: 1280px)').matches;
+    if (isMobile) {
       menu.style.left = 'auto';
-      menu.style.right = '16px';
+      menu.style.right = '12px';
       menu.style.top = (r.bottom + margin) + 'px';
     } else {
+      const w = 240;
       const left = Math.min(r.left, window.innerWidth - w - 16);
       menu.style.left = Math.max(8, left) + 'px';
       menu.style.right = 'auto';
@@ -2014,32 +2068,33 @@ function bindMobileMenu() {
     menu.removeAttribute('hidden');
     btn?.setAttribute('aria-expanded', 'true');
     brandBtn?.setAttribute('aria-expanded', 'true');
-    // Ignorar el click actual en document (bubble / orden de listeners)
-    ignoreOutsideClick = true;
-    setTimeout(() => { ignoreOutsideClick = false; }, 0);
   };
   const toggle = (trigger) => {
+    const now = Date.now();
+    if (now - lastToggleAt < TOGGLE_DEBOUNCE_MS) return;
+    lastToggleAt = now;
     if (isOpen()) close();
     else open(trigger);
   };
 
-  const isTrigger = (t) =>
-    (btn && (t === btn || btn.contains(t))) ||
-    (brandBtn && (t === brandBtn || brandBtn.contains(t)));
+  const isTrigger = (t) => {
+    if (!t) return false;
+    const el = t.nodeType === 3 ? t.parentElement : t;
+    if (!el || !el.closest) return false;
+    return !!(el.closest('#user-menu-btn') || el.closest('#brand-avatar-initial'));
+  };
 
-  if (btn) {
-    btn.addEventListener('click', (e) => {
+  // Un solo handler de click (funciona en móvil y desktop). stopPropagation
+  // evita que el listener de "fuera" vea el mismo evento.
+  const onTriggerClick = (trigger) => (e) => {
     e.preventDefault();
     e.stopPropagation();
-    toggle(btn);
-  });
-  }
+    toggle(trigger);
+  };
+
+  if (btn) btn.addEventListener('click', onTriggerClick(btn));
   if (brandBtn) {
-    brandBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      toggle(brandBtn);
-    });
+    brandBtn.addEventListener('click', onTriggerClick(brandBtn));
     brandBtn.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
@@ -2048,17 +2103,24 @@ function bindMobileMenu() {
     });
   }
 
-  // Click fuera → cerrar (usa contains para hijos del trigger; ignora el click de apertura)
-  document.addEventListener('click', (e) => {
-    if (ignoreOutsideClick) return;
+  // Cerrar al tocar/clicar fuera
+  const onOutside = (e) => {
+    if (Date.now() - lastToggleAt < TOGGLE_DEBOUNCE_MS) return;
     if (!isOpen()) return;
     if (menu.contains(e.target) || isTrigger(e.target)) return;
     close();
-  });
+  };
+  document.addEventListener('click', onOutside);
 
-  // Escape cierra el menú
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && isOpen()) close();
+  });
+
+  // Reposicionar si rota la pantalla con el menú abierto
+  window.addEventListener('resize', () => {
+    if (!isOpen()) return;
+    const trigger = (window.matchMedia('(max-width: 1280px)').matches && btn) ? btn : (brandBtn || btn);
+    if (trigger) positionUnder(trigger);
   });
 
   const accountBtn = $('#mobile-account-btn');
@@ -2125,6 +2187,9 @@ function bindNav() {
   }, { passive: true });
 }
 function showView(name) {
+  // ponytail: guarda de rol — un usuario no-admin no puede aterrizar en 'admin'
+  // por ninguna vía (nav, swipe, estado heredado). Se redirige a dashboard.
+  if (name === 'admin' && (readSession() || {}).rol !== 'admin') name = 'dashboard';
   $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   $$('.view').forEach(v => v.classList.toggle('active', v.id === `view-${name}`));
   if (name === 'dashboard') renderDashboard();
@@ -3388,14 +3453,22 @@ async function onEditSheetSubmit(ev) {
 async function onEditSheetDelete() {
   const sid = $('#es-sid').value;
   const s = adminSheets.find(x => x.spreadsheet_id === sid);
+  // Cerrar edición antes del confirm (evitar overlays apilados)
+  closeEditSheetModal();
   const ok = await showConfirm('Eliminar hoja', `¿Eliminar el spreadsheet "${s?.nombre || sid}"? Las vinculaciones a usuarios se borrarán.`, 'Eliminar');
   if (!ok) return;
   try {
     await call('bajaSpreadsheetAdmin', sid);
+    state.expandedSheets?.delete(sid);
     toast('Hoja eliminada');
-    closeEditSheetModal();
-    renderAdmin();
-  } catch (e) { toast(e.message, 'warn'); }
+    const confirmModal = $('#confirm-modal');
+    if (confirmModal) confirmModal.hidden = true;
+    closeNewSheetModal();
+    await renderAdmin();
+  } catch (e) {
+    toast(e.message, 'warn');
+    if (sid) openEditSheetModal(sid);
+  }
 }
 
 // === Sheet ID viewer modal ===
@@ -3444,21 +3517,28 @@ function showConfirm(title, message, okLabel) {
     $('#confirm-message').textContent = message;
     $('#confirm-ok').textContent = okLabel || 'Eliminar';
 
+    let settled = false;
     const cleanup = (result) => {
+      if (settled) return;
+      settled = true;
       modal.hidden = true;
-      $('#confirm-ok').onclick = null;
-      $$('#confirm-modal [data-modal-close]').forEach(el => el.onclick = null);
+      okBtn.removeEventListener('click', onOk);
+      closeEls.forEach(el => el.removeEventListener('click', onCancel));
       document.removeEventListener('keydown', escHandler);
       resolve(result);
     };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
     const escHandler = (e) => { if (e.key === 'Escape' && !modal.hidden) cleanup(false); };
 
-    $('#confirm-ok').onclick = () => cleanup(true);
-    $$('#confirm-modal [data-modal-close]').forEach(el => el.onclick = () => cleanup(false));
+    const okBtn = $('#confirm-ok');
+    const closeEls = $$('#confirm-modal [data-modal-close]');
+    okBtn.addEventListener('click', onOk);
+    closeEls.forEach(el => el.addEventListener('click', onCancel));
     document.addEventListener('keydown', escHandler);
 
     modal.hidden = false;
-    setTimeout(() => $('#confirm-ok').focus(), 50);
+    setTimeout(() => okBtn.focus(), 50);
   });
 }
 
@@ -3492,6 +3572,28 @@ function openEditUserModal(username) {
   setTimeout(() => $('#eu-rol').focus(), 50);
 }
 function closeEditUserModal() { $('#edit-user-modal').hidden = true; }
+
+// === New user / New sheet modals (reemplazan los forms inline con toggle) ===
+function openNewUserModal() {
+  const form = $('#form-new-user');
+  if (form) form.reset();
+  $('#new-user-modal').hidden = false;
+  setTimeout(() => $('#nu-user').focus(), 50);
+}
+function closeNewUserModal() {
+  $('#new-user-modal').hidden = true;
+  $('#form-new-user')?.reset();
+}
+function openNewSheetModal() {
+  const form = $('#form-new-sheet');
+  if (form) form.reset();
+  $('#new-sheet-modal').hidden = false;
+  setTimeout(() => $('#ns-id').focus(), 50);
+}
+function closeNewSheetModal() {
+  $('#new-sheet-modal').hidden = true;
+  $('#form-new-sheet')?.reset();
+}
 
 // === Edit task modal (opens from the pencil icon in each task card) ===
 function openEditTaskModal(tid) {
@@ -3555,14 +3657,25 @@ async function onEditUserSubmit(ev) {
 
 async function onEditUserDelete() {
   const username = $('#eu-username').value;
+  if (!username) return;
+  // Cerrar el modal de edición ANTES del confirm para no apilar overlays
+  // (un overlay residual bloqueaba el botón "Crear usuario").
+  closeEditUserModal();
   const ok = await showConfirm('Eliminar usuario', `¿Eliminar al usuario "${username}"? Sus vinculaciones también se borrarán.`, 'Eliminar');
   if (!ok) return;
   try {
     await call('eliminarUsuarioAdmin', username);
+    state.expandedUsers?.delete(username);
     toast('Usuario eliminado');
     closeEditUserModal();
-    renderAdmin();
-  } catch (e) { toast(e.message, 'warn'); }
+    const confirmModal = $('#confirm-modal');
+    if (confirmModal) confirmModal.hidden = true;
+    closeNewUserModal();
+    await renderAdmin();
+  } catch (e) {
+    toast(e.message, 'warn');
+    openEditUserModal(username);
+  }
 }
 async function onRenameSheetPrompt(sid) { // ponytail: kept for back-compat — modal flow replaces it
   const current = adminSheets.find(x => x.spreadsheet_id === sid);
@@ -3587,17 +3700,11 @@ function bindAdmin() {
     });
   }));
 
-  // Form toggles (Crear / Añadir / Vincular)
-  const toggleForm = (formId, btnId, cancelId) => {
-    const form = $('#' + formId);
-    const btn  = $('#' + btnId);
-    if (!form || !btn) return;
-    btn.addEventListener('click', () => { form.hidden = !form.hidden; if (!form.hidden) form.querySelector('input')?.focus(); });
-    const cancel = $('#' + cancelId);
-    if (cancel) cancel.addEventListener('click', () => { form.hidden = true; form.reset(); });
-  };
-  toggleForm('form-new-user',  'usuarios-new-btn', 'usuarios-cancel-btn');
-  toggleForm('form-new-sheet', 'sheets-new-btn',   'sheets-cancel-btn');
+  // Crear usuario / Añadir hoja — ahora viven en modales (evita estados incongruentes del toggle inline)
+  const newUserBtn = $('#usuarios-new-btn');
+  if (newUserBtn) newUserBtn.addEventListener('click', (ev) => { ev.preventDefault(); openNewUserModal(); });
+  const newSheetBtn = $('#sheets-new-btn');
+  if (newSheetBtn) newSheetBtn.addEventListener('click', (ev) => { ev.preventDefault(); openNewSheetModal(); });
 
   // Search filter (re-render as user types)
   const search = $('#usuarios-search');
@@ -3607,6 +3714,11 @@ function bindAdmin() {
   $$('#edit-user-modal [data-modal-close]').forEach(el => el.addEventListener('click', closeEditUserModal));
   $('#form-edit-user').addEventListener('submit', onEditUserSubmit);
   $('#eu-delete').addEventListener('click', onEditUserDelete);
+
+  // New user / New sheet modals
+  $$('#new-user-modal [data-modal-close]').forEach(el => el.addEventListener('click', closeNewUserModal));
+  $$('#new-sheet-modal [data-modal-close]').forEach(el => el.addEventListener('click', closeNewSheetModal));
+
   // ponytail: ESC cierra el modal — listener global, sin libs
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
@@ -3614,6 +3726,8 @@ function bindAdmin() {
     if (!$('#edit-sheet-modal').hidden)    closeEditSheetModal();
     if (!$('#view-sheet-id-modal').hidden) closeSheetIdModal();
     if (!$('#edit-task-modal').hidden)     closeEditTaskModal();
+    if (!$('#new-user-modal').hidden)      closeNewUserModal();
+    if (!$('#new-sheet-modal').hidden)     closeNewSheetModal();
   });
 
   // Edit sheet modal
@@ -3644,8 +3758,8 @@ function bindAdmin() {
     try {
       await call('crearUsuarioAdmin', $('#nu-user').value.trim(), $('#nu-pass').value, $('#nu-rol').value);
       toast('Usuario creado');
+      closeNewUserModal();
       $('#form-new-user').reset();
-      $('#form-new-user').hidden = true;
       renderAdmin();
     } catch (e) { toast(e.message, 'warn'); }
   });
@@ -3654,8 +3768,8 @@ function bindAdmin() {
     try {
       await call('altaSpreadsheetAdmin', $('#ns-id').value.trim(), $('#ns-name').value.trim(), '');
       toast('Spreadsheet añadido');
+      closeNewSheetModal();
       $('#form-new-sheet').reset();
-      $('#form-new-sheet').hidden = true;
       renderAdmin();
     } catch (e) { toast(e.message, 'warn'); }
   });
