@@ -795,6 +795,9 @@
   .task-card .task-edit-btn { background: transparent; border: 0; padding: 4px 6px; border-radius: var(--r-sm); cursor: pointer; color: var(--on-surface-variant); display: inline-flex; align-items: center; transition: background .15s, color .15s; }
   .task-card .task-edit-btn:hover { background: var(--surface-low); color: var(--primary); }
   .task-card .task-edit-btn .material-icons { font-size: 16px; line-height: 1; }
+  .rutina-row .rutina-edit-btn { background: transparent; border: 0; padding: 4px 6px; border-radius: var(--r-sm); cursor: pointer; color: var(--on-surface-variant); display: inline-flex; align-items: center; transition: background .15s, color .15s; }
+  .rutina-row .rutina-edit-btn:hover { background: var(--surface-low); color: var(--primary); }
+  .rutina-row .rutina-edit-btn .material-icons { font-size: 16px; line-height: 1; }
   /* === Tasks: tab panel + completed toggle === */
   .task-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--outline-variant); margin-bottom: 16px; }
   .task-tab { padding: 10px 16px; background: none; border: 0; font: 500 14px/1 'Inter', sans-serif; color: var(--on-surface-variant); border-bottom: 2px solid transparent; cursor: pointer; font-family: inherit; transition: color .15s, border-color .15s, background .15s; }
@@ -1375,7 +1378,6 @@
       <form class="panel" id="routine-form">
         <h3>Añadir recurrente</h3>
         <input id="routine-name" placeholder="Ej. Revisar correo, Gimnasio, Pagar facturas…" required maxlength="120" style="flex:1; min-width:240px;">
-        <select id="routine-label"><option value="">Sin etiqueta</option></select>
         <select id="routine-period">
           <option value="daily">Diaria</option>
           <option value="weekly">Semanal</option>
@@ -1384,7 +1386,6 @@
         <button type="submit">Añadir</button>
       </form>
 
-      <div class="chip-row" id="routine-filter-chips" style="margin-bottom: 12px;"></div>
       <div id="rutinas-board"></div>
     </section>
 
@@ -1755,6 +1756,36 @@
       <div class="ac-modal-spacer"></div>
       <button type="button" class="ac-btn-secondary" data-modal-close>Cancelar</button>
       <button type="submit" form="form-edit-task" class="ac-btn-primary">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="ac-modal" id="edit-routine-modal" hidden>
+  <div class="ac-modal-overlay" data-modal-close></div>
+  <div class="ac-modal-card" role="dialog" aria-modal="true" aria-labelledby="edit-routine-title">
+    <div class="ac-modal-header">
+      <h2 id="edit-routine-title">Editar recurrente</h2>
+      <button class="ac-icon-btn" data-modal-close aria-label="Cerrar"><span class="material-icons">close</span></button>
+    </div>
+    <form id="form-edit-routine" class="ac-modal-body">
+      <input type="hidden" id="er-id">
+      <div>
+        <label for="er-name">Nombre</label>
+        <input type="text" id="er-name" required maxlength="120">
+      </div>
+      <div>
+        <label for="er-period">Periodo</label>
+        <select id="er-period">
+          <option value="daily">Diaria</option>
+          <option value="weekly">Semanal</option>
+          <option value="monthly">Mensual</option>
+        </select>
+      </div>
+    </form>
+    <div class="ac-modal-actions">
+      <div class="ac-modal-spacer"></div>
+      <button type="button" class="ac-btn-secondary" data-modal-close>Cancelar</button>
+      <button type="submit" form="form-edit-routine" class="ac-btn-primary">Guardar</button>
     </div>
   </div>
 </div>
@@ -2445,47 +2476,6 @@ function refreshAll() {
 // en el spreadsheet del usuario. El backend computa el status (qué está hecho hoy/esta
 // semana/este mes); el frontend sólo pinta y dispara toggleRoutineCompletion.
 const RUTINA_PERIOD_LABELS = { daily: 'Diaria', weekly: 'Semanal', monthly: 'Mensual' };
-let routineFilter = '';
-
-async function ensureRoutineLabelSelect() {
-  // ponytail: mismo patrón que ensureTaskLabelSelect — opciones reales + "+ Nueva etiqueta…"
-  // crea una etiqueta al vuelo usando createLabel y refresca la lista.
-  const sel = $('#routine-label');
-  if (!sel) return;
-  const prev = sel.value;
-  sel.innerHTML = '<option value="">Sin etiqueta</option>';
-  state.labels.forEach(l => {
-    const o = document.createElement('option');
-    o.value = l.id; o.textContent = l.name;
-    sel.appendChild(o);
-  });
-  const newOpt = document.createElement('option');
-  newOpt.value = '__new__'; newOpt.textContent = '+ Nueva etiqueta…';
-  sel.appendChild(newOpt);
-  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
-  // ponytail: handler inline — si elige "+ Nueva etiqueta…", prompt y crea al vuelo
-  sel.onchange = async () => {
-    if (sel.value !== '__new__') return;
-    sel.value = '';
-    const name = (prompt('Nombre de la nueva etiqueta:') || '').trim();
-    if (!name) return;
-    try {
-      state.labels = await call('createLabel', name);
-      await ensureRoutineLabelSelect();
-      const fresh = state.labels.find(l => l.name === name);
-      if (fresh) $('#routine-label').value = fresh.id;
-    } catch (e) { toast(e.message, 'warn'); }
-  };
-}
-
-function rutinaLabelChip(routine) {
-  const lid = routine && routine.labelId;
-  if (!lid) return '';
-  const l = labelById(lid);
-  if (!l) return '';
-  return `<span class="chip" style="background:${l.color}">${escapeHtml(l.name)}</span>`;
-}
-
 // ponytail: backend expone getRoutineStatus con claves {today, week, month}, pero los ids de periodo
 // que viajamos al backend son {daily, weekly, monthly}. Mantenemos los nombres "lógicos" en el cliente
 // y mapeamos sólo al leer status.
@@ -2521,7 +2511,6 @@ function renderRutinasPanel(host) {
               <span class="rutina-toggle-label">${x.completed ? 'Hecha' : 'Pendiente'}</span>
             </button>
             <span class="rutina-name" title="${escapeHtml(x.routine.name)}">${escapeHtml(x.routine.name)}</span>
-            ${rutinaLabelChip(x.routine)}
           </li>`).join('');
     // ponytail: el botón bulk cambia de label según el estado — "Marcar todas" cuando quedan,
     // "Desmarcar todas" cuando todo está hecho (útil si te equivocaste marcando).
@@ -2583,24 +2572,9 @@ function renderRoutinesView() {
   // Vista completa Rutinas: lista de rutinas definidas + checklist del periodo actual
   const board = $('#rutinas-board');
   if (!board) return;
-  ensureRoutineLabelSelect();
-
-  // ponytail: chips de filtro por etiqueta (mismo patrón que Tasks)
-  const chipsHost = $('#routine-filter-chips');
-  if (chipsHost) {
-    chipsHost.innerHTML = `<button class="chip-filter ${routineFilter===''?'active':''}" data-lid="">Todas</button>` +
-      state.labels.map(l => `<button class="chip-filter ${routineFilter===l.id?'active':''}" data-lid="${l.id}"><span class="dot" style="background:${l.color}"></span>${escapeHtml(l.name)}</button>`).join('');
-    chipsHost.querySelectorAll('.chip-filter').forEach(b => b.onclick = () => {
-      routineFilter = b.dataset.lid || '';
-      renderRoutinesView();
-      if ($('#view-dashboard').classList.contains('active')) renderDashboard();
-    });
-  }
-
-  const filterFn = routineFilter ? r => r.labelId === routineFilter : () => true;
 
   const buildChecklistCard = (period, title) => {
-    const list = (state.routineStatus[STATUS_KEY_FOR_PERIOD[period]] || []).filter(x => filterFn(x.routine));
+    const list = state.routineStatus[STATUS_KEY_FOR_PERIOD[period]] || [];
     const total = list.length;
     const done = list.filter(x => x.completed).length;
     const pct = total ? Math.round(done * 100 / total) : 0;
@@ -2613,9 +2587,7 @@ function renderRoutinesView() {
               <span class="rutina-toggle-label">${x.completed ? 'Hecha' : 'Pendiente'}</span>
             </button>
             <span class="rutina-name">${escapeHtml(x.routine.name)}</span>
-            ${rutinaLabelChip(x.routine)}
           </div>`).join('');
-    // ponytail: bulk button (sólo si la lista no está vacía tras el filtro)
     const bulkLabel = (done === 0 || done === total) ? (done === total && total > 0 ? 'Desmarcar todas' : 'Marcar todas') : 'Marcar restantes';
     const bulkAction = done === total && total > 0 ? 'clear' : done === 0 ? 'all' : 'remaining';
     return `<div class="rutina-list-card">
@@ -2629,16 +2601,16 @@ function renderRoutinesView() {
   };
 
   const definedByPeriod = period => state.routines
-    .filter(r => r.period === period && filterFn(r))
+    .filter(r => r.period === period)
     .map(r => `
       <div class="rutina-row">
         <span class="rutina-name">${escapeHtml(r.name)}</span>
-        ${rutinaLabelChip(r)}
         <span class="rutina-period-chip">${RUTINA_PERIOD_LABELS[period]}</span>
+        <button class="rutina-edit-btn icon-btn" data-edit-rid="${escapeHtml(r.id)}" title="Editar recurrente" aria-label="Editar recurrente"><span class="material-icons">edit</span></button>
         <button class="del icon-btn" data-del-rid="${escapeHtml(r.id)}" title="Eliminar recurrente" aria-label="Eliminar recurrente"><span class="material-icons">delete</span></button>
-      </div>`).join('') || `<div class="empty-row">Sin recurrentes en este periodo${routineFilter ? ' con esta etiqueta' : ''}.</div>`;
+      </div>`).join('') || `<div class="empty-row">Sin recurrentes en este periodo.</div>`;
 
-  const definedTotal = state.routines.filter(filterFn).length;
+  const definedTotal = state.routines.length;
 
   board.innerHTML =
     buildChecklistCard('daily',  'Hoy') +
@@ -2657,6 +2629,7 @@ function renderRoutinesView() {
     row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); trigger(); } });
   });
   board.querySelectorAll('.rutina-bulk').forEach(b => b.onclick = () => bulkToggle(b.dataset.period, b.dataset.bulk));
+  board.querySelectorAll('[data-edit-rid]').forEach(b => b.onclick = () => openEditRoutineModal(b.dataset.editRid));
   board.querySelectorAll('[data-del-rid]').forEach(b => b.onclick = async () => {
     const rid = b.dataset.delRid;
     const r = state.routines.find(x => x.id === rid);
@@ -2675,13 +2648,11 @@ async function onRoutineCreate(e) {
   e.preventDefault();
   const name = $('#routine-name').value.trim();
   const period = $('#routine-period').value;
-  const labelId = $('#routine-label').value;
   if (!name) return;
   try {
-    state.routines = await call('createRoutine', name, period, labelId);
+    state.routines = await call('createRoutine', name, period);
     state.routineStatus = await call('getRoutineStatus');
     $('#routine-name').value = '';
-    $('#routine-label').value = '';
     renderRoutinesView();
     if ($('#view-dashboard').classList.contains('active')) renderDashboard();
   } catch (err) { toast(err.message, 'warn'); }
@@ -4347,6 +4318,38 @@ async function onEditTaskSubmit(ev) {
   } catch (e) { toast(e.message, 'warn'); }
 }
 
+// === Edit routine modal (pencil icon next to each defined routine) ===
+function openEditRoutineModal(rid) {
+  const r = state.routines.find(x => x.id === rid);
+  if (!r) return;
+  $('#er-id').value = rid;
+  $('#er-name').value = r.name || '';
+  $('#er-period').value = r.period || 'daily';
+  $('#edit-routine-modal').hidden = false;
+  setTimeout(() => $('#er-name').focus(), 50);
+}
+function closeEditRoutineModal() { $('#edit-routine-modal').hidden = true; }
+
+async function onEditRoutineSubmit(ev) {
+  ev.preventDefault();
+  const rid = $('#er-id').value;
+  const r = state.routines.find(x => x.id === rid);
+  if (!r) return;
+  const name = $('#er-name').value.trim();
+  const period = $('#er-period').value;
+  if (!name) return;
+  try {
+    const patch = {};
+    if (r.name !== name) patch.name = name;
+    if ((r.period || '') !== period) patch.period = period;
+    if (Object.keys(patch).length) state.routines = await call('updateRoutine', rid, patch);
+    state.routineStatus = await call('getRoutineStatus');
+    closeEditRoutineModal();
+    renderRoutinesView();
+    if ($('#view-dashboard').classList.contains('active')) renderDashboard();
+  } catch (e) { toast(e.message, 'warn'); }
+}
+
 async function onEditUserSubmit(ev) {
   ev.preventDefault();
   const username = $('#eu-username').value;
@@ -4449,6 +4452,7 @@ function bindAdmin() {
     if (!$('#edit-sheet-modal').hidden)    closeEditSheetModal();
     if (!$('#view-sheet-id-modal').hidden) closeSheetIdModal();
     if (!$('#edit-task-modal').hidden)     closeEditTaskModal();
+    if (!$('#edit-routine-modal').hidden)  closeEditRoutineModal();
     if (!$('#new-user-modal').hidden)      closeNewUserModal();
     if (!$('#new-sheet-modal').hidden)     closeNewSheetModal();
     if (!$('#entry-details-modal').hidden) $('#entry-details-modal').hidden = true;
@@ -4462,6 +4466,10 @@ function bindAdmin() {
   // Edit task modal (pencil icon in each task card)
   $$('#edit-task-modal [data-modal-close]').forEach(el => el.addEventListener('click', closeEditTaskModal));
   $('#form-edit-task').addEventListener('submit', onEditTaskSubmit);
+
+  // Edit routine modal (pencil icon next to each defined routine)
+  $$('#edit-routine-modal [data-modal-close]').forEach(el => el.addEventListener('click', closeEditRoutineModal));
+  $('#form-edit-routine').addEventListener('submit', onEditRoutineSubmit);
 
   // Sheet ID viewer modal
   $$('#view-sheet-id-modal [data-modal-close]').forEach(el => el.addEventListener('click', closeSheetIdModal));
