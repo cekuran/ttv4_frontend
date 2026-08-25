@@ -792,9 +792,8 @@
     background: #fff; border: 1px solid var(--outline-variant);
     border-radius: var(--r-md); box-shadow: var(--shadow-2);
     z-index: 150;
-    display: block; /* explícito para que quitar [hidden] lo muestre siempre */
+    display: block; /* visible cuando no tiene [hidden] */
   }
-  /* !important: misma trampa que .login-screen / .ac-modal */
   .user-menu[hidden] { display: none !important; }
   .user-menu-info { padding: 12px 16px; border-bottom: 1px solid var(--outline-variant); }
   .user-menu-name { font-weight: 600; font-size: 14px; color: var(--on-surface); }
@@ -1966,28 +1965,31 @@ function bindLogout() {
   $('#logout-btn').addEventListener('click', handler);
   // ponytail: el botón "Cerrar sesión" del dropdown móvil reusa el mismo handler
   $('#mobile-logout-btn').addEventListener('click', () => {
-    const m = $('#user-menu'); if (m) m.hidden = true;
+    const m = $('#user-menu');
+    if (m) { m.hidden = true; m.setAttribute('hidden', ''); }
     handler();
   });
 }
 
 function bindMobileMenu() {
-  const btn = $('#user-menu-btn');      // ponytail: trigger en mobile (avatar del banner)
-  const brandBtn = $('#brand-avatar-initial'); // ponytail: trigger en desktop (logo del sidebar)
+  const btn = $('#user-menu-btn');      // trigger mobile (avatar del banner)
+  const brandBtn = $('#brand-avatar-initial'); // trigger desktop (logo del sidebar)
   const menu = $('#user-menu');
   if (!menu) return;
 
-  // ponytail: posiciona el menú bajo el trigger que lo abrió — el menú vive en body y es position:fixed
+  // Evitar doble-bind si startApp se re-ejecuta
+  if (menu.dataset.menuBound === '1') return;
+  menu.dataset.menuBound = '1';
+
+  // Flag: el mismo click que abre el menú no debe cerrarlo por el listener de document
+  let ignoreOutsideClick = false;
+
+  const isOpen = () => !menu.hidden && !menu.hasAttribute('hidden');
+
   const positionUnder = (trigger) => {
-    // Temporalmente mostrar off-screen para medir width real si hace falta
-    const wasHidden = menu.hidden;
-    if (wasHidden) {
-      menu.style.visibility = 'hidden';
-      menu.hidden = false;
-    }
     const r = trigger.getBoundingClientRect();
     const margin = 6;
-    const w = menu.offsetWidth || 240;
+    const w = 240;
     if (window.matchMedia('(max-width: 1280px)').matches) {
       menu.style.left = 'auto';
       menu.style.right = '16px';
@@ -1997,10 +1999,6 @@ function bindMobileMenu() {
       menu.style.left = Math.max(8, left) + 'px';
       menu.style.right = 'auto';
       menu.style.top = (r.bottom + margin) + 'px';
-    }
-    if (wasHidden) {
-      menu.hidden = true;
-      menu.style.visibility = '';
     }
   };
 
@@ -2016,17 +2014,26 @@ function bindMobileMenu() {
     menu.removeAttribute('hidden');
     btn?.setAttribute('aria-expanded', 'true');
     brandBtn?.setAttribute('aria-expanded', 'true');
+    // Ignorar el click actual en document (bubble / orden de listeners)
+    ignoreOutsideClick = true;
+    setTimeout(() => { ignoreOutsideClick = false; }, 0);
   };
   const toggle = (trigger) => {
-    if (menu.hidden || menu.hasAttribute('hidden')) open(trigger);
-    else close();
+    if (isOpen()) close();
+    else open(trigger);
   };
 
-  if (btn) btn.addEventListener('click', (e) => {
+  const isTrigger = (t) =>
+    (btn && (t === btn || btn.contains(t))) ||
+    (brandBtn && (t === brandBtn || brandBtn.contains(t)));
+
+  if (btn) {
+    btn.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
     toggle(btn);
   });
+  }
   if (brandBtn) {
     brandBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -2034,24 +2041,34 @@ function bindMobileMenu() {
       toggle(brandBtn);
     });
     brandBtn.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(brandBtn); }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggle(brandBtn);
+      }
     });
   }
-  // Click fuera: usar contains() en los triggers para no fallar si el target es un hijo (span de la inicial)
+
+  // Click fuera → cerrar (usa contains para hijos del trigger; ignora el click de apertura)
   document.addEventListener('click', (e) => {
-    if (menu.hidden) return;
-    const t = e.target;
-    if (menu.contains(t)) return;
-    if (btn && (t === btn || btn.contains(t))) return;
-    if (brandBtn && (t === brandBtn || brandBtn.contains(t))) return;
+    if (ignoreOutsideClick) return;
+    if (!isOpen()) return;
+    if (menu.contains(e.target) || isTrigger(e.target)) return;
     close();
   });
-  // Item Mi cuenta del dropdown: navega a la vista account, cierra el menú
+
+  // Escape cierra el menú
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOpen()) close();
+  });
+
   const accountBtn = $('#mobile-account-btn');
-  if (accountBtn) accountBtn.addEventListener('click', () => {
+  if (accountBtn) {
+    accountBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
     close();
     showView('account');
   });
+  }
 }
 
 function showFatal(e) {
