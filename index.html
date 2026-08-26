@@ -175,27 +175,37 @@
      dentro del último slot reparte L..D. Sin esto, padding-left con valores mágicos
      acaba desalineándose. */
   .rutina-week-header {
-    display: grid; grid-template-columns: 200px 130px 1fr; gap: 12px;
+    display: grid; grid-template-columns: 140px 1fr 200px; gap: 10px;
     margin: 0 0 8px; align-items: center;
     font: 600 11px/1 'Inter', sans-serif; color: var(--on-surface-variant);
     text-transform: uppercase; letter-spacing: 0.04em; min-width: 0;
   }
-  .rutina-week-labels { display: grid; gap: 4px; text-align: center; }
+  .rutina-week-labels { display: grid; gap: 6px; text-align: center; }
   .rutina-week-header .today { color: var(--primary); }
   .rutina-row-week {
-    /* ponytail: título ancho (200px), barra compacta fija (130px), celdas 1fr.
-       Antes era 140/1fr/200 — el 1fr dejaba la barra gigante y robaba sitio al nombre.
-       Ahora la barra tiene tamaño "progreso-de-tarea" (~130px) y las celdas absorben el resto. */
-    display: grid; grid-template-columns: 200px 130px 1fr; gap: 12px; align-items: center;
+    /* ponytail: desktop Recurrentes — formato clásico del panel "Días de la semana":
+       nombre 140px + barra 1fr (ancha) + celdas 200px. La barra se estira para anclar
+       el porcentaje de progreso por tarea. En móvil esto se sobreescribe a 1fr apilado. */
+    display: grid; grid-template-columns: 140px 1fr 200px; gap: 10px; align-items: center;
     border-bottom: 1px solid var(--surface-low); padding: 8px 0;
   }
+  /* ponytail: vista Recurrentes y Dashboard — mismo grid para que ambas secciones estén
+     alineadas visualmente: nombre flexible (1fr, toma todo el espacio disponible),
+     barra de progreso fija (90px) y columna de celdas fija (220px = 7×26px + gaps).
+     Cada sección mantiene su funcionalidad (nav + botones en Recurrentes, spans en Dashboard). */
+  #rutinas-board .rutina-row-week,
+  #rutinas-board .rutina-week-header,
+  #week-rutinas-wrap .rutina-row-week,
+  #week-rutinas-wrap .rutina-week-header {
+    grid-template-columns: 1fr 360px 220px;
+  }
   .rutina-row-week:last-child { border-bottom: 0; }
-  .rutina-row-week .rutina-name { flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 500; }
-  /* ponytail: barra de progreso POR TAREA — misma estética que la del dashboard semanal, pero más fina.
+  .rutina-row-week .rutina-name { flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* ponytail: barra de progreso POR TAREA — misma estética que la del dashboard semanal.
      El % se calcula por rutina (cuántos días hechos de 7), no global del panel. */
   .rutina-row-week .rutina-task-bar {
-    position: relative; height: 8px; background: var(--surface-low);
-    border-radius: 9999px; overflow: hidden; min-width: 80px;
+    position: relative; height: 10px; background: var(--surface-low);
+    border-radius: 9999px; overflow: hidden; min-width: 60px;
   }
   .rutina-row-week .rutina-task-bar > div {
     height: 100%; background: var(--secondary); border-radius: 9999px;
@@ -203,18 +213,19 @@
   }
   .rutina-row-week .rutina-task-count {
     position: absolute; right: 0; top: -2px; transform: translateY(-100%);
-    font: 500 10px/1 'JetBrains Mono', ui-monospace, monospace;
+    font: 500 11px/1 'JetBrains Mono', ui-monospace, monospace;
     color: var(--on-surface-variant); font-variant-numeric: tabular-nums; padding: 0 2px;
   }
   .rutina-week-cells { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; min-width: 0; }
   .rutina-day-cell {
     appearance: none; -webkit-appearance: none;
-    aspect-ratio: 1 / 1; min-height: 22px; max-height: 26px;
+    width: 100%; height: 26px; aspect-ratio: auto;
     border-radius: 5px; border: 1.5px solid var(--outline-variant); background: #fff;
     color: var(--on-surface-variant); cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center;
     transition: background .15s, border-color .15s, color .15s, transform .1s;
     font-family: inherit; padding: 0;
+    box-sizing: border-box;
   }
   .rutina-day-cell:hover { border-color: var(--secondary); color: var(--secondary); }
   .rutina-day-cell:active { transform: scale(.95); }
@@ -1220,6 +1231,15 @@
     .ac-table-sheets thead th:nth-child(3),
     .ac-table-sheets tbody td:nth-child(3) { width: 16%; }
     .sheet-info { display: none; }
+    /* ponytail: barra de "Recurrentes diarias — semana" (dashboard) y "Días de la semana" (recurrentes)
+       en desktop — mismo formato: columna grid del medio 360px → 1440px (+400%, −20%).
+       Cada vista conserva su propia funcionalidad (nav + botones en Recurrentes, spans en Dashboard). */
+    #rutinas-board .rutina-row-week,
+    #rutinas-board .rutina-week-header,
+    #week-rutinas-wrap .rutina-row-week,
+    #week-rutinas-wrap .rutina-week-header {
+      grid-template-columns: 1fr 1440px 220px;
+    }
   }
   /* === Small phones (≤480px) — Stitch 360px viewport (iPhone SE-ish) === */
   @media (max-width: 480px) {
@@ -1240,11 +1260,22 @@
     .rutina-toggle-label { display: none; }
     .rutina-row { flex-wrap: wrap; row-gap: 6px; }
     .rutina-row .rutina-name { flex-basis: 100%; order: -1; }
-    /* ponytail: grid semanal en móvil — nombre arriba, cabecera alineada con las celdas (sin offset 140px),
-       y celdas un pelín más grandes para tap-target. */
-    .rutina-row-week { grid-template-columns: 1fr; gap: 6px; padding: 6px 0; }
-    .rutina-week-header { grid-template-columns: 1fr; gap: 4px; }
+    /* ponytail: grid semanal en móvil — apilado vertical: nombre arriba, barra en medio,
+       celdas abajo. La cabecera de iniciales (L..D) se alinea con las celdas usando el MISMO
+       grid (7 columnas minmax(0,1fr)) y el MISMO gap (4px) para que cada inicial caiga sobre
+       su columna.
+       IMPORTANTE: el grid de escritorio se define con selectores de ID (#rutinas-board /
+       #week-rutinas-wrap), así que aquí repetimos esos IDs para igualar especificidad y ganar
+       por orden de cascada. Con selectores de clase sueltos, el grid de escritorio (1fr 360px
+       220px) se colaba en móvil y aplastaba nombre + celdas fuera de pantalla. */
+    #rutinas-board .rutina-row-week,
+    #week-rutinas-wrap .rutina-row-week { grid-template-columns: 1fr; gap: 6px; padding: 6px 0; }
+    #rutinas-board .rutina-week-header,
+    #week-rutinas-wrap .rutina-week-header { grid-template-columns: 1fr; gap: 4px; }
     .rutina-week-header > span { display: none; }
+    /* ponytail: las etiquetas de día replican exactamente el grid de las celdas (7 col, gap 4px)
+       para que L/M/X/J/V/S/D queden alineadas con cada casilla debajo. */
+    .rutina-week-labels { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; gap: 4px !important; }
     /* ponytail: 7 celdas en 360px = ~46px cada una (con gap 4). Usamos repeat(N, minmax(0,1fr))
        para permitir que las celdas se encojan por debajo del contenido si hace falta —
        sin esto, min-width empuja la fila a overflow horizontal. */
@@ -2742,14 +2773,14 @@ function fmtWeekRange(monday, sunday) {
 }
 
 async function renderWeekRutinas() {
-  // ponytail: pide y pinta la cuadrícula semanal de rutinas diarias.
-  // Si no hay rutinas diarias, panel vacío; si falla el call, mostramos pista en consola
-  // (antes lo tragábamos en silencio y el panel quedaba inexplicablemente vacío).
+  // ponytail: pide y pinta la cuadrícula semanal de rutinas diarias con el MISMO formato
+  // que "Días de la semana" en Recurrentes (filas: name + barra X/Y + 7 celdas con día
+  // actual resaltado). El Dashboard siempre muestra la semana actual — sin nav.
   const host = $('#week-rutinas-list');
   const wrap = $('#week-rutinas-wrap');
   if (!host || !wrap) return;
   let rows;
-  try { rows = await call('getDailyRoutineWeekStatus'); }
+  try { rows = await call('getDailyRoutineWeekStatus', 7, 0); }
   catch (e) {
     console.error('renderWeekRutinas: backend rechazó getDailyRoutineWeekStatus —', e.message);
     host.innerHTML = `<div class="week-rutina-empty">No se pudo cargar (¿backend sin redeploy?). Mira la consola.</div>`;
@@ -2761,20 +2792,27 @@ async function renderWeekRutinas() {
     if (cta) cta.onclick = e => { e.preventDefault(); showView('routines'); };
     return;
   }
+  // ponytail: todayIdx local al panel — Dashboard siempre es semana actual, así que siempre
+  // resalta la columna del día de hoy (misma lógica que Recurrentes en su semana 0).
+  const todayKey = fmtDailyKey(new Date());
+  const sample = rows[0];
+  const N = sample.days.length;
+  const todayIdx = sample.days.findIndex(d => d.date === todayKey);
   host.innerHTML = `
-    <div class="week-rutina-legend" aria-hidden="true">
+    <div class="rutina-week-header">
       <span></span><span></span>
-      <div class="week-rutina-squares-labels">${DOW_LABELS_SHORT.map(l => `<span>${l}</span>`).join('')}</div>
+      <div class="rutina-week-labels" style="grid-template-columns: repeat(${N}, 1fr);">${DOW_LABELS_SHORT.map((l, i) => `<span class="${i === todayIdx ? 'today' : ''}">${l}</span>`).join('')}</div>
     </div>` + rows.map(r => {
     const total = r.days.length;
     const pct = total ? Math.round(r.count * 100 / total) : 0;
-    const squares = r.days.map((d, i) =>
-      `<span class="week-rutina-square ${d.completed ? 'done' : ''}" title="${DOW_LABELS_SHORT[i]} ${d.date}${d.completed ? ' — hecha' : ''}" aria-label="${DOW_LABELS_SHORT[i]}${d.completed ? ' hecha' : ' pendiente'}"></span>`
-    ).join('');
-    return `<div class="week-rutina-row">
-      <span class="week-rutina-name" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
-      <div class="week-rutina-bar"><div style="width:${pct}%"></div><span class="week-rutina-count">${r.count} / ${total}</span></div>
-      <div class="week-rutina-squares">${squares}</div>
+    const cells = r.days.map((d, i) => {
+      const isToday = i === todayIdx;
+      return `<span class="rutina-day-cell ${d.completed ? 'done' : ''} ${isToday ? 'today' : ''}" title="${DOW_LABELS_SHORT[i]} ${d.date}${d.completed ? ' — hecha' : ''}" aria-label="${DOW_LABELS_SHORT[i]}${d.completed ? ' hecha' : ' pendiente'}${isToday ? ' (hoy)' : ''}"></span>`;
+    }).join('');
+    return `<div class="rutina-row-week">
+      <span class="rutina-name" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
+      <div class="rutina-task-bar"><div style="width:${pct}%"></div><span class="rutina-task-count">${r.count} / ${total} · ${pct}%</span></div>
+      <div class="rutina-week-cells">${cells}</div>
     </div>`;
   }).join('');
 }
