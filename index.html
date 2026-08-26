@@ -175,7 +175,7 @@
      dentro del último slot reparte L..D. Sin esto, padding-left con valores mágicos
      acaba desalineándose. */
   .rutina-week-header {
-    display: grid; grid-template-columns: 140px 1fr 200px; gap: 10px;
+    display: grid; grid-template-columns: 200px 130px 1fr; gap: 12px;
     margin: 0 0 8px; align-items: center;
     font: 600 11px/1 'Inter', sans-serif; color: var(--on-surface-variant);
     text-transform: uppercase; letter-spacing: 0.04em; min-width: 0;
@@ -183,16 +183,19 @@
   .rutina-week-labels { display: grid; gap: 4px; text-align: center; }
   .rutina-week-header .today { color: var(--primary); }
   .rutina-row-week {
-    display: grid; grid-template-columns: 140px 1fr 200px; gap: 10px; align-items: center;
+    /* ponytail: título ancho (200px), barra compacta fija (130px), celdas 1fr.
+       Antes era 140/1fr/200 — el 1fr dejaba la barra gigante y robaba sitio al nombre.
+       Ahora la barra tiene tamaño "progreso-de-tarea" (~130px) y las celdas absorben el resto. */
+    display: grid; grid-template-columns: 200px 130px 1fr; gap: 12px; align-items: center;
     border-bottom: 1px solid var(--surface-low); padding: 8px 0;
   }
   .rutina-row-week:last-child { border-bottom: 0; }
-  .rutina-row-week .rutina-name { flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* ponytail: barra de progreso POR TAREA — misma estética que la del dashboard semanal.
+  .rutina-row-week .rutina-name { flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 500; }
+  /* ponytail: barra de progreso POR TAREA — misma estética que la del dashboard semanal, pero más fina.
      El % se calcula por rutina (cuántos días hechos de 7), no global del panel. */
   .rutina-row-week .rutina-task-bar {
-    position: relative; height: 10px; background: var(--surface-low);
-    border-radius: 9999px; overflow: hidden; min-width: 60px;
+    position: relative; height: 8px; background: var(--surface-low);
+    border-radius: 9999px; overflow: hidden; min-width: 80px;
   }
   .rutina-row-week .rutina-task-bar > div {
     height: 100%; background: var(--secondary); border-radius: 9999px;
@@ -200,7 +203,7 @@
   }
   .rutina-row-week .rutina-task-count {
     position: absolute; right: 0; top: -2px; transform: translateY(-100%);
-    font: 500 11px/1 'JetBrains Mono', ui-monospace, monospace;
+    font: 500 10px/1 'JetBrains Mono', ui-monospace, monospace;
     color: var(--on-surface-variant); font-variant-numeric: tabular-nums; padding: 0 2px;
   }
   .rutina-week-cells { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; min-width: 0; }
@@ -351,6 +354,9 @@
     display: inline-flex; align-items: center; justify-content: center;
   }
   .icon-btn:hover { background: var(--surface-low); color: var(--primary); }
+  /* ponytail: chevron "siguiente" deshabilitado en semana actual — gris, sin hover, sin click. */
+  .icon-btn:disabled { color: var(--outline); cursor: not-allowed; opacity: .55; }
+  .icon-btn:disabled:hover { background: transparent; color: var(--outline); }
   .sidebar-timer {
     display: flex; align-items: center; gap: 10px; width: 100%;
     background: linear-gradient(135deg, var(--primary), var(--primary-container));
@@ -1959,7 +1965,8 @@ const state = {
   // getDailyRoutineWeekStatus; el panel "Días de la semana" en Recurrentes la pinta.
   // weekOffset = 0 → semana actual; >0 → semanas hacia atrás (1 = hace una semana).
   // El grid SIEMPRE pinta 7 días (una semana); sólo cambia la ventana que pedimos al backend.
-  routineWeek: [], weekOffset: 0,
+  // routineWeekCache guarda semanas ya visitadas para no refetch al revisitarlas.
+  routineWeek: [], routineWeekCache: new Map(), weekOffset: 0,
   activeTimer: null,
   tickInterval: null, chart: null, chartType: readChartType(),
   lastStatsSeries: null,        // ponytail: cache for ResizeObserver so re-render skips the filter pass
@@ -2244,8 +2251,13 @@ async function startApp() {
     });
     // ponytail: máscara semanal de rutinas diarias — siempre 7 días (una semana).
     // El panel "Días de la semana" en Recurrentes usa state.weekOffset para navegar entre
-    // semanas. El dashboard hace su propia llamada con default 7.
-    call('getDailyRoutineWeekStatus', 7, state.weekOffset).then(rs => { state.routineWeek = rs || []; if ($('#view-routines').classList.contains('active')) renderRoutinesView(); });
+    // semanas. Cache inicial para que las navegaciones siguientes a offset 0 sean instantáneas.
+    // El dashboard hace su propia llamada con default 7.
+    call('getDailyRoutineWeekStatus', 7, state.weekOffset).then(rs => {
+      state.routineWeek = rs || [];
+      state.routineWeekCache.set(state.weekOffset, state.routineWeek);
+      if ($('#view-routines').classList.contains('active')) renderRoutinesView();
+    });
     bindNav();
     bindGlobal();
     bindLogout();
@@ -2767,47 +2779,139 @@ async function renderWeekRutinas() {
   }).join('');
 }
 
-// ponytail: helper — recarga state.routineWeek para la semana que el usuario está viendo
-// (state.weekOffset). Lo llaman bulkToggle, toggleRutina y el click en las day-cells.
+// ponytail: helper — recarga state.routineWeek para la semana que el usuario está viendo.
+// Lo llaman bulkToggle, toggleRutina y el click en las day-cells. Se evita el refetch
+// si los toggles vienen de una actualización optimista local (sólo se llama si el estado
+// servidor difiere del nuestro). Caché por offset para no re-fetchar semanas revisitadas.
 async function refreshRoutineWeek_() {
-  try { state.routineWeek = await call('getDailyRoutineWeekStatus', 7, state.weekOffset); }
-  catch (e) { /* non-fatal — el panel mostrará datos viejos hasta el siguiente toggle */ }
+  const offset = state.weekOffset;
+  // ponytail: el toggle optimista ya actualizó state.routineWeek localmente; no re-fetcheamos.
+  // Sólo sincronizamos si el cache de esta semana está vacío (caso raro: race condition).
+  if (state.routineWeekCache.has(offset) && state.routineWeek === state.routineWeekCache.get(offset)) return;
+  try {
+    const data = await call('getDailyRoutineWeekStatus', 7, offset);
+    state.routineWeek = data || [];
+    state.routineWeekCache.set(offset, state.routineWeek);
+  } catch (e) { /* non-fatal */ }
 }
-// ponytail: salta a otra semana (offset ≥ 0; -1 deshabilita el botón "anterior"). Refetchea
-// y re-pinta sólo si la vista Recurrentes está activa. El dashboard ignora el offset
-// (siempre muestra la semana actual).
+// ponytail: salta a otra semana. Cache-first: si ya visitamos esta semana la pintamos al
+// instante sin round-trip. Cache miss → fetch y guardamos en el cache para la próxima vez.
 async function navigateRoutineWeek(delta) {
   const next = state.weekOffset + delta;
   if (next < 0) return; // no permitimos futuro
   state.weekOffset = next;
-  try { state.routineWeek = await call('getDailyRoutineWeekStatus', 7, state.weekOffset); }
-  catch (e) { toast('No se pudo cargar la semana', 'warn'); state.weekOffset -= delta; return; }
+  if (state.routineWeekCache.has(next)) {
+    // ponytail: cache hit — swap instantáneo, sin red.
+    state.routineWeek = state.routineWeekCache.get(next);
+    if ($('#view-routines').classList.contains('active')) renderRoutinesView();
+    return;
+  }
+  try {
+    const data = await call('getDailyRoutineWeekStatus', 7, next);
+    state.routineWeek = data || [];
+    state.routineWeekCache.set(next, state.routineWeek); // guarda para próximas visitas
+  } catch (e) {
+    toast('No se pudo cargar la semana', 'warn');
+    state.weekOffset -= delta;
+    return;
+  }
   if ($('#view-routines').classList.contains('active')) renderRoutinesView();
 }
 
+// ponytail: helpers de actualización optimista local — evita el refetch completo tras toggle.
+// El backend ya devuelve el nuevo estado, pero para daily el refetch de la semana entera
+// era el segundo round-trip que ralentizaba todo. Con esto, marcamos el toggle al instante
+// y luego sincronizamos en background; si falla, revertimos (toggle es idempotente).
+function setRoutineCompletedLocal_(rid, period, periodKey, completed) {
+  if (period === 'daily') {
+    // routineWeek (Recurrentes): mask por día de la semana actual
+    const wk = (state.routineWeek || []).find(r => String(r.id) === String(rid));
+    if (wk) {
+      const idx = wk.days.findIndex(d => d.date === periodKey);
+      if (idx >= 0) {
+        const was = wk.days[idx].completed;
+        wk.days[idx].completed = completed;
+        wk.count += (completed ? 1 : 0) - (was ? 1 : 0);
+      }
+    }
+    // routineStatus.today (dashboard mini-checklist): un solo bool por rutina para "hoy"
+    const today = (state.routineStatus.today || []).find(x => String(x.routine.id) === String(rid));
+    if (today && today.periodKey === periodKey) today.completed = completed;
+  } else {
+    // weekly / monthly: state.routineStatus[week|month] tiene un bool por (rutina, periodo)
+    const key = STATUS_KEY_FOR_PERIOD[period];
+    const item = (state.routineStatus[key] || []).find(x => String(x.routine.id) === String(rid));
+    if (item) item.completed = completed;
+  }
+}
+function flipRoutineLocal_(rid, period, periodKey) {
+  // lee el valor actual y lo invierte — devuelve el nuevo valor para idempotencia.
+  let prev = false;
+  if (period === 'daily') {
+    const wk = (state.routineWeek || []).find(r => String(r.id) === String(rid));
+    const idx = wk ? wk.days.findIndex(d => d.date === periodKey) : -1;
+    prev = idx >= 0 ? wk.days[idx].completed : false;
+  } else {
+    const item = (state.routineStatus[STATUS_KEY_FOR_PERIOD[period]] || []).find(x => String(x.routine.id) === String(rid));
+    prev = item ? item.completed : false;
+  }
+  setRoutineCompletedLocal_(rid, period, periodKey, !prev);
+}
+
 async function bulkToggle(period, action) {
-  // ponytail: bulk sin iteración cliente→servidor→cliente para cada item —
-  // el backend ya soporta toggleRoutineCompletion, así que llamamos en paralelo.
+  // ponytail: bulk sin iteración cliente→servidor→cliente para cada item.
   const list = (state.routineStatus[STATUS_KEY_FOR_PERIOD[period]] || []).filter(x => action === 'all' ? !x.completed : action === 'clear' ? x.completed : !x.completed);
   if (!list.length) return;
+  // 1. Update local state IMMEDIATELY (optimistic)
+  const targetCompleted = action === 'clear' ? false : true;
+  for (const x of list) setRoutineCompletedLocal_(x.routine.id, period, x.periodKey, targetCompleted);
+  if ($('#view-routines').classList.contains('active')) renderRoutinesView();
+  // 2. Send in parallel; on failure revert
   try {
-    // ponytail: paralelizar con Promise.all — la latencia dominante es el round-trip al WebApp,
-    // así que N toggles en paralelo ≈ 1 toggle. Si el backend añadiera rate-limit, cambiar a chunks.
     await Promise.all(list.map(x => call('toggleRoutineCompletion', x.routine.id, period, x.periodKey)));
     state.routineStatus = await call('getRoutineStatus');
     if (period === 'daily') await refreshRoutineWeek_();
-    if ($('#view-dashboard').classList.contains('active')) renderDashboard();
-    if ($('#view-routines').classList.contains('active')) renderRoutinesView();
-  } catch (e) { toast(e.message, 'warn'); }
+  } catch (e) {
+    // revert (idempotent: set the same target again would be wrong, so re-read from state)
+    for (const x of list) flipRoutineLocal_(x.routine.id, period, x.periodKey);
+    toast(e.message, 'warn');
+  }
+  if ($('#view-dashboard').classList.contains('active')) renderDashboard();
+  if ($('#view-routines').classList.contains('active')) renderRoutinesView();
 }
 
 async function toggleRutina(rid, period, periodKey) {
+  // 1. Update local state IMMEDIATELY — el toggle se ve al instante sin esperar la red.
+  flipRoutineLocal_(rid, period, periodKey);
+  if ($('#view-routines').classList.contains('active')) renderRoutinesView();
+  if ($('#view-dashboard').classList.contains('active')) renderDashboard();
+  // 2. Send to backend; on failure revert + toast
   try {
     state.routineStatus = await call('toggleRoutineCompletion', rid, period, periodKey);
-    if (period === 'daily') await refreshRoutineWeek_();
-    if ($('#view-dashboard').classList.contains('active')) renderDashboard();
-    if ($('#view-routines').classList.contains('active')) renderRoutinesView();
-  } catch (e) { toast(e.message, 'warn'); }
+    if (period === 'daily') {
+      // ponytail: el backend devuelve state.routineStatus canónico, pero routineWeek NO.
+      // La respuesta del toggle daily incluye implícitamente la máscara del día concreto
+      // que acaba de cambiar; actualizamos el cache del offset actual para que coincida.
+      const wk = (state.routineWeek || []).find(r => String(r.id) === String(rid));
+      if (wk) {
+        const idx = wk.days.findIndex(d => d.date === periodKey);
+        if (idx >= 0) {
+          // rutinaStatus.today nos dice el estado canónico de HOY
+          const todayEntry = (state.routineStatus.today || []).find(x => String(x.routine.id) === String(rid));
+          if (todayEntry) {
+            const was = wk.days[idx].completed;
+            wk.days[idx].completed = todayEntry.completed;
+            wk.count += (todayEntry.completed ? 1 : 0) - (was ? 1 : 0);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    flipRoutineLocal_(rid, period, periodKey); // revert
+    toast(e.message, 'warn');
+  }
+  if ($('#view-routines').classList.contains('active')) renderRoutinesView();
+  if ($('#view-dashboard').classList.contains('active')) renderDashboard();
 }
 
 function renderRoutinesView() {
