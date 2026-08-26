@@ -2272,23 +2272,18 @@ async function startApp() {
       labels: boot.labels || [],
       entries: boot.entries || [],
       activeTimer: boot.activeTimer || null,
+      routines: boot.routines || [],
+      routineStatus: boot.routineStatus || { today: [], week: [], month: [] },
       sinHojas: !!boot.sin_hojas
     });
-    // ponytail: rutinas se cargan en paralelo al bootstrap principal — no bloquea el primer render
-    call('getRoutines').then(rs => { state.routines = rs || []; if ($('#view-routines').classList.contains('active')) renderRoutinesView(); });
-    call('getRoutineStatus').then(rs => {
-      state.routineStatus = rs || { today: [], week: [], month: [] };
-      if ($('#view-dashboard').classList.contains('active')) renderDashboard();
-    });
-    // ponytail: máscara semanal de rutinas diarias — siempre 7 días (una semana).
-    // El panel "Días de la semana" en Recurrentes usa state.weekOffset para navegar entre
-    // semanas. Cache inicial para que las navegaciones siguientes a offset 0 sean instantáneas.
-    // El dashboard hace su propia llamada con default 7.
-    call('getDailyRoutineWeekStatus', 7, state.weekOffset).then(rs => {
-      state.routineWeek = rs || [];
+    // ponytail: bootstrap ya devuelve routineWeek de la semana actual (offset 0). Sembramos
+    // el cache para que la primera navegación a offset 0 sea instantánea. Antes eran 4
+    // round-trips en cold-start (bootstrap + 3 paralelas) — ahora 1. En primer hit de Apps
+    // Script eso pasa de 4×cold-start (~120s peor caso) a 1×.
+    if (Array.isArray(boot.routineWeek) && boot.routineWeek.length) {
+      state.routineWeek = boot.routineWeek;
       state.routineWeekCache.set(state.weekOffset, state.routineWeek);
-      if ($('#view-routines').classList.contains('active')) renderRoutinesView();
-    });
+    }
     bindNav();
     bindGlobal();
     bindLogout();
@@ -2904,11 +2899,10 @@ async function bulkToggle(period, action) {
   const targetCompleted = action === 'clear' ? false : true;
   for (const x of list) setRoutineCompletedLocal_(x.routine.id, period, x.periodKey, targetCompleted);
   if ($('#view-routines').classList.contains('active')) renderRoutinesView();
-  // 2. Send in parallel; on failure revert
+  // 2. Send in parallel; on failure revert. El backend ya no devuelve el status completo
+  // (sólo {completed} por toggle), así que el estado local patcheado es el canónico — no refetch.
   try {
     await Promise.all(list.map(x => call('toggleRoutineCompletion', x.routine.id, period, x.periodKey)));
-    state.routineStatus = await call('getRoutineStatus');
-    if (period === 'daily') await refreshRoutineWeek_();
   } catch (e) {
     // revert (idempotent: set the same target again would be wrong, so re-read from state)
     for (const x of list) flipRoutineLocal_(x.routine.id, period, x.periodKey);
@@ -2923,27 +2917,11 @@ async function toggleRutina(rid, period, periodKey) {
   flipRoutineLocal_(rid, period, periodKey);
   if ($('#view-routines').classList.contains('active')) renderRoutinesView();
   if ($('#view-dashboard').classList.contains('active')) renderDashboard();
-  // 2. Send to backend; on failure revert + toast
+  // 2. Send to backend. El backend ya hace el toggle atómicamente y devuelve sólo
+  // {routineId, period, periodKey, completed} — el estado local patcheado es el canónico,
+  // así que no hay que re-leer getRoutineStatus / refreshRoutineWeek. En error → revert.
   try {
-    state.routineStatus = await call('toggleRoutineCompletion', rid, period, periodKey);
-    if (period === 'daily') {
-      // ponytail: el backend devuelve state.routineStatus canónico, pero routineWeek NO.
-      // La respuesta del toggle daily incluye implícitamente la máscara del día concreto
-      // que acaba de cambiar; actualizamos el cache del offset actual para que coincida.
-      const wk = (state.routineWeek || []).find(r => String(r.id) === String(rid));
-      if (wk) {
-        const idx = wk.days.findIndex(d => d.date === periodKey);
-        if (idx >= 0) {
-          // rutinaStatus.today nos dice el estado canónico de HOY
-          const todayEntry = (state.routineStatus.today || []).find(x => String(x.routine.id) === String(rid));
-          if (todayEntry) {
-            const was = wk.days[idx].completed;
-            wk.days[idx].completed = todayEntry.completed;
-            wk.count += (todayEntry.completed ? 1 : 0) - (was ? 1 : 0);
-          }
-        }
-      }
-    }
+    await call('toggleRoutineCompletion', rid, period, periodKey);
   } catch (e) {
     flipRoutineLocal_(rid, period, periodKey); // revert
     toast(e.message, 'warn');
