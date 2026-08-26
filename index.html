@@ -197,7 +197,10 @@
   #rutinas-board .rutina-week-header,
   #week-rutinas-wrap .rutina-row-week,
   #week-rutinas-wrap .rutina-week-header {
-    grid-template-columns: 1fr 360px 220px;
+    /* ponytail: minmax(0,1fr) en nombre y barra — sin esto, el 1fr colapsa a 0 cuando la suma
+       de las columnas fijas (bar+cells+gaps) excede el ancho del panel (e.g. tras fix de min-width:0
+       en main). El bar mantiene min-width propio de 60px vía .rutina-task-bar. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 220px;
   }
   .rutina-row-week:last-child { border-bottom: 0; }
   .rutina-row-week .rutina-name { flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1233,13 +1236,13 @@
     .ac-table-sheets tbody td:nth-child(3) { width: 16%; }
     .sheet-info { display: none; }
     /* ponytail: barra de "Recurrentes diarias — semana" (dashboard) y "Días de la semana" (recurrentes)
-       en desktop — mismo formato: columna grid del medio 360px → 1440px (+400%, −20%).
-       Cada vista conserva su propia funcionalidad (nav + botones en Recurrentes, spans en Dashboard). */
+       en desktop — mismo formato flexible (minmax 0,1fr) que el default. Antes era 1fr 1440px 220px
+       que colapsaba la columna del nombre a 0 cuando el panel no tenía espacio sobrante. */
     #rutinas-board .rutina-row-week,
     #rutinas-board .rutina-week-header,
     #week-rutinas-wrap .rutina-row-week,
     #week-rutinas-wrap .rutina-week-header {
-      grid-template-columns: 1fr 1440px 220px;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 220px;
     }
   }
   /* === Small phones (≤480px) — Stitch 360px viewport (iPhone SE-ish) === */
