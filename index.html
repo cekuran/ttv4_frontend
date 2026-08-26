@@ -1418,13 +1418,6 @@
         <svg class="day-timeline-svg" id="day-timeline-svg" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
 
-      <!-- ponytail: barras semanales de rutinas diarias — completaciones de la semana ISO actual (L..D).
-           Backend ya guarda DailyCompletions por día, así que sólo pedimos el mask y pintamos. -->
-      <div class="panel week-rutinas" id="week-rutinas-wrap">
-        <h3>Recurrentes diarias — semana</h3>
-        <div id="week-rutinas-list"></div>
-      </div>
-
       <div class="panel">
         <h3>Start a session</h3>
         <div class="quickstart-form">
@@ -1437,6 +1430,13 @@
       <div class="activity-grid">
         <div class="activity-panel" id="activity-week"></div>
         <div class="activity-panel" id="activity-day"></div>
+      </div>
+
+      <!-- ponytail: barras semanales de rutinas diarias — completaciones de la semana ISO actual (L..D).
+           Backend ya guarda DailyCompletions por día, así que sólo pedimos el mask y pintamos. -->
+      <div class="panel week-rutinas" id="week-rutinas-wrap">
+        <h3>Recurrentes diarias — semana</h3>
+        <div id="week-rutinas-list"></div>
       </div>
 
       <!-- ponytail: recurrentes — tareas recurrentes (checkbox), separadas de las standard -->
