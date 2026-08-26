@@ -227,8 +227,9 @@
     font-family: inherit; padding: 0;
     box-sizing: border-box;
   }
-  .rutina-day-cell:hover { border-color: var(--secondary); color: var(--secondary); }
-  .rutina-day-cell:active { transform: scale(.95); }
+  .rutina-day-cell:hover:not(:disabled) { border-color: var(--secondary); color: var(--secondary); }
+  .rutina-day-cell:active:not(:disabled) { transform: scale(.95); }
+  .rutina-day-cell:disabled { opacity: .35; cursor: not-allowed; }
   .rutina-day-cell .material-icons { font-size: 14px; line-height: 1; }
   .rutina-day-cell.done { background: var(--secondary); border-color: var(--secondary); color: var(--on-secondary); }
   /* ponytail: día de hoy — siempre resaltado, con independencia de si está hecho o no.
@@ -2976,10 +2977,12 @@ function renderRoutinesView() {
       totalCells += N; doneCells += rDone;
       const cells = routineDays.map((d, i) => {
         const isToday = i === todayIdx;
-        return `<button type="button" class="rutina-day-cell ${d.completed ? 'done' : ''} ${isToday ? 'today' : ''}"
+        // ponytail: días futuros no se pueden marcar — YYYY-MM-DD compara bien como string.
+        const isFuture = d.date > todayKey;
+        return `<button type="button" class="rutina-day-cell ${d.completed ? 'done' : ''} ${isToday ? 'today' : ''}" ${isFuture ? 'disabled' : ''}
           data-rid="${escapeHtml(r.id)}" data-period="daily" data-key="${escapeHtml(d.date)}"
-          title="${DOW_LABELS_LONG[i % 7] || ''} ${d.date}${d.completed ? ' — hecha' : ''}"
-          aria-label="${DOW_LABELS_LONG[i % 7] || ''}${d.completed ? ' hecha' : ' pendiente'}${isToday ? ' (hoy)' : ''}">
+          title="${DOW_LABELS_LONG[i % 7] || ''} ${d.date}${isFuture ? ' — día futuro' : d.completed ? ' — hecha' : ''}"
+          aria-label="${DOW_LABELS_LONG[i % 7] || ''}${isFuture ? ' (futuro, no marcable)' : d.completed ? ' hecha' : ' pendiente'}${isToday ? ' (hoy)' : ''}">
           <span class="material-icons">${d.completed ? 'check' : ''}</span>
         </button>`;
       }).join('');
