@@ -4117,9 +4117,9 @@ function renderDayTimeline(opts) {
   const lastH  = Math.min(24, (lastMs - dayStart.getTime()) / 3600000 + PAD_H);
 
   const x = d3.scaleLinear().domain([firstH, lastH]).range([0, W - MARGIN.left - MARGIN.right]);
-  // ponytail: mapa de scales por instancia (dashboard + stats) para tick() barato
+  // ponytail: mapa de scales por instancia (dashboard + stats) para tick() barato — lastH/opts permiten re-render barato cuando el live bar se acerca al borde derecho
   state.dayTimelineXScales = state.dayTimelineXScales || {};
-  state.dayTimelineXScales[wrapSel] = { x, svgSel };
+  state.dayTimelineXScales[wrapSel] = { x, svgSel, lastH, opts };
   const rowTop = i => MARGIN.top + i * (ROW_H + ROW_GAP);
   const g = svg.append('g').attr('transform', `translate(${MARGIN.left},0)`);
 
@@ -4260,16 +4260,19 @@ function tickDayTimeline() {
   const start = new Date(state.activeTimer.startTime);
   const now   = new Date();
   const liveMin = (now - start) / 60000;
-  Object.values(scales).forEach(({ x, svgSel }) => {
+  const nowH = (now - todayStart) / 3600000;
+  Object.values(scales).forEach(({ x, svgSel, lastH, opts }) => {
     const svg = d3.select(svgSel);
     if (svg.empty()) return;
     const live = svg.select('rect.tl-bar-live');
+    const nowLine = svg.select('line.tl-now');
+    // ponytail: si esta instancia no tiene live bar (p.ej. stats de un día pasado), no hay nada que tickear ni que re-renderizar
+    if (live.empty() && nowLine.empty()) return;
     if (!live.empty()) {
       const x1 = x(Math.max(0, (start - todayStart) / 3600000));
       const x2 = x(Math.min(24, (now - todayStart) / 3600000));
       live.attr('width', Math.max(2, x2 - x1));
     }
-    const nowLine = svg.select('line.tl-now');
     if (!nowLine.empty()) {
       const xn = x((now - todayStart) / 3600000);
       nowLine.attr('x1', xn).attr('x2', xn);
@@ -4280,6 +4283,8 @@ function tickDayTimeline() {
       const base = Number(totalEl.attr('data-base-min')) || 0;
       totalEl.text(fmtHM(base + liveMin));
     }
+    // ponytail: si el live bar está a ~3 min de chocar contra el borde derecho, re-render (~cada 27 min) para extender la escala antes de que desborde
+    if (lastH < 24 && lastH - nowH < 0.05) renderDayTimeline(opts);
   });
 }
 
