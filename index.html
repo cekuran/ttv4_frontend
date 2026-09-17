@@ -2118,6 +2118,9 @@ async function rawCallImpl(fn, args, attempt) {
   if (payload && payload.ok === false) {
     const err = new Error(payload.error || 'Error desconocido');
     err.serverError = true;
+    // Token muerto (revocado/expirado/caducado por TTL): dejar de almacenarlo
+    // y de enviarlo en las siguientes peticiones.
+    if (/No autenticado/.test(err.message) && authToken()) clearSession();
     throw err;
   }
   return payload ? payload.data : null;
@@ -2172,10 +2175,10 @@ const PALETTE_C = ['#4285F4','#EA4335','#FBBC04','#34A853','#A142F4','#24C1E0','
 // ==== Bootstrap ====
 const PING_TIMEOUT_MS = 115000; // cubre hasta 3 intentos de rawCallImpl: 29s + 30s + 29s + 15s + 29s ≈ 132s → margen extra
 
-function pingWithTimeout(token) {
+function pingWithTimeout() {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error('timeout')), PING_TIMEOUT_MS);
-    call('ping', token).then(
+    call('ping').then(
       v => { clearTimeout(t); resolve(v); },
       e => { clearTimeout(t); reject(e); }
     );
@@ -2190,44 +2193,47 @@ async function init() {
   const coldStartTimer = setTimeout(() => {
     $('#boot-status').textContent = 'El backend está arrancando, puede tardar hasta 60 s…';
   }, 10000);
-  // 1) ¿Está configurado el spreadsheet maestro?
-  let masterOk = false;
-  let pingErr = '';
-  let networkError = false;
-  try {
-    const p = await pingWithTimeout();
-    masterOk = !!(p && p.configurado);
-    if (!masterOk) pingErr = 'Sin spreadsheet maestro configurado';
-  } catch (e) {
-    pingErr = e.message || String(e);
-    masterOk = false;
-    networkError = true; // timeout / 504: backend no alcanzable, master puede estar configurado
-  } finally {
-    clearTimeout(coldStartTimer);
-  }
-  if (networkError) {
-    // No mostrar el formulario de setup — el master puede estar bien, solo hay cold-start.
-    $('#boot-status').textContent = pingErr;
+  const showBootError = (msg) => {
+    // No mostrar el formulario de setup — el master puede estar bien, sólo hay
+    // cold-start o error de red.
+    $('#boot-status').textContent = msg;
     $('#boot-spinner').hidden = true;
     $('#boot-retry').hidden = false;
-    return;
-  }
-  hideBoot();
-  if (!masterOk) { showSetup(pingErr); return; }
+  };
 
-  // 2) ¿Hay token guardado? Validar con el servidor.
+  // 1) Camino rápido con token guardado: bootstrap valida la sesión y trae los
+  // datos en UNA petición. Antes eran 3 viajes (ping + authStatus + bootstrap);
+  // en cold-start de Apps Script cada viaje extra puede costar ~30 s.
   if (authToken()) {
     try {
-      const status = await call('authStatus', authToken());
-      if (status && status.authenticated) {
-        writeSession({ user: status.user, rol: status.rol });
-        await startApp();
-        return;
-      }
-    } catch (e) { /* token inválido: caer a login */ }
-    clearSession();
+      const boot = await call('bootstrap');
+      clearTimeout(coldStartTimer);
+      hideBoot();
+      await startApp(boot);
+      return;
+    } catch (e) {
+      clearTimeout(coldStartTimer);
+      // Sin serverError = red/cold-start (no sabemos si el token vale): boot retry.
+      if (!(e && e.serverError)) { showBootError(e.message || String(e)); return; }
+      hideBoot();
+      if (/No autenticado/.test(e.message)) { clearSession(); showLogin(); return; }
+      if (/no configurado/i.test(e.message)) { showSetup(e.message); return; }
+      showFatal(e);
+      return;
+    }
   }
-  showLogin();
+
+  // 2) Sin token: ping decide entre pantalla de setup (sin master) y login.
+  try {
+    const p = await pingWithTimeout();
+    clearTimeout(coldStartTimer);
+    hideBoot();
+    if (p && p.configurado) showLogin();
+    else showSetup('Sin spreadsheet maestro configurado');
+  } catch (e) {
+    clearTimeout(coldStartTimer);
+    showBootError(e.message || String(e));
+  }
 }
 
 function hideBoot() { $('#boot-screen').hidden = true; }
@@ -2249,12 +2255,18 @@ function showLogin() {
   $('#login-user').focus();
 }
 
-async function startApp() {
+async function startApp(boot) {
   $('#login-screen').hidden = true;
   $('#boot-screen').hidden = true;
   $('#app').hidden = false;
-  const session = readSession() || {};
-  $('#brand-user').textContent = session.user ? `${session.user} · ${session.rol || ''}` : '—';
+  try {
+    // boot precargado (init fast-path) o fetch fresco (login normal).
+    if (!boot) boot = await call('bootstrap');
+    // La sesión autoritativa viene del backend: bootstrap ya valida el token y
+    // devuelve sesion {user, rol} — no hace falta el round-trip de authStatus.
+    if (boot.sesion && boot.sesion.user) writeSession({ user: boot.sesion.user, rol: boot.sesion.rol || 'basico' });
+    const session = readSession() || {};
+    $('#brand-user').textContent = session.user ? `${session.user} · ${session.rol || ''}` : '—';
   // Mobile top bar avatar + dropdown: pinta inicial, nombre y rol del usuario
   // ponytail: usa la inicial del username como "logo" — sin avatar real, sin uploads, sin libs
   const mobileInitial = (session.user || 'T').trim().charAt(0).toUpperCase() || 'T';
@@ -2269,8 +2281,6 @@ async function startApp() {
   $('#nav-admin').classList.toggle('hidden', !isAdmin);
   $('#nav-admin-mobile').classList.toggle('hidden', !isAdmin);
 
-  try {
-    const boot = await call('bootstrap');
     Object.assign(state, {
       tasks: boot.tasks || [],
       labels: boot.labels || [],
