@@ -2002,6 +2002,7 @@ const state = {
   // El grid SIEMPRE pinta 7 días (una semana); sólo cambia la ventana que pedimos al backend.
   // routineWeekCache guarda semanas ya visitadas para no refetch al revisitarlas.
   routineWeek: [], routineWeekCache: new Map(), weekOffset: 0,
+  adminData: null,              // cache de adminOverview (users/sheets/links); null = pedir al backend
   activeTimer: null,
   tickInterval: null, chart: null, chartType: readChartType(),
   lastStatsSeries: null,        // ponytail: cache for ResizeObserver so re-render skips the filter pass
@@ -2056,10 +2057,9 @@ const localDay = (d) => {
   return `${x.getFullYear()}-${p(x.getMonth()+1)}-${p(x.getDate())}`;
 };
 
-function taskById(id)    { return state.tasks.find(t => t.id === id); }
+// taskById / labelById (indexados, O(1)) se definen junto a call().
 function taskName(id)    { const t = taskById(id); return t ? t.name : '(deleted)'; }
 function taskLabelId(id) { const t = taskById(id); return t ? (t.labelId || '') : ''; }
-function labelById(id)   { return state.labels.find(l => l.id === id); }
 function labelName(id)   { const l = labelById(id); return l ? l.name : ''; }
 function labelColor(id)  { const l = labelById(id); return l ? l.color : '#9aa0a6'; }
 
@@ -2127,7 +2127,37 @@ async function rawCallImpl(fn, args, attempt) {
 }
 
 function rawCall(fn, ...args) { return rawCallImpl(fn, args, 0); }
-function call(fn, ...args) { return rawCall(fn, ...args); }
+
+// Lecturas idempotentes: si ya hay una petición idéntica en vuelo se reutiliza
+// su promesa (doble clic, render duplicado, navegación rápida) en vez de repetirla.
+const DEDUPE_ACTIONS = new Set(['bootstrap', 'getDailyRoutineWeekStatus', 'getRoutineStatus', 'adminOverview']);
+const _inflight = new Map();
+function call(fn, ...args) {
+  if (!DEDUPE_ACTIONS.has(fn)) return rawCall(fn, ...args);
+  const key = fn + '|' + JSON.stringify(args);
+  let p = _inflight.get(key);
+  if (!p) {
+    p = rawCall(fn, ...args).finally(() => _inflight.delete(key));
+    _inflight.set(key, p);
+  }
+  return p;
+}
+
+// Índices O(1) sobre state.tasks / state.labels. Se reconstruyen sólo cuando el
+// array cambia de identidad (todas las mutaciones reemplazan el array).
+let _taskMap = null, _taskMapSrc = null, _labelMap = null, _labelMapSrc = null;
+function taskById(id) {
+  if (_taskMapSrc !== state.tasks) { _taskMap = new Map(state.tasks.map(t => [t.id, t])); _taskMapSrc = state.tasks; }
+  return _taskMap.get(id);
+}
+function labelById(id) {
+  if (_labelMapSrc !== state.labels) { _labelMap = new Map(state.labels.map(l => [l.id, l])); _labelMapSrc = state.labels; }
+  return _labelMap.get(id);
+}
+// Timestamp de inicio memoizado por entrada (evita new Date() repetido en filtros/orden).
+function entryStart_(e) {
+  return e._s !== undefined ? e._s : (e._s = new Date(e.startTime).getTime());
+}
 
 function populateTaskSelect(sel, placeholder) {
   const prev = sel.value;
@@ -2288,6 +2318,10 @@ async function startApp(boot) {
       activeTimer: boot.activeTimer || null,
       routines: boot.routines || [],
       routineStatus: boot.routineStatus || { today: [], week: [], month: [] },
+      routineWeek: [],
+      routineWeekCache: new Map(),
+      weekOffset: 0,
+      adminData: null,
       sinHojas: !!boot.sin_hojas
     });
     // ponytail: bootstrap ya devuelve routineWeek de la semana actual (offset 0). Sembramos
@@ -2298,12 +2332,19 @@ async function startApp(boot) {
       state.routineWeek = boot.routineWeek;
       state.routineWeekCache.set(state.weekOffset, state.routineWeek);
     }
-    bindNav();
-    bindGlobal();
-    bindLogout();
-    bindMobileMenu();
-    bindAdmin();
-    refreshAll();
+    // Los listeners se registran UNA vez: startApp corre en cada login y duplicarlos
+    // disparaba cada acción (logout, nav, admin) varias veces.
+    if (!uiBound) {
+      uiBound = true;
+      bindNav();
+      bindGlobal();
+      bindLogout();
+      bindMobileMenu();
+      bindAdmin();
+    }
+    // Solo selects y widgets: la vista inicial se pinta con showView (antes refreshAll
+    // renderizaba dashboard+logs y showView volvía a renderizar).
+    refreshShell_();
     if (state.activeTimer) startTicker();
     if (boot.sin_hojas) {
       // ponytail: sin hoja → vaciar nav y enseñar aviso (no toast, no dashboard vacío)
@@ -2400,6 +2441,9 @@ function bindLogout() {
     try { await call('logoutUsuario', authToken()); } catch (e) { /* best-effort */ }
     clearSession();
     state.tasks = []; state.labels = []; state.entries = []; state.activeTimer = null;
+    state.routines = []; state.routineStatus = { today: [], week: [], month: [] };
+    state.routineWeek = []; state.routineWeekCache = new Map(); state.weekOffset = 0;
+    state.adminData = null;
     showLogin();
   };
   $('#logout-btn').addEventListener('click', handler);
@@ -2575,19 +2619,25 @@ function bindNav() {
     if (next !== idxInVisible) showView(visibleViews[next]);
   }, { passive: true });
 }
+let uiBound = false; // listeners globales ya registrados (startApp corre en cada login)
+
+function renderView_(name) {
+  if (name === 'dashboard') renderDashboard();
+  else if (name === 'logs') renderLogs();
+  else if (name === 'tasks') renderTasksView();
+  else if (name === 'stats') renderStats();
+  else if (name === 'reports') renderReports();
+  else if (name === 'routines') renderRoutinesView();
+  else if (name === 'admin') renderAdmin(true);
+}
+
 function showView(name) {
   // ponytail: guarda de rol — un usuario no-admin no puede aterrizar en 'admin'
   // por ninguna vía (nav, swipe, estado heredado). Se redirige a dashboard.
   if (name === 'admin' && (readSession() || {}).rol !== 'admin') name = 'dashboard';
   $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   $$('.view').forEach(v => v.classList.toggle('active', v.id === `view-${name}`));
-  if (name === 'dashboard') renderDashboard();
-  if (name === 'logs')    renderLogs();
-  if (name === 'tasks')     renderTasksView();
-  if (name === 'stats')     renderStats();
-  if (name === 'reports')   renderReports();
-  if (name === 'routines')  renderRoutinesView();
-  if (name === 'admin')     renderAdmin();
+  renderView_(name);
 }
 
 function bindGlobal() {
@@ -2672,14 +2722,22 @@ function bindGlobal() {
   $('#report-download').addEventListener('click', downloadExport);
 }
 
-function refreshAll() {
+// Selects + widgets del timer (baratos). No re-renderiza vistas.
+function refreshShell_() {
   populateLabelSelect($('#timer-label-filter'), 'All labels');
   populateTimerTaskSelect();
   populateTaskSelect($('#manual-task'));
   renderActiveCard();
   renderActiveWidget();
-  renderLogs();
-  renderDashboard();
+}
+
+// Tras mutar datos: refresca shell + SOLO la vista visible (las demás se pintan al
+// navegar a ellas). Antes renderizaba dashboard y logs siempre.
+function refreshAll() {
+  refreshShell_();
+  const cur = $('.view.active');
+  const name = cur ? cur.id.replace('view-', '') : '';
+  if (name && name !== 'admin') renderView_(name);
 }
 
 // ==== Rutinas ====
@@ -2789,11 +2847,20 @@ async function renderWeekRutinas() {
   const wrap = $('#week-rutinas-wrap');
   if (!host || !wrap) return;
   let rows;
-  try { rows = await call('getDailyRoutineWeekStatus', 7, 0); }
-  catch (e) {
-    console.error('renderWeekRutinas: backend rechazó getDailyRoutineWeekStatus —', e.message);
-    host.innerHTML = `<div class="week-rutina-empty">No se pudo cargar (¿backend sin redeploy?). Mira la consola.</div>`;
-    return;
+  // La semana actual ya viene en bootstrap / se mantiene con updates locales y
+  // payloads de mutación: solo se pide si aún no está en caché.
+  if (state.routineWeekCache.has(0)) rows = state.routineWeekCache.get(0);
+  else {
+    try {
+      rows = await call('getDailyRoutineWeekStatus', 7, 0);
+      state.routineWeekCache.set(0, rows);
+      if (state.weekOffset === 0) state.routineWeek = rows;
+    }
+    catch (e) {
+      console.error('renderWeekRutinas: backend rechazó getDailyRoutineWeekStatus —', e.message);
+      host.innerHTML = `<div class="week-rutina-empty">No se pudo cargar (¿backend sin redeploy?). Mira la consola.</div>`;
+      return;
+    }
   }
   if (!Array.isArray(rows) || rows.length === 0) {
     host.innerHTML = `<div class="week-rutina-empty">Aún no hay rutinas diarias. Crea una en <a href="#" id="rutinas-go-week">Recurrentes</a> para verla aquí.</div>`;
@@ -2913,13 +2980,14 @@ async function bulkToggle(period, action) {
   const targetCompleted = action === 'clear' ? false : true;
   for (const x of list) setRoutineCompletedLocal_(x.routine.id, period, x.periodKey, targetCompleted);
   if ($('#view-routines').classList.contains('active')) renderRoutinesView();
-  // 2. Send in parallel; on failure revert. El backend ya no devuelve el status completo
-  // (sólo {completed} por toggle), así que el estado local patcheado es el canónico — no refetch.
+  // 2. UNA sola petición batch (setRoutineCompletions, idempotente); antes eran N toggles
+  // en paralelo que se pisaban al reescribir la misma hoja. Si falla, se revierte.
   try {
-    await Promise.all(list.map(x => call('toggleRoutineCompletion', x.routine.id, period, x.periodKey)));
+    await call('setRoutineCompletions', list.map(x => ({
+      routineId: x.routine.id, period, periodKey: x.periodKey, completed: targetCompleted
+    })));
   } catch (e) {
-    // revert (idempotent: set the same target again would be wrong, so re-read from state)
-    for (const x of list) flipRoutineLocal_(x.routine.id, period, x.periodKey);
+    for (const x of list) setRoutineCompletedLocal_(x.routine.id, period, x.periodKey, !targetCompleted);
     toast(e.message, 'warn');
   }
   if ($('#view-dashboard').classList.contains('active')) renderDashboard();
@@ -3129,12 +3197,22 @@ function renderRoutinesView() {
     if (!r) return;
     if (!await showConfirm('Eliminar recurrente', `¿Eliminar la tarea recurrente "${r.name}"? Sus completaciones pasadas también se borran.`, 'Eliminar')) return;
     try {
-      state.routines = await call('deleteRoutine', rid);
-      state.routineStatus = await call('getRoutineStatus');
+      applyRoutinesPayload_(await call('deleteRoutine', rid));
       renderRoutinesView();
       if ($('#view-dashboard').classList.contains('active')) renderDashboard();
     } catch (e) { toast(e.message, 'warn'); }
   });
+}
+
+// Los mutadores de rutinas devuelven {routines, routineStatus, routineWeek}: se reemplaza
+// el estado con 1 sola respuesta (antes: mutación + getRoutineStatus + refetch de semana).
+function applyRoutinesPayload_(p) {
+  state.routines = p.routines || [];
+  state.routineStatus = p.routineStatus || { today: [], week: [], month: [] };
+  // El conjunto de rutinas cambió: las semanas cacheadas de otros offsets ya no valen.
+  state.routineWeek = p.routineWeek || [];
+  state.routineWeekCache = new Map([[0, state.routineWeek]]);
+  state.weekOffset = 0;
 }
 
 async function onRoutineCreate(e) {
@@ -3143,8 +3221,7 @@ async function onRoutineCreate(e) {
   const period = $('#routine-period').value;
   if (!name) return;
   try {
-    state.routines = await call('createRoutine', name, period);
-    state.routineStatus = await call('getRoutineStatus');
+    applyRoutinesPayload_(await call('createRoutine', name, period));
     $('#routine-name').value = '';
     renderRoutinesView();
     if ($('#view-dashboard').classList.contains('active')) renderDashboard();
@@ -3161,11 +3238,12 @@ async function onStart() {
   if ($('#view-dashboard').classList.contains('active')) renderDashboard();
 }
 async function onStop() {
-  await call('stopTimer');
+  // stopTimer devuelve solo la entrada creada (o null): se añade al estado local.
+  const entry = await call('stopTimer');
   state.activeTimer = null;
   stopTicker();
   clearTaskLiveTicks();
-  state.entries = await call('getEntries');
+  if (entry) state.entries = [...state.entries, entry];
   if ($('#view-dashboard').classList.contains('active')) renderDashboard();
   if ($('#view-tasks').classList.contains('active'))    renderTasksView();
   if ($('#view-logs').classList.contains('active'))    renderLogs();
@@ -3467,7 +3545,8 @@ function renderLogs() {
   if (liveStop) liveStop.onclick = onStop;
   $$('#log-summary .del').forEach(b => b.onclick = async () => {
     if (!await showConfirm('Eliminar entrada', '¿Eliminar esta entrada de tiempo? Esta acción no se puede deshacer.', 'Eliminar')) return;
-    state.entries = await call('deleteEntry', b.dataset.id);
+    await call('deleteEntry', b.dataset.id);
+    state.entries = state.entries.filter(e => e.id !== b.dataset.id);
     renderLogs();
   });
   $$('#log-summary .grp-hdr').forEach(hdr => hdr.onclick = () => {
@@ -3487,9 +3566,9 @@ async function onManualSubmit(e) {
   const notes  = $('#manual-notes').value;
   if (!taskId) { alert('Pick a task'); return; }
   try {
-    await call('createEntry', { taskId, startTime: parseLocalInput(start).toISOString(), endTime: parseLocalInput(end).toISOString(), source: 'manual', notes });
+    const entry = await call('createEntry', { taskId, startTime: parseLocalInput(start).toISOString(), endTime: parseLocalInput(end).toISOString(), source: 'manual', notes });
     e.target.reset();
-    state.entries = await call('getEntries');
+    state.entries = [...state.entries, entry];
     renderLogs();
   } catch (err) { alert(err.message); }
 }
@@ -3506,10 +3585,10 @@ async function renderTasksView() {
     sel.value = '';
     const name = (prompt('New label name:') || '').trim();
     if (!name) return;
-    state.labels = await call('createLabel', name);
+    const created = await call('createLabel', name);
+    state.labels = [...state.labels, created];
     renderTasksView();
-    const fresh = state.labels.find(l => l.name === name);
-    if (fresh) $('#task-label').value = fresh.id;
+    $('#task-label').value = created.id;
   };
 
   // Filter chips
@@ -3605,8 +3684,9 @@ async function renderTasksView() {
   });
   $$('#task-table-wrap .del').forEach(b => b.onclick = async () => {
     if (!await showConfirm('Eliminar tarea', '¿Eliminar esta tarea? Las entradas pasadas se conservan pero se muestran como "(deleted)".', 'Eliminar')) return;
-    state.tasks = await call('deleteTask', b.dataset.id);
-    renderTasksView(); renderLogs(); refreshAll();
+    await call('deleteTask', b.dataset.id);
+    state.tasks = state.tasks.filter(t => t.id !== b.dataset.id);
+    renderTasksView(); refreshAll();
   });
   $$('#task-table-wrap .task-edit-btn').forEach(b => b.onclick = () => openEditTaskModal(b.dataset.id));
   $$('#task-table-wrap .task-toggle-done').forEach(b => b.onclick = async () => {
@@ -3615,8 +3695,9 @@ async function renderTasksView() {
     if (!t) return;
     const isDone = t.completed === true || String(t.completed || '') === 'true';
     try {
-      state.tasks = await call('updateTask', tid, { completed: isDone ? '' : 'true' });
-      renderTasksView(); refreshAll();
+      const updated = await call('updateTask', tid, { completed: isDone ? '' : 'true' });
+      state.tasks = state.tasks.map(x => x.id === tid ? updated : x);
+      refreshAll();
     } catch (e) { toast(e.message, 'warn'); }
   });
   // click card body to toggle entries
@@ -3635,10 +3716,9 @@ async function onTaskCreate(e) {
   e.preventDefault();
   const name = $('#task-name').value.trim();
   if (!name) return;
-  await call('createTask', name, $('#task-label').value);
+  const created = await call('createTask', name, $('#task-label').value);
   $('#task-name').value = '';
-  state.tasks = await call('getTasks');
-  renderTasksView();
+  state.tasks = [...state.tasks, created];
   refreshAll();
 }
 
@@ -4401,19 +4481,28 @@ function downloadExport() {
 // ==== Admin ====
 let adminUsers = [], adminSheets = [], adminLinks = [];
 
-async function renderAdmin() {
+const ADMIN_CACHE_MS = 60000;
+
+// useCache=true (navegación): reutiliza el último adminOverview si tiene <60 s.
+// Tras cualquier mutación se llama sin argumento y siempre refresca.
+async function renderAdmin(useCache) {
   const session = readSession() || {};
   const username = session.user || '—';
   $('#me-username').textContent = username;
   $('#me-rol').textContent = session.rol || 'user';
   const meAvatar = $('#me-avatar');
   if (meAvatar) meAvatar.textContent = (username || 'A').trim().charAt(0).toUpperCase() || 'A';
+  const cached = state.adminData;
+  if (useCache === true && cached && Date.now() - cached.at < ADMIN_CACHE_MS) {
+    ({ users: adminUsers, sheets: adminSheets, links: adminLinks } = cached);
+    paintUsers(); paintSheets();
+    return;
+  }
   try {
-    [adminUsers, adminSheets, adminLinks] = await Promise.all([
-      call('listarUsuariosAdmin'),
-      call('listarSpreadsheetsAdmin'),
-      call('listarVinculacionesAdmin')
-    ]);
+    // 1 petición (adminOverview) en vez de 3 en paralelo.
+    const o = await call('adminOverview');
+    adminUsers = o.users || []; adminSheets = o.sheets || []; adminLinks = o.links || [];
+    state.adminData = { users: adminUsers, sheets: adminSheets, links: adminLinks, at: Date.now() };
   } catch (e) {
     toast(e.message, 'warn');
     return;
@@ -4811,10 +4900,16 @@ async function onEditTaskSubmit(ev) {
   const labelId = $('#et-label').value;
   if (!name) return;
   try {
-    if (t.name !== name) state.tasks = await call('updateTask', tid, { name });
-    if ((t.labelId || '') !== labelId) state.tasks = await call('updateTask', tid, { labelId });
+    // Un solo updateTask con todos los cambios (antes: hasta 2 llamadas secuenciales).
+    const patch = {};
+    if (t.name !== name) patch.name = name;
+    if ((t.labelId || '') !== labelId) patch.labelId = labelId;
+    if (Object.keys(patch).length) {
+      const updated = await call('updateTask', tid, patch);
+      state.tasks = state.tasks.map(x => x.id === tid ? updated : x);
+    }
     closeEditTaskModal();
-    renderTasksView(); renderLogs(); refreshAll();
+    refreshAll();
   } catch (e) { toast(e.message, 'warn'); }
 }
 
@@ -4842,11 +4937,14 @@ async function onEditRoutineSubmit(ev) {
     const patch = {};
     if (r.name !== name) patch.name = name;
     if ((r.period || '') !== period) patch.period = period;
-    if (Object.keys(patch).length) state.routines = await call('updateRoutine', rid, patch);
-    state.routineStatus = await call('getRoutineStatus');
+    if (Object.keys(patch).length) {
+      applyRoutinesPayload_(await call('updateRoutine', rid, patch));
+      closeEditRoutineModal();
+      renderRoutinesView();
+      if ($('#view-dashboard').classList.contains('active')) renderDashboard();
+      return;
+    }
     closeEditRoutineModal();
-    renderRoutinesView();
-    if ($('#view-dashboard').classList.contains('active')) renderDashboard();
   } catch (e) { toast(e.message, 'warn'); }
 }
 
