@@ -268,30 +268,6 @@
     .rutinas-grid { grid-template-columns: 1fr; gap: 12px; }
   }
   canvas { background: white; padding: 18px; border-radius: var(--r-lg); box-shadow: var(--shadow-1); border: 1px solid var(--outline-variant); }
-  #stats-chart-wrap { background: #fff; padding: 18px 20px 22px; border-radius: var(--r-lg); box-shadow: var(--shadow-1); border: 1px solid var(--outline-variant); overflow: hidden; }
-  #stats-chart { display: block; width: 100%; height: 360px; font: 12px/1.5 'Inter', sans-serif; color: var(--on-surface-variant); }
-  #stats-chart .axis path, #stats-chart .axis line { stroke: var(--outline-variant); shape-rendering: crispEdges; }
-  #stats-chart .axis .tick line { stroke: rgba(117,118,131,0.15); }
-  #stats-chart .axis text { fill: var(--on-surface-variant); font-size: 11px; }
-  #stats-chart .bar { cursor: default; transition: opacity .15s; }
-  #stats-chart .bar:hover { opacity: .82; }
-  #stats-chart .pie-slice { cursor: default; transition: transform .15s, opacity .15s; transform-origin: center; transform-box: fill-box; }
-  #stats-chart .pie-slice:hover { opacity: .85; }
-  .d3-tip {
-    position: absolute; pointer-events: none; z-index: 50;
-    background: var(--on-surface); color: #fff;
-    padding: 8px 12px; border-radius: var(--r-md);
-    font: 500 12px/1.4 'Inter', sans-serif;
-    box-shadow: var(--shadow-2);
-    transform: translate(-50%, 0);
-    white-space: nowrap;
-  }
-  .d3-tip b { font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 600; }
-  .d3-tip::after {
-    content: ''; position: absolute; left: 50%; top: 100%;
-    transform: translateX(-50%);
-    border: 4px solid transparent; border-top-color: var(--on-surface);
-  }
   /* === Day timeline (24h Gantt en el dashboard y en stats con rango=day) === */
   .day-timeline-wrap { background: #fff; padding: 18px 20px 22px; border-radius: var(--r-lg); box-shadow: var(--shadow-1); border: 1px solid var(--outline-variant); margin-bottom: 16px; overflow: hidden; }
   .day-timeline-wrap h3 { margin: 0 0 12px; }
@@ -868,7 +844,6 @@
 
   /* === Dashboard widgets === */
   .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
-  #stats-cards { grid-template-columns: repeat(4, 1fr); } /* ponytail: overrides the 3-col default so the 4 stat cards sit in one row */
   .stat-card { background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-1); }
   .stat-card .stat-label { font-size: 11px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 10px; }
   .stat-card .stat-value { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 26px; font-weight: 700; color: var(--on-surface); line-height: 1.1; font-variant-numeric: tabular-nums; }
@@ -1047,6 +1022,7 @@
     .view-header p  { font-size: 13px; }
     .stat-grid { grid-template-columns: 1fr; gap: 12px; }
     #stats-cards { grid-template-columns: repeat(2, 1fr); }
+    #stats-cards .stat-card:last-child { grid-column: 1 / -1; }
     .stat-card { padding: 18px; }
     .stat-card .stat-label { font-size: 11px; margin-bottom: 10px; }
     .stat-card .stat-value { font-size: 26px; line-height: 1.1; }
@@ -1085,20 +1061,19 @@
     #log-table td.log-task { white-space: normal; overflow-wrap: anywhere; text-align: right; }
     #log-table td[data-label=""]::before { content: none; }
     #log-table td:last-child { justify-content: flex-end; padding-top: 6px; }
-    /* ponytail: stats totals + reports preview also become cards on mobile — same pattern as #log-table */
-    #stats-totals table.data, #stats-totals table.data thead, #stats-totals table.data tbody, #stats-totals table.data tr,
+    /* ponytail: reports preview also becomes cards on mobile — same pattern as #log-table */
     #report-preview .preview-table > table, #report-preview .preview-table > table thead, #report-preview .preview-table > table tbody, #report-preview .preview-table > table tr { display: block; }
-    #stats-totals table.data, #report-preview .preview-table > table { background: transparent; padding: 0; box-shadow: none; border: 0; overflow: visible; white-space: normal; }
-    #stats-totals table.data thead, #report-preview .preview-table > table thead { display: none; }
-    #stats-totals table.data tbody tr, #report-preview .preview-table > table tbody tr {
+    #report-preview .preview-table > table { background: transparent; padding: 0; box-shadow: none; border: 0; overflow: visible; white-space: normal; }
+    #report-preview .preview-table > table thead { display: none; }
+    #report-preview .preview-table > table tbody tr {
       border: 1px solid var(--outline-variant); border-radius: var(--r-md);
       margin-bottom: 8px; padding: 8px 12px; background: #fff;
     }
-    #stats-totals table.data td, #report-preview .preview-table > table td {
+    #report-preview .preview-table > table td {
       display: flex; justify-content: space-between; align-items: center; gap: 12px;
       padding: 4px 0; border: 0; white-space: normal; font-size: 13px;
     }
-    #stats-totals table.data td::before, #report-preview .preview-table > table td::before {
+    #report-preview .preview-table > table td::before {
       content: attr(data-label); color: var(--on-surface-variant); font-size: 11px;
       text-transform: uppercase; letter-spacing: 0.04em; flex: 0 0 auto;
     }
@@ -1517,12 +1492,6 @@
           <option value="task">Task</option>
           <option value="label">Label</option>
         </select></label>
-        <label>Chart
-          <div class="format-toggle">
-            <button type="button" class="active" data-chart-type="bar">Bar</button>
-            <button type="button" data-chart-type="pie">Pie</button>
-          </div>
-        </label>
       </div>
 
       <div class="stat-grid" id="stats-cards"></div>
@@ -1530,9 +1499,6 @@
         <h3 id="stats-day-timeline-title">Línea del día</h3>
         <svg class="day-timeline-svg" id="stats-day-timeline-svg" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
-      <div id="stats-totals"></div>
-      <div id="stats-chart-wrap" style="margin-top:20px;"><svg id="stats-chart" xmlns="http://www.w3.org/2000/svg"></svg></div>
-      <div id="stats-chart-tip" class="d3-tip" hidden></div>
     </section>
 
     <!-- ====== Reports (NEW) ====== -->
@@ -1983,14 +1949,6 @@
 </div>
 
 <script>
-// ==== Preferences (declared before state so readChartType() can be called from the initializer) ====
-const CHART_TYPE_KEY = 'tasktime_chart_type';
-function readChartType() {
-  const v = localStorage.getItem(CHART_TYPE_KEY);
-  return v === 'pie' || v === 'bar' ? v : 'bar';
-}
-function writeChartType(t) { localStorage.setItem(CHART_TYPE_KEY, t); }
-
 // ==== State ====
 const state = {
   tasks: [], labels: [], entries: [],
@@ -2004,9 +1962,7 @@ const state = {
   routineWeek: [], routineWeekCache: new Map(), weekOffset: 0,
   adminData: null,              // cache de adminOverview (users/sheets/links); null = pedir al backend
   activeTimer: null,
-  tickInterval: null, chart: null, chartType: readChartType(),
-  lastStatsSeries: null,        // ponytail: cache for ResizeObserver so re-render skips the filter pass
-  chartResizeObs: null,         // ponytail: so we can disconnect on logout if ever needed
+  tickInterval: null, chart: null,
   dayTimelineResizeObs: null,   // ponytail: ResizeObserver del timeline, desconectable en logout
   dayTimelineXScale: null,      // ponytail: cache del scale x para tick() barato
   sinHojas: false,
@@ -2199,8 +2155,6 @@ function populateTimerTaskSelect() {
     if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
   }
 }
-
-const PALETTE_C = ['#4285F4','#EA4335','#FBBC04','#34A853','#A142F4','#24C1E0','#FF6D00','#7B1FA2'];
 
 // ==== Bootstrap ====
 const PING_TIMEOUT_MS = 115000; // cubre hasta 3 intentos de rawCallImpl: 29s + 30s + 29s + 15s + 29s ≈ 132s → margen extra
@@ -2674,22 +2628,6 @@ function bindGlobal() {
     renderLogs();
   });
   ['stats-range','stats-group','stats-anchor'].forEach(id => $('#'+id).addEventListener('change', renderStats));
-  // Reflect persisted chart type on the toggle buttons
-  $$('[data-chart-type]').forEach(x => x.classList.toggle('active', x.dataset.chartType === state.chartType));
-  $$('[data-chart-type]').forEach(b => b.addEventListener('click', () => {
-    state.chartType = b.dataset.chartType;
-    writeChartType(state.chartType);
-    $$('[data-chart-type]').forEach(x => x.classList.toggle('active', x === b));
-    renderStats();
-  }));
-  // ponytail: rAF-debounced observer — re-renders only the chart, not the full data pipeline
-  if (state.chartResizeObs) state.chartResizeObs.disconnect();
-  let rafId = 0;
-  state.chartResizeObs = new ResizeObserver(() => {
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = requestAnimationFrame(() => { rafId = 0; renderChartOnly(); });
-  });
-  state.chartResizeObs.observe($('#stats-chart-wrap'));
   // ponytail: cierre del modal de detalles de entrada (overlay + botón close)
   $$('#entry-details-modal [data-modal-close]').forEach(el => el.addEventListener('click', () => { $('#entry-details-modal').hidden = true; }));
   // ponytail: re-render de la línea del día al cambiar el ancho del wrap (mismo patrón que stats-chart)
@@ -3783,11 +3721,11 @@ function defaultAnchorValue(range) {
   const now = new Date(), p = n => String(n).padStart(2,'0');
   if (range === 'day')   return `${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}`;
   if (range === 'month') return `${now.getFullYear()}-${p(now.getMonth()+1)}`;
-  const thu = new Date(now); thu.setDate(now.getDate() - ((now.getDay() + 6) % 7) + 3);
+  const thu = new Date(now); thu.setHours(0,0,0,0); thu.setDate(thu.getDate() - ((now.getDay() + 6) % 7) + 3);
   const year = thu.getFullYear();
   const jan4 = new Date(year, 0, 4);
   const monW1 = new Date(jan4); monW1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
-  return `${year}-W${p(1 + Math.round((thu - monW1) / (7 * 86400000)))}`;
+  return `${year}-W${p(1 + Math.floor((thu - monW1) / (7 * 86400000)))}`;
 }
 
 function setStatsAnchorType(range) {
@@ -3811,35 +3749,6 @@ function _testStats() {
   console.log('_testStats done');
 }
 
-// ponytail: paste into DevTools console to verify both chart renderers produce the expected DOM
-function _testChart() {
-  const labels = ['Design', 'Coding', 'Meetings', 'Reviews'];
-  const data   = [3.5, 7.25, 1.0, 2.5];
-  const colors = PALETTE_C.slice(0, labels.length);
-
-  // Force a deterministic viewport so the SVG has real pixel dimensions
-  const wrap = $('#stats-chart-wrap');
-  wrap.style.minWidth = '640px';
-
-  state.chartType = 'bar';
-  renderBarChart(labels, data, colors);
-  const bars = d3.select('#stats-chart').selectAll('.bar').size();
-  console.assert(bars === labels.length, `bar: expected ${labels.length} rects, got ${bars}`);
-
-  state.chartType = 'pie';
-  renderPieChart(labels, data, colors);
-  const slices = d3.select('#stats-chart').selectAll('.pie-slice').size();
-  console.assert(slices === labels.length, `pie: expected ${labels.length} arcs, got ${slices}`);
-
-  // Smoke: cached series round-trips
-  state.lastStatsSeries = { labels, data, colors };
-  renderChartOnly();
-  console.assert(d3.select('#stats-chart').selectAll('.pie-slice').size() === labels.length,
-                 'renderChartOnly should redraw from cache without throwing');
-
-  console.log('_testChart done');
-}
-
 function renderStats() {
   const range = $('#stats-range').value;
   const groupBy = $('#stats-group').value;
@@ -3852,12 +3761,12 @@ function renderStats() {
   // usa el día seleccionado en el anchor (no hoy) para que la stats muestre el histórico
   const statsTimelineWrap = $('#stats-day-timeline-wrap');
   if (statsTimelineWrap) {
-    statsTimelineWrap.hidden = range !== 'day' && range !== 'week';
+    statsTimelineWrap.hidden = false;
     const tlTitle = $('#stats-day-timeline-title');
-    if (tlTitle) tlTitle.textContent = range === 'week' ? 'Línea de la semana' : 'Línea del día';
-    if (range === 'day') renderDayTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', day: start });
+    if (tlTitle) tlTitle.textContent = range === 'week' ? 'Línea de la semana' : range === 'month' ? 'Resumen del mes por semanas' : 'Línea del día';
+    if (range === 'day') renderDayTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', day: start, groupBy });
     else if (range === 'week') renderWeekTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', weekStart: start, groupBy });
-    else d3.select('#stats-day-timeline-svg').selectAll('*').remove();
+    else renderMonthTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', monthStart: start, groupBy });
   }
 
   const inRange = state.entries.filter(e => {
@@ -3876,175 +3785,13 @@ function renderStats() {
     byGroup.set(key, (byGroup.get(key) || 0) + Number(e.durationMinutes || 0));
   });
   const top = [...byGroup.entries()].sort((a,b) => b[1]-a[1])[0];
-  const avgMin = sessions ? Math.round(totalMin / sessions) : 0;
 
-  // 4 stat cards
+  // 3 stat cards
   $('#stats-cards').innerHTML = `
     <div class="stat-card"><div class="stat-label">Total time</div><div class="stat-value">${fmtHM(totalMin)}</div><div class="stat-sub">In range</div></div>
     <div class="stat-card"><div class="stat-label">Sessions</div><div class="stat-value">${sessions}</div><div class="stat-sub">Entries logged</div></div>
     <div class="stat-card"><div class="stat-label">Top ${groupBy}</div><div class="stat-value" style="font-size:18px;">${top ? escapeHtml(top[0]) : '—'}</div><div class="stat-sub">${top ? fmtHM(top[1]) : 'no data'}</div></div>
-    <div class="stat-card"><div class="stat-label">Average / session</div><div class="stat-value">${fmtHM(avgMin)}</div><div class="stat-sub">Per entry</div></div>
   `;
-
-  // Clear previous chart + tooltip
-  d3.select('#stats-chart').selectAll('*').remove();
-  $('#stats-chart-tip').hidden = true;
-
-  if (inRange.length === 0) {
-    $('#stats-totals').innerHTML = `<div class="empty">No time logged in this range.</div>`;
-    return;
-  }
-
-  const sorted = [...byGroup.entries()].sort((a,b) => b[1]-a[1]);
-  const nameLabel = groupBy === 'task' ? 'Task' : 'Label';
-  let totalsHtml = `<div class="panel"><b>Total: ${fmtHM(totalMin)}</b> · ${sessions} session${sessions===1?'':'s'}</div>`;
-  totalsHtml += `<table class="data"><thead><tr><th>${nameLabel}</th><th>Total</th></tr></thead><tbody>`;
-  sorted.forEach(([k,v]) => {
-    totalsHtml += `<tr><td data-label="${nameLabel}">${escapeHtml(k)}</td><td data-label="Total"><b>${fmtHM(v)}</b></td></tr>`;
-  });
-  totalsHtml += '</tbody></table>';
-  $('#stats-totals').innerHTML = totalsHtml;
-
-  const labels = sorted.map(([k]) => k);
-  const data   = sorted.map(([,v]) => v / 60);  // hours
-  const colors = labels.map((k, idx) => groupBy === 'label'
-    ? (labelById(state.labels.find(l => l.name === k)?.id)?.color || PALETTE_C[idx % PALETTE_C.length])
-    : PALETTE_C[idx % PALETTE_C.length]);
-
-  if (state.chartType === 'pie') renderPieChart(labels, data, colors);
-  else                             renderBarChart(labels, data, colors);
-
-  state.lastStatsSeries = { labels, data, colors };
-}
-
-// ponytail: cheap re-draw used by ResizeObserver — skips the entry aggregation pass.
-function renderChartOnly() {
-  const s = state.lastStatsSeries;
-  if (!s) return;
-  d3.select('#stats-chart').selectAll('*').remove();
-  $('#stats-chart-tip').hidden = true;
-  if (state.chartType === 'pie') renderPieChart(s.labels, s.data, s.colors);
-  else                             renderBarChart(s.labels, s.data, s.colors);
-}
-
-function fmtHMFromHours(h) {
-  const total = Math.round(h * 60);
-  return fmtHM(total);
-}
-
-// Shared tooltip helper — positioned absolutely inside the chart wrap
-function chartTip() { return d3.select('#stats-chart-tip'); }
-function showChartTip(html, evt) {
-  const tip = chartTip();
-  tip.html(html).classed('hidden', false).attr('hidden', null);
-  const wrap = $('#stats-chart-wrap').getBoundingClientRect();
-  tip.style('left', (evt.clientX - wrap.left) + 'px')
-     .style('top',  (evt.clientY - wrap.top  - 12) + 'px');
-}
-function hideChartTip() {
-  chartTip().attr('hidden', '').classed('hidden', true);
-}
-
-function renderBarChart(labels, data, colors) {
-  const svg = d3.select('#stats-chart');
-  const W = svg.node().clientWidth  || 800;
-  const H = svg.node().clientHeight || 360;
-  svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
-
-  const m = { top: 16, right: 24, bottom: 56, left: 56 };
-  const iw = W - m.left - m.right;
-  const ih = H - m.top - m.bottom;
-
-  const x = d3.scaleBand().domain(labels).range([0, iw]).padding(0.28);
-  const y = d3.scaleLinear().domain([0, d3.max(data) * 1.1 || 1]).nice().range([ih, 0]);
-
-  const g = svg.append('g').attr('transform', `translate(${m.left},${m.top})`);
-
-  // Y axis with "Xh" ticks
-  g.append('g').attr('class', 'axis y-axis')
-    .call(d3.axisLeft(y).ticks(5).tickFormat(v => `${v}h`));
-
-  // X axis — rotated labels for long task names
-  const xAxis = g.append('g').attr('class', 'axis x-axis').attr('transform', `translate(0,${ih})`).call(d3.axisBottom(x).tickSizeOuter(0));
-  xAxis.selectAll('.tick text')
-    .attr('transform', 'rotate(-22)')
-    .attr('text-anchor', 'end')
-    .attr('dx', '-6').attr('dy', '6');
-
-  // Bars
-  g.selectAll('.bar')
-    .data(data.map((v, i) => ({ v, i })))
-    .enter()
-    .append('rect')
-      .attr('class', 'bar')
-      .attr('x',      d => x(labels[d.i]))
-      .attr('width',  x.bandwidth())
-      .attr('y',      ih)
-      .attr('height', 0)
-      .attr('rx', 6).attr('ry', 6)
-      .attr('fill',   d => colors[d.i])
-      .on('mousemove', (e, d) => {
-        const pct = ((d.v / data.reduce((s,v)=>s+v,0)) * 100).toFixed(1);
-        showChartTip(`<b>${escapeHtml(labels[d.i])}</b><br>${d.v.toFixed(1)}h · ${pct}%`, e);
-      })
-      .on('mouseleave', hideChartTip)
-    .transition().duration(450).ease(d3.easeCubicOut)
-      .attr('y',      d => y(d.v))
-      .attr('height', d => ih - y(d.v));
-}
-
-function renderPieChart(labels, data, colors) {
-  const svg = d3.select('#stats-chart');
-  const W = svg.node().clientWidth  || 800;
-  const H = svg.node().clientHeight || 360;
-  svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
-
-  const cx = W * 0.38, cy = H / 2;
-  const r  = Math.min(W * 0.32, H * 0.42);
-
-  const pie = d3.pie().value(d => d).sort(null);
-  const arc = d3.arc().innerRadius(r * 0.55).outerRadius(r).cornerRadius(4).padAngle(0.012);
-
-  const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
-
-  const arcs = pie(data);
-  g.selectAll('.pie-slice')
-    .data(arcs)
-    .enter()
-    .append('path')
-      .attr('class', 'pie-slice')
-      .attr('fill', (_, i) => colors[i])
-      .attr('d', d3.arc().innerRadius(r * 0.55).outerRadius(r * 0.6).cornerRadius(4))  // ponytail: start collapsed for enter transition
-      .on('mousemove', (e, d) => {
-        const total = data.reduce((s,v)=>s+v,0);
-        const pct = ((d.data / total) * 100).toFixed(1);
-        showChartTip(`<b>${escapeHtml(labels[d.index])}</b><br>${d.data.toFixed(1)}h · ${pct}%`, e);
-      })
-      .on('mouseleave', hideChartTip)
-    .transition().duration(450).ease(d3.easeCubicOut)
-      .attrTween('d', function(d) {
-        const i = d3.interpolate({ startAngle: d.startAngle, endAngle: d.startAngle },
-                                 { startAngle: d.startAngle, endAngle: d.endAngle });
-        return t => arc(i(t));
-      });
-
-  // Legend — stacked rows on the right
-  const total = data.reduce((s,v)=>s+v,0);
-  const legend = svg.append('g').attr('transform', `translate(${W * 0.72}, ${H * 0.18})`);
-  const lineH = Math.min(28, (H - 32) / Math.max(labels.length, 1));
-  labels.forEach((label, i) => {
-    const row = legend.append('g').attr('transform', `translate(0, ${i * lineH})`);
-    row.append('rect').attr('width', 12).attr('height', 12).attr('rx', 3).attr('fill', colors[i]);
-    row.append('text')
-      .attr('x', 20).attr('y', 10)
-      .attr('font-size', 12).attr('fill', 'var(--on-surface)')
-      .text(label.length > 22 ? label.slice(0, 21) + '…' : label);
-    row.append('text')
-      .attr('x', 170).attr('y', 10)
-      .attr('font-family', "'JetBrains Mono', ui-monospace, monospace")
-      .attr('font-size', 11).attr('fill', 'var(--outline)')
-      .text(`${data[i].toFixed(1)}h · ${((data[i]/total)*100).toFixed(0)}%`);
-  });
 }
 
 // ==== Dashboard ====
@@ -4189,7 +3936,27 @@ function renderDayTimeline(opts) {
   const isMobile = window.matchMedia('(max-width: 1280px)').matches;
   const MARGIN = { top: 26, right: 64, bottom: 8, left: isMobile ? 0 : Math.min(140, W * 0.35) };
   const ROW_H = 28, ROW_GAP = 4;
-  const H = MARGIN.top + sorted.length * (ROW_H + ROW_GAP) + MARGIN.bottom;
+  const H0 = MARGIN.top + sorted.length * (ROW_H + ROW_GAP) + MARGIN.bottom;
+
+  // ponytail: tabla resumen (sólo en stats, donde llega opts.groupBy): grupo × sesiones/total + fila Total
+  const grouper = opts && opts.groupBy ? statsGrouper(opts.groupBy) : null;
+  const groupMap = new Map();
+  if (grouper) {
+    sorted.forEach(row => {
+      const gk = grouper.keyOf(row.taskId);
+      const live = (isToday && state.activeTimer && state.activeTimer.taskId === row.taskId)
+        ? (Date.now() - new Date(state.activeTimer.startTime).getTime()) / 60000 : 0;
+      const cur = groupMap.get(gk) || { base: 0, live: 0, sessions: 0 };
+      cur.base += row.entries.reduce((s, e) => s + Number(e.durationMinutes || 0), 0);
+      cur.live += live;
+      cur.sessions += row.entries.length + (live > 0 || (isToday && state.activeTimer && state.activeTimer.taskId === row.taskId) ? 1 : 0);
+      groupMap.set(gk, cur);
+    });
+  }
+  const groupRows = [...groupMap.entries()].sort((a, b) => (b[1].base + b[1].live) - (a[1].base + a[1].live));
+  const TBL_ROW_H = 24;
+  const tblTop = H0 + 20;
+  const H = grouper ? tblTop + 30 + (groupRows.length + 1) * TBL_ROW_H + 8 : H0;
   svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
 
   // ponytail: dominio DINÁMICO desde el primer hasta el último evento del día
@@ -4226,7 +3993,7 @@ function renderDayTimeline(opts) {
   ticks.forEach(h => {
     g.append('line').attr('class', 'tl-grid')
      .attr('x1', x(h)).attr('x2', x(h))
-     .attr('y1', MARGIN.top - 14).attr('y2', H - MARGIN.bottom);
+     .attr('y1', MARGIN.top - 14).attr('y2', H0 - MARGIN.bottom);
     g.append('text').attr('class', 'tl-hour-label')
      .attr('x', x(h)).attr('y', MARGIN.top - 18)
      .attr('text-anchor', 'middle')
@@ -4299,6 +4066,7 @@ function renderDayTimeline(opts) {
         .attr('width', w).attr('height', ROW_H - 8)
         .attr('rx', 4).attr('fill', baseColor)
         .attr('data-entry-id', e.id)
+        .attr('data-gk', grouper ? grouper.keyOf(row.taskId) : null)
         .append('title')
         .text(`${taskName(row.taskId)} · ${fmtHM(Number(e.durationMinutes))} · ${fmtTime(s)}–${fmtTime(t)}`)
         .node().parentNode;
@@ -4324,6 +4092,7 @@ function renderDayTimeline(opts) {
         .attr('fill', c).attr('fill-opacity', 0.55)
         .attr('stroke', c).attr('stroke-width', 1.2)
         .attr('data-live', '1')
+        .attr('data-gk', grouper ? grouper.keyOf(activeTid) : null)
         .append('title').text('En curso — click para ver detalles');
     }
     const now = new Date();
@@ -4331,8 +4100,64 @@ function renderDayTimeline(opts) {
       const xn = x((now - dayStart) / 3600000);
       g.append('line').attr('class', 'tl-now')
        .attr('x1', xn).attr('x2', xn)
-       .attr('y1', MARGIN.top - 14).attr('y2', H - MARGIN.bottom);
+       .attr('y1', MARGIN.top - 14).attr('y2', H0 - MARGIN.bottom);
     }
+  }
+
+  if (grouper) {
+    const tg = svg.append('g');
+    const isMob = isMobile;
+    const nameW = isMob ? Math.min(100, W * 0.28) : Math.min(220, W * 0.22);
+    const totX = W - 8, sesX = W - (isMob ? 58 : 96);
+    const cellFont = isMob ? '10px' : '11px';
+    const rowRects = new Map();
+    let pinned = null;
+    const applyFocus = key => {
+      svg.selectAll('rect.tl-bar').style('opacity', function () { return !key || this.dataset.gk === key ? null : 0.2; });
+      rowRects.forEach((r, id) => r.style('fill', id === key ? 'var(--surface-low)' : 'transparent'));
+    };
+    tg.append('text').attr('class', 'tl-row-total')
+      .attr('x', 8).attr('y', tblTop).style('font-weight', 600).text(grouper.byLabel ? 'Total por etiqueta' : 'Total por tarea');
+    tg.append('text').attr('class', 'tl-hour-label')
+      .attr('x', sesX).attr('y', tblTop).attr('text-anchor', 'end').style('font-weight', 600).text(isMob ? 'Ses.' : 'Sesiones');
+    tg.append('text').attr('class', 'tl-hour-label')
+      .attr('x', totX).attr('y', tblTop).attr('text-anchor', 'end').style('font-weight', 600).text('Total');
+    tg.append('line').attr('class', 'tl-grid').attr('x1', 0).attr('x2', W).attr('y1', tblTop + 8).attr('y2', tblTop + 8);
+    groupRows.forEach(([gk, v], i) => {
+      const ly = tblTop + 30 + i * TBL_ROW_H;
+      const rowG = tg.append('g').style('cursor', 'pointer')
+        .on('mouseenter', () => applyFocus(gk))
+        .on('mouseleave', () => applyFocus(pinned))
+        .on('click', () => { pinned = pinned === gk ? null : gk; applyFocus(pinned); });
+      rowRects.set(gk, rowG.append('rect')
+        .attr('x', 0).attr('y', ly - 16).attr('width', W).attr('height', TBL_ROW_H).attr('rx', 6)
+        .style('fill', 'transparent'));
+      rowG.append('circle').attr('cx', 13).attr('cy', ly - 4).attr('r', 5).attr('fill', grouper.color(gk));
+      const maxChars = Math.max(4, Math.floor((W - sesX - 60) / 6.5));
+      const name = grouper.name(gk);
+      rowG.append('text').attr('class', 'tl-row-label').style('display', 'block')
+        .attr('x', 24).attr('y', ly).text(name.length > maxChars ? name.slice(0, maxChars - 1) + '…' : name)
+        .append('title').text(name);
+      rowG.append('text').attr('class', 'tl-row-total')
+        .attr('x', sesX).attr('y', ly).attr('text-anchor', 'end')
+        .style('font-size', cellFont).style('fill', 'var(--on-surface)').text(v.sessions);
+      rowG.append('text').attr('class', 'tl-row-total')
+        .attr('x', totX).attr('y', ly).attr('text-anchor', 'end')
+        .attr('data-live-gk', gk).attr('data-base-min', v.base)
+        .style('font-size', cellFont).style('font-weight', 700).style('fill', 'var(--on-surface)')
+        .text(fmtHM(v.base + v.live));
+    });
+    const totalY = tblTop + 30 + groupRows.length * TBL_ROW_H;
+    const dayBase = groupRows.reduce((s, [, v]) => s + v.base, 0);
+    const dayLive = groupRows.reduce((s, [, v]) => s + v.live, 0);
+    const daySessions = groupRows.reduce((s, [, v]) => s + v.sessions, 0);
+    tg.append('line').attr('class', 'tl-grid').attr('x1', 0).attr('x2', W).attr('y1', totalY - 16).attr('y2', totalY - 16);
+    const boldTxt = (tx, anchor, txt) => tg.append('text').attr('class', 'tl-row-total')
+      .attr('x', tx).attr('y', totalY).attr('text-anchor', anchor)
+      .style('font-size', cellFont).style('font-weight', 700).style('fill', 'var(--on-surface)').text(txt);
+    boldTxt(8, 'start', 'Total');
+    boldTxt(sesX, 'end', daySessions);
+    boldTxt(totX, 'end', fmtHM(dayBase + dayLive)).attr('data-live-gk', '*').attr('data-base-min', dayBase);
   }
 
   // ponytail: click delegado en el SVG — un solo listener, no N onclick
@@ -4342,6 +4167,214 @@ function renderDayTimeline(opts) {
     if (t.dataset.live) openTimerDetails();
     else openEntryDetails(state.entries.find(en => en.id === t.dataset.entryId));
   };
+}
+
+// ponytail: agrupación compartida por las vistas semanal y mensual (selector "Group by": tarea o etiqueta)
+function statsGrouper(groupBy) {
+  const byLabel = groupBy === 'label';
+  return {
+    byLabel,
+    keyOf: tid => byLabel ? String(taskLabelId(tid) || '') : String(tid),
+    name: k => byLabel ? (k ? labelName(k) : 'Sin etiqueta') : taskName(k),
+    color: k => {
+      const lid = byLabel ? k : taskLabelId(k);
+      return lid ? labelColor(lid) : (byLabel ? '#9e9e9e' : '#102b8a');
+    }
+  };
+}
+
+// ponytail: vista mensual — barras apiladas por semana (lun-dom recortadas al mes) con las horas por
+// tarea/etiqueta, y debajo una tabla grupo × semana con fila de totales. Misma interacción hover/clic que la semanal.
+function renderMonthTimeline(opts) {
+  const svgNode = $(opts.svgSel);
+  if (!svgNode) return;
+  const svg = d3.select(svgNode);
+  svg.selectAll('*').remove();
+  svgNode.onclick = null;
+  if (state.dayTimelineXScales) delete state.dayTimelineXScales[opts.wrapSel];
+
+  const { byLabel, keyOf, name: groupName, color: groupColor } = statsGrouper(opts.groupBy);
+  const mStart = new Date(opts.monthStart); mStart.setHours(0, 0, 0, 0);
+  const mEnd = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 1);
+
+  // Semanas (lun-dom) recortadas al mes
+  const weeks = [];
+  for (let cur = new Date(mStart); cur < mEnd;) {
+    const next = new Date(cur); next.setDate(cur.getDate() + (7 - ((cur.getDay() + 6) % 7)));
+    const end = next < mEnd ? next : mEnd;
+    weeks.push({ start: new Date(cur), end });
+    cur = end;
+  }
+  const N = weeks.length;
+  const weekOf = d => weeks.findIndex(w => d >= w.start && d < w.end);
+
+  const events = [];
+  state.entries.forEach(e => {
+    const s = new Date(e.startTime);
+    if (s < mStart || s >= mEnd) return;
+    events.push({ taskId: e.taskId, week: weekOf(s), minutes: Number(e.durationMinutes || 0) });
+  });
+  const at = state.activeTimer;
+  if (at) {
+    const ls = new Date(at.startTime);
+    if (ls >= mStart && ls < mEnd) events.push({ taskId: at.taskId, week: weekOf(ls), minutes: (Date.now() - ls.getTime()) / 60000 });
+  }
+
+  if (!events.length) {
+    const w = svgNode.clientWidth || 800;
+    svg.attr('viewBox', `0 0 ${w} 80`).attr('preserveAspectRatio', 'xMidYMid meet')
+       .append('text').attr('class', 'tl-empty').attr('x', 16).attr('y', 36)
+       .text('No hay registros este mes.');
+    return;
+  }
+
+  const weekTotals = new Array(N).fill(0);
+  const groupTotalsMap = new Map();
+  const groupWeekMap = new Map();
+  events.forEach(ev => {
+    ev.gk = keyOf(ev.taskId);
+    weekTotals[ev.week] += ev.minutes;
+    groupTotalsMap.set(ev.gk, (groupTotalsMap.get(ev.gk) || 0) + ev.minutes);
+    if (!groupWeekMap.has(ev.gk)) groupWeekMap.set(ev.gk, new Array(N).fill(0));
+    groupWeekMap.get(ev.gk)[ev.week] += ev.minutes;
+  });
+  const monthTotal = weekTotals.reduce((s, v) => s + v, 0);
+  const groups = [...groupTotalsMap.entries()].sort((a, b) => b[1] - a[1]);
+
+  const W = svgNode.clientWidth || 800;
+  const isMobile = window.matchMedia('(max-width: 1280px)').matches;
+  const M = { top: 26, left: isMobile ? 36 : 48, right: 12 };
+  const CHART_H = 220;
+  const pw = W - M.left - M.right;
+  const x = d3.scaleBand().domain(d3.range(N)).range([0, pw]).padding(0.28);
+  const maxH = Math.max(...weekTotals) / 60;
+  const y = d3.scaleLinear().domain([0, maxH * 1.05 || 1]).nice().range([CHART_H, 0]);
+
+  // Tabla
+  const tblNameW = isMobile ? Math.min(100, W * 0.28) : Math.min(220, W * 0.22);
+  const tblTotW = isMobile ? 46 : 72;
+  const tblColW = (W - tblNameW - tblTotW) / N;
+  const ROW_H = 24;
+  const tblTop = M.top + CHART_H + 64;
+  const H = tblTop + 30 + (groups.length + 1) * ROW_H + 8;
+  svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
+
+  const g = svg.append('g');
+  const plot = g.append('g').attr('transform', `translate(${M.left},${M.top})`);
+  const weekTotalEls = [];
+  const rowRects = new Map();
+  let pinned = null;
+  function applyFocus(key) {
+    plot.selectAll('rect.mo-seg').style('opacity', function () { return !key || this.dataset.task === key ? null : 0.2; });
+    const perWeek = key ? (groupWeekMap.get(key) || []) : null;
+    weekTotalEls.forEach((el, i) => {
+      if (key) {
+        const v = perWeek[i] || 0;
+        el.text(v > 0 ? fmtHM(v) : '—').style('fill', groupColor(key)).style('font-weight', 700);
+      } else {
+        el.text(weekTotals[i] > 0 ? fmtHM(weekTotals[i]) : '—').style('fill', null).style('font-weight', null);
+      }
+    });
+    rowRects.forEach((r, id) => r.style('fill', id === key ? 'var(--surface-low)' : 'transparent'));
+  }
+
+  // Eje Y + rejilla
+  y.ticks(5).forEach(v => {
+    plot.append('line').attr('class', 'tl-grid').attr('x1', 0).attr('x2', pw).attr('y1', y(v)).attr('y2', y(v));
+    plot.append('text').attr('class', 'tl-hour-label')
+      .attr('x', -8).attr('y', y(v) + 4).attr('text-anchor', 'end').text(`${v}h`);
+  });
+
+  // Barras apiladas por semana
+  weeks.forEach((w, i) => {
+    let acc = 0;
+    groups.forEach(([gk]) => {
+      const min = (groupWeekMap.get(gk) || [])[i] || 0;
+      if (min <= 0) return;
+      const y0 = y(acc / 60), y1 = y((acc + min) / 60);
+      acc += min;
+      plot.append('rect').attr('class', 'mo-seg tl-bar')
+        .attr('data-task', gk)
+        .attr('x', x(i)).attr('width', x.bandwidth())
+        .attr('y', y1).attr('height', Math.max(1, y0 - y1))
+        .attr('rx', 2).attr('fill', groupColor(gk)).attr('stroke', '#fff').attr('stroke-width', 1)
+        .on('mouseenter', () => applyFocus(gk))
+        .on('mouseleave', () => applyFocus(pinned))
+        .append('title').text(`${groupName(gk)} · ${fmtHM(min)}`);
+    });
+    const cx = x(i) + x.bandwidth() / 2;
+    weekTotalEls.push(plot.append('text').attr('class', 'tl-row-total')
+      .attr('x', cx).attr('y', y(weekTotals[i] / 60) - 6).attr('text-anchor', 'middle')
+      .text(fmtHM(weekTotals[i])));
+    const lastDay = new Date(w.end.getFullYear(), w.end.getMonth(), w.end.getDate() - 1).getDate();
+    plot.append('text').attr('class', 'tl-hour-label')
+      .attr('x', cx).attr('y', CHART_H + 16).attr('text-anchor', 'middle')
+      .style('font-weight', 600).style('fill', 'var(--on-surface)')
+      .text(isMobile ? `S${i + 1}` : `Sem ${i + 1}`);
+    plot.append('text').attr('class', 'tl-hour-label')
+      .attr('x', cx).attr('y', CHART_H + 30).attr('text-anchor', 'middle')
+      .text(`${w.start.getDate()}–${lastDay}`);
+  });
+
+  // Tabla: grupo × semana
+  const fmtCell = min => {
+    if (min <= 0) return '—';
+    if (tblColW >= 46) return fmtHM(min);
+    const t = Math.round(min);
+    return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  };
+  const cellFont = isMobile ? '10px' : '11px';
+  const colCx = i => tblNameW + i * tblColW + tblColW / 2;
+  g.append('text').attr('class', 'tl-row-total')
+   .attr('x', 8).attr('y', tblTop).style('font-weight', 600).text(byLabel ? 'Total por etiqueta' : 'Total por tarea');
+  weeks.forEach((_, i) => {
+    g.append('text').attr('class', 'tl-hour-label')
+     .attr('x', colCx(i)).attr('y', tblTop).attr('text-anchor', 'middle')
+     .style('font-weight', 600).text(`S${i + 1}`);
+  });
+  g.append('text').attr('class', 'tl-hour-label')
+   .attr('x', W - 8).attr('y', tblTop).attr('text-anchor', 'end')
+   .style('font-weight', 600).text('Mes');
+  g.append('line').attr('class', 'tl-grid').attr('x1', 0).attr('x2', W).attr('y1', tblTop + 8).attr('y2', tblTop + 8);
+
+  groups.forEach(([gk, min], i) => {
+    const ly = tblTop + 30 + i * ROW_H;
+    const perWeek = groupWeekMap.get(gk) || [];
+    const rowG = g.append('g').style('cursor', 'pointer')
+      .on('mouseenter', () => applyFocus(gk))
+      .on('mouseleave', () => applyFocus(pinned))
+      .on('click', () => { pinned = pinned === gk ? null : gk; applyFocus(pinned); });
+    rowRects.set(gk, rowG.append('rect')
+      .attr('x', 0).attr('y', ly - 16).attr('width', W).attr('height', ROW_H).attr('rx', 6)
+      .style('fill', 'transparent'));
+    rowG.append('circle').attr('cx', 13).attr('cy', ly - 4).attr('r', 5).attr('fill', groupColor(gk));
+    const maxChars = Math.max(4, Math.floor((tblNameW - 28) / 6.5));
+    const name = groupName(gk);
+    rowG.append('text').attr('class', 'tl-row-label').style('display', 'block')
+     .attr('x', 24).attr('y', ly).text(name.length > maxChars ? name.slice(0, maxChars - 1) + '…' : name)
+     .append('title').text(name);
+    weeks.forEach((_, w) => {
+      const v = perWeek[w] || 0;
+      rowG.append('text').attr('class', 'tl-row-total')
+       .attr('x', colCx(w)).attr('y', ly).attr('text-anchor', 'middle')
+       .style('font-size', cellFont).style('fill', v > 0 ? 'var(--on-surface)' : 'var(--outline)')
+       .text(fmtCell(v));
+    });
+    rowG.append('text').attr('class', 'tl-row-total')
+     .attr('x', W - 8).attr('y', ly).attr('text-anchor', 'end')
+     .style('font-size', cellFont).style('font-weight', 700).style('fill', 'var(--on-surface)')
+     .text(fmtCell(min));
+  });
+
+  // Última fila: total por semana y total del mes
+  const totalY = tblTop + 30 + groups.length * ROW_H;
+  g.append('line').attr('class', 'tl-grid').attr('x1', 0).attr('x2', W).attr('y1', totalY - 16).attr('y2', totalY - 16);
+  const boldTxt = (tx, ty, anchor, txt) => g.append('text').attr('class', 'tl-row-total')
+    .attr('x', tx).attr('y', ty).attr('text-anchor', anchor)
+    .style('font-size', cellFont).style('font-weight', 700).style('fill', 'var(--on-surface)').text(txt);
+  boldTxt(8, totalY, 'start', 'Total');
+  weeks.forEach((_, w) => boldTxt(colCx(w), totalY, 'middle', fmtCell(weekTotals[w])));
+  boldTxt(W - 8, totalY, 'end', fmtCell(monthTotal));
 }
 
 // ponytail: vista semanal estilo Google Calendar — eje de horas vertical, 7 columnas (lun..dom)
@@ -4384,13 +4417,7 @@ function renderWeekTimeline(opts) {
   }
 
   // Agrupación de la tabla/resaltado: por tarea o por etiqueta (selector "Group by")
-  const byLabel = opts.groupBy === 'label';
-  const groupKeyOf = tid => byLabel ? String(taskLabelId(tid) || '') : String(tid);
-  const groupName = k => byLabel ? (k ? labelName(k) : 'Sin etiqueta') : taskName(k);
-  const groupColor = k => {
-    const lid = byLabel ? k : taskLabelId(k);
-    return lid ? labelColor(lid) : (byLabel ? '#9e9e9e' : '#102b8a');
-  };
+  const { byLabel, keyOf: groupKeyOf, name: groupName, color: groupColor } = statsGrouper(opts.groupBy);
   events.forEach(ev => { ev.gk = groupKeyOf(ev.taskId); });
 
   // Totales por día y por grupo (+ live)
@@ -4671,6 +4698,14 @@ function tickDayTimeline() {
     if (!totalEl.empty()) {
       const base = Number(totalEl.attr('data-base-min')) || 0;
       totalEl.text(fmtHM(base + liveMin));
+    }
+    // ponytail: tabla resumen de stats — total del grupo activo y total del día
+    if (opts && opts.groupBy) {
+      const gk = statsGrouper(opts.groupBy).keyOf(state.activeTimer.taskId);
+      svg.selectAll('text[data-live-gk]').each(function () {
+        const k = this.getAttribute('data-live-gk');
+        if (k === gk || k === '*') this.textContent = fmtHM((Number(this.getAttribute('data-base-min')) || 0) + liveMin);
+      });
     }
     // ponytail: si el live bar está a ~3 min de chocar contra el borde derecho, re-render (~cada 27 min) para extender la escala antes de que desborde
     if (lastH < 24 && lastH - nowH < 0.05) renderDayTimeline(opts);
