@@ -4133,7 +4133,7 @@ function renderDayTimeline(opts) {
         .attr('x', 0).attr('y', ly - 16).attr('width', W).attr('height', TBL_ROW_H).attr('rx', 6)
         .style('fill', 'transparent'));
       rowG.append('circle').attr('cx', 13).attr('cy', ly - 4).attr('r', 5).attr('fill', grouper.color(gk));
-      const maxChars = Math.max(4, Math.floor((W - sesX - 60) / 6.5));
+      const maxChars = Math.max(4, Math.floor((sesX - 24 - (isMob ? 30 : 60)) / 6.5));
       const name = grouper.name(gk);
       rowG.append('text').attr('class', 'tl-row-label').style('display', 'block')
         .attr('x', 24).attr('y', ly).text(name.length > maxChars ? name.slice(0, maxChars - 1) + '…' : name)
