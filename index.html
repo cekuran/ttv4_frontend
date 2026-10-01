@@ -1527,7 +1527,7 @@
 
       <div class="stat-grid" id="stats-cards"></div>
       <div class="panel day-timeline-wrap" id="stats-day-timeline-wrap" hidden>
-        <h3>Línea del día</h3>
+        <h3 id="stats-day-timeline-title">Línea del día</h3>
         <svg class="day-timeline-svg" id="stats-day-timeline-svg" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
       <div id="stats-totals"></div>
@@ -3852,8 +3852,11 @@ function renderStats() {
   // usa el día seleccionado en el anchor (no hoy) para que la stats muestre el histórico
   const statsTimelineWrap = $('#stats-day-timeline-wrap');
   if (statsTimelineWrap) {
-    statsTimelineWrap.hidden = range !== 'day';
+    statsTimelineWrap.hidden = range !== 'day' && range !== 'week';
+    const tlTitle = $('#stats-day-timeline-title');
+    if (tlTitle) tlTitle.textContent = range === 'week' ? 'Línea de la semana' : 'Línea del día';
     if (range === 'day') renderDayTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', day: start });
+    else if (range === 'week') renderWeekTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', weekStart: start, groupBy });
     else d3.select('#stats-day-timeline-svg').selectAll('*').remove();
   }
 
@@ -4333,6 +4336,302 @@ function renderDayTimeline(opts) {
   }
 
   // ponytail: click delegado en el SVG — un solo listener, no N onclick
+  svgNode.onclick = (e) => {
+    const t = e.target.closest('[data-entry-id],[data-live]');
+    if (!t) return;
+    if (t.dataset.live) openTimerDetails();
+    else openEntryDetails(state.entries.find(en => en.id === t.dataset.entryId));
+  };
+}
+
+// ponytail: vista semanal estilo Google Calendar — eje de horas vertical, 7 columnas (lun..dom)
+// con bloques posicionados por hora, total por día en la cabecera y total semanal por tarea debajo.
+function renderWeekTimeline(opts) {
+  const svgNode = $(opts.svgSel);
+  if (!svgNode) return;
+  const svg = d3.select(svgNode);
+  svg.selectAll('*').remove();
+  svgNode.onclick = null;
+  if (state.dayTimelineXScales) delete state.dayTimelineXScales[opts.wrapSel];
+
+  const weekStart = new Date(opts.weekStart); weekStart.setHours(0,0,0,0);
+  const dayStarts = [];
+  for (let i = 0; i < 7; i++) { const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); dayStarts.push(d); }
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7);
+  const todayMidnight = (() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); })();
+  const dayIdx = ms => Math.floor((new Date(ms).setHours(0,0,0,0) - weekStart.getTime()) / 86400000);
+
+  const entries = state.entries.filter(e => { const d = new Date(e.startTime); return d >= weekStart && d < weekEnd; });
+  const at = state.activeTimer;
+  const liveStart = at ? new Date(at.startTime) : null;
+  const liveDay = liveStart && liveStart >= weekStart && liveStart < weekEnd ? dayIdx(liveStart) : -1;
+  const liveEnd = new Date();
+
+  const events = entries.map(e => ({
+    id: e.id, taskId: e.taskId, s: new Date(e.startTime), t: new Date(e.endTime),
+    day: dayIdx(new Date(e.startTime)), minutes: Number(e.durationMinutes || 0), live: false
+  }));
+  if (liveDay >= 0) {
+    events.push({ id: '', taskId: at.taskId, s: liveStart, t: liveEnd, day: liveDay, minutes: (liveEnd - liveStart) / 60000, live: true });
+  }
+
+  if (!events.length) {
+    const w = svgNode.clientWidth || 800;
+    svg.attr('viewBox', `0 0 ${w} 80`).attr('preserveAspectRatio', 'xMidYMid meet')
+       .append('text').attr('class', 'tl-empty').attr('x', 16).attr('y', 36)
+       .text('No hay registros esta semana.');
+    return;
+  }
+
+  // Agrupación de la tabla/resaltado: por tarea o por etiqueta (selector "Group by")
+  const byLabel = opts.groupBy === 'label';
+  const groupKeyOf = tid => byLabel ? String(taskLabelId(tid) || '') : String(tid);
+  const groupName = k => byLabel ? (k ? labelName(k) : 'Sin etiqueta') : taskName(k);
+  const groupColor = k => {
+    const lid = byLabel ? k : taskLabelId(k);
+    return lid ? labelColor(lid) : (byLabel ? '#9e9e9e' : '#102b8a');
+  };
+  events.forEach(ev => { ev.gk = groupKeyOf(ev.taskId); });
+
+  // Totales por día y por grupo (+ live)
+  const dayTotals = new Array(7).fill(0);
+  const taskTotalsMap = new Map();
+  const taskDayMap = new Map();
+  events.forEach(ev => {
+    dayTotals[ev.day] += ev.minutes;
+    taskTotalsMap.set(ev.gk, (taskTotalsMap.get(ev.gk) || 0) + ev.minutes);
+    if (!taskDayMap.has(ev.gk)) taskDayMap.set(ev.gk, new Array(7).fill(0));
+    taskDayMap.get(ev.gk)[ev.day] += ev.minutes;
+  });
+  const weekTotal = dayTotals.reduce((s, v) => s + v, 0);
+  const taskTotals = [...taskTotalsMap.entries()].sort((a, b) => b[1] - a[1]);
+
+  const W = svgNode.clientWidth || 800;
+  const isMobile = window.matchMedia('(max-width: 1280px)').matches;
+  const GUTTER = isMobile ? 32 : 48, HEADER_H = 64, HOUR_H = 44;
+  const colW = (W - GUTTER) / 7;
+  const colX = i => GUTTER + i * colW;
+
+  // Rango horario visible: primer..último evento de la semana (mín. 6 h).
+  const MIN_VIS_H = 18 / HOUR_H;
+  events.forEach(ev => {
+    const base = dayStarts[ev.day];
+    ev.hs = Math.max(0, (ev.s - base) / 3600000);
+    ev.he = Math.max(ev.hs + MIN_VIS_H, Math.min(24, (ev.t - base) / 3600000));
+  });
+  let firstH = Math.max(0, Math.floor(Math.min(...events.map(ev => ev.hs)) - 0.25));
+  let lastH  = Math.min(24, Math.ceil(Math.max(...events.map(ev => ev.he)) + 0.25));
+  if (lastH - firstH < 6) {
+    lastH = Math.min(24, firstH + 6);
+    firstH = Math.max(0, lastH - 6);
+  }
+  const gridH = (lastH - firstH) * HOUR_H;
+  const yOf = h => HEADER_H + (h - firstH) * HOUR_H;
+
+  // Layout de solapes por día: cada evento recibe carril (lane) dentro de su cluster.
+  for (let d = 0; d < 7; d++) {
+    const list = events.filter(ev => ev.day === d).sort((a, b) => a.hs - b.hs);
+    let cluster = [], clusterEnd = -1, laneEnds = [];
+    const flush = () => { const n = laneEnds.length; cluster.forEach(ev => { ev.lanes = n; }); cluster = []; laneEnds = []; clusterEnd = -1; };
+    list.forEach(ev => {
+      if (cluster.length && ev.hs >= clusterEnd) flush();
+      let lane = laneEnds.findIndex(end => end <= ev.hs);
+      if (lane < 0) { lane = laneEnds.length; laneEnds.push(0); }
+      laneEnds[lane] = ev.he; ev.lane = lane; cluster.push(ev);
+      clusterEnd = Math.max(clusterEnd, ev.he);
+    });
+    flush();
+  }
+
+  // Tabla por tarea (debajo del calendario): fila por tarea, columna por día + total semanal
+  const tblNameW = isMobile ? Math.min(100, W * 0.28) : Math.min(220, W * 0.22);
+  const tblWeekW = isMobile ? 46 : 72;
+  const tblDayW = (W - tblNameW - tblWeekW) / 7;
+  const legendTop = HEADER_H + gridH + 28;
+  const LEGEND_ROW_H = 24;
+  const H = legendTop + 30 + (taskTotals.length + 1) * LEGEND_ROW_H + 8;
+  svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
+
+  const DAY_NAMES = colW < 56 ? ['L', 'M', 'X', 'J', 'V', 'S', 'D'] : ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
+  const g = svg.append('g');
+  // Foco por tarea: hover sobre fila (o clic para fijar) resalta sus bloques y muestra su total por día en la cabecera.
+  const dayTotalEls = [];
+  const rowRects = new Map();
+  let pinned = null;
+  function applyFocus(tid) {
+    const key = tid == null ? null : String(tid);
+    g.selectAll('g.tl-bar').style('opacity', function () { return !key || this.dataset.task === key ? null : 0.2; });
+    const perDay = key ? (taskDayMap.get(key) || []) : null;
+    dayTotalEls.forEach((el, i) => {
+      if (key) {
+        const v = perDay[i] || 0;
+        el.text(v > 0 ? fmtHM(v) : '—').style('fill', groupColor(key)).style('font-weight', 700);
+      } else {
+        el.text(dayTotals[i] > 0 ? fmtHM(dayTotals[i]) : '—').style('fill', null).style('font-weight', null);
+      }
+    });
+    rowRects.forEach((r, id) => r.style('fill', id === key ? 'var(--surface-low)' : 'transparent'));
+  }
+  // Fondo de la columna de hoy
+  dayStarts.forEach((d, i) => {
+    if (d.getTime() !== todayMidnight) return;
+    g.append('rect').attr('x', colX(i)).attr('y', HEADER_H).attr('width', colW).attr('height', gridH)
+     .style('fill', 'var(--surface-low)');
+  });
+
+  // Líneas horarias + etiquetas del eje
+  for (let h = firstH; h <= lastH; h++) {
+    g.append('line').attr('class', 'tl-grid')
+     .attr('x1', GUTTER - 6).attr('x2', W).attr('y1', yOf(h)).attr('y2', yOf(h));
+    if (h < lastH) {
+      g.append('text').attr('class', 'tl-hour-label')
+       .attr('x', GUTTER - 10).attr('y', yOf(h) + 4).attr('text-anchor', 'end')
+       .text(isMobile ? String(h).padStart(2, '0') : formatHourLabel(h));
+    }
+  }
+  // Separadores verticales por día
+  for (let i = 0; i <= 7; i++) {
+    g.append('line').attr('class', 'tl-grid')
+     .attr('x1', colX(i)).attr('x2', colX(i)).attr('y1', HEADER_H - 4).attr('y2', HEADER_H + gridH);
+  }
+
+  // Cabecera: día, número (círculo si es hoy) y total del día
+  dayStarts.forEach((d, i) => {
+    const cx = colX(i) + colW / 2;
+    const isToday = d.getTime() === todayMidnight;
+    g.append('text').attr('class', 'tl-hour-label')
+     .attr('x', cx).attr('y', 12).attr('text-anchor', 'middle')
+     .style('fill', isToday ? 'var(--secondary)' : 'var(--on-surface-variant)').style('font-weight', 600)
+     .text(DAY_NAMES[i]);
+    if (isToday) g.append('circle').attr('cx', cx).attr('cy', 33).attr('r', 13).style('fill', 'var(--secondary)');
+    g.append('text').attr('class', 'tl-row-total')
+     .attr('x', cx).attr('y', 33).attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
+     .style('font-family', 'inherit').style('font-size', '16px').style('font-weight', 500)
+     .style('fill', isToday ? '#fff' : 'var(--on-surface)')
+     .text(d.getDate());
+    dayTotalEls.push(g.append('text').attr('class', 'tl-row-total')
+     .attr('x', cx).attr('y', 56).attr('text-anchor', 'middle')
+     .text(dayTotals[i] > 0 ? fmtHM(dayTotals[i]) : '—'));
+  });
+
+  // Eventos
+  const defs = svg.append('defs');
+  events.forEach((ev, n) => {
+    const lanes = ev.lanes || 1, lane = ev.lane || 0;
+    const slotW = (colW - 4) / lanes;
+    const ex = colX(ev.day) + 2 + lane * slotW;
+    const ew = Math.max(4, slotW - 2);
+    const ey = yOf(ev.hs) + 1;
+    const eh = Math.max(14, (ev.he - ev.hs) * HOUR_H - 2);
+    const lid = taskLabelId(ev.taskId);
+    const color = lid ? labelColor(lid) : '#102b8a';
+    const grp = g.append('g').attr('class', 'tl-bar' + (ev.live ? ' tl-bar-live' : ''))
+      .attr('data-task', ev.gk)
+      .on('mouseenter', () => applyFocus(ev.gk))
+      .on('mouseleave', () => applyFocus(pinned));
+    if (ev.live) grp.attr('data-live', '1'); else grp.attr('data-entry-id', ev.id);
+    grp.append('title').text(ev.live
+      ? `${taskName(ev.taskId)} · en curso — click para ver detalles`
+      : `${taskName(ev.taskId)} · ${fmtHM(ev.minutes)} · ${fmtTime(ev.s)}–${fmtTime(ev.t)}`);
+    const rect = grp.append('rect')
+      .attr('x', ex).attr('y', ey).attr('width', ew).attr('height', eh).attr('rx', 4)
+      .attr('fill', color).attr('stroke', '#fff').attr('stroke-width', 1);
+    if (ev.live) rect.attr('fill-opacity', 0.6).attr('stroke', color).attr('stroke-dasharray', '4 2');
+    if (ew >= 28) {
+      const clipId = `wk-clip-${n}`;
+      defs.append('clipPath').attr('id', clipId).append('rect')
+        .attr('x', ex + 2).attr('y', ey).attr('width', ew - 4).attr('height', eh);
+      const txt = grp.append('g').attr('clip-path', `url(#${clipId})`).style('pointer-events', 'none');
+      txt.append('text').attr('x', ex + 6).attr('y', ey + 12)
+        .style('fill', '#fff').style('font-size', '11px').style('font-weight', 600)
+        .text(taskName(ev.taskId));
+      if (eh >= 32) {
+        txt.append('text').attr('x', ex + 6).attr('y', ey + 24)
+          .style('fill', '#fff').style('fill-opacity', 0.9).style('font-size', '10px')
+          .text(`${fmtTime(ev.s)}–${fmtTime(ev.t)}`);
+      }
+    }
+  });
+
+  // Línea de "ahora" en la columna de hoy
+  const todayCol = dayStarts.findIndex(d => d.getTime() === todayMidnight);
+  if (todayCol >= 0) {
+    const nowH = (Date.now() - todayMidnight) / 3600000;
+    if (nowH >= firstH && nowH <= lastH) {
+      g.append('line').attr('class', 'tl-now')
+       .attr('x1', colX(todayCol)).attr('x2', colX(todayCol + 1)).attr('y1', yOf(nowH)).attr('y2', yOf(nowH));
+      g.append('circle').attr('cx', colX(todayCol)).attr('cy', yOf(nowH)).attr('r', 4).style('fill', 'var(--secondary)');
+    }
+  }
+
+  // Tabla: total por tarea y por día
+  const fmtCell = min => {
+    if (min <= 0) return '—';
+    if (tblDayW >= 46) return fmtHM(min);
+    const t = Math.round(min);
+    return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  };
+  const cellFont = isMobile ? '10px' : '11px';
+  const dayCx = i => tblNameW + i * tblDayW + tblDayW / 2;
+  g.append('text').attr('class', 'tl-row-total')
+   .attr('x', 8).attr('y', legendTop).style('font-weight', 600).text(byLabel ? 'Total por etiqueta' : 'Total por tarea');
+  dayStarts.forEach((_, i) => {
+    g.append('text').attr('class', 'tl-hour-label')
+     .attr('x', dayCx(i)).attr('y', legendTop).attr('text-anchor', 'middle')
+     .style('font-weight', 600).text(DAY_NAMES[i]);
+  });
+  g.append('text').attr('class', 'tl-hour-label')
+   .attr('x', W - 8).attr('y', legendTop).attr('text-anchor', 'end')
+   .style('font-weight', 600).text(isMobile ? 'Sem' : 'Semana');
+  g.append('line').attr('class', 'tl-grid')
+   .attr('x1', 0).attr('x2', W).attr('y1', legendTop + 8).attr('y2', legendTop + 8);
+  taskTotals.forEach(([tid, min], i) => {
+    const ly = legendTop + 30 + i * LEGEND_ROW_H;
+    const perDay = taskDayMap.get(tid) || [];
+    const rowG = g.append('g').style('cursor', 'pointer')
+      .on('mouseenter', () => applyFocus(tid))
+      .on('mouseleave', () => applyFocus(pinned))
+      .on('click', () => { pinned = pinned === tid ? null : tid; applyFocus(pinned); });
+    rowRects.set(tid, rowG.append('rect')
+      .attr('x', 0).attr('y', ly - 16).attr('width', W).attr('height', LEGEND_ROW_H).attr('rx', 6)
+      .style('fill', 'transparent'));
+    rowG.append('circle').attr('cx', 13).attr('cy', ly - 4).attr('r', 5).attr('fill', groupColor(tid));
+    const maxChars = Math.max(4, Math.floor((tblNameW - 28) / 6.5));
+    const name = groupName(tid);
+    rowG.append('text').attr('class', 'tl-row-label').style('display', 'block')
+     .attr('x', 24).attr('y', ly).text(name.length > maxChars ? name.slice(0, maxChars - 1) + '…' : name)
+     .append('title').text(name);
+    dayStarts.forEach((_, d) => {
+      const v = perDay[d] || 0;
+      rowG.append('text').attr('class', 'tl-row-total')
+       .attr('x', dayCx(d)).attr('y', ly).attr('text-anchor', 'middle')
+       .style('font-size', cellFont).style('fill', v > 0 ? 'var(--on-surface)' : 'var(--outline)')
+       .text(fmtCell(v));
+    });
+    rowG.append('text').attr('class', 'tl-row-total')
+     .attr('x', W - 8).attr('y', ly).attr('text-anchor', 'end')
+     .style('font-size', cellFont).style('font-weight', 700).style('fill', 'var(--on-surface)')
+     .text(fmtCell(min));
+  });
+
+  // Última fila: total por día y total de la semana
+  const totalY = legendTop + 30 + taskTotals.length * LEGEND_ROW_H;
+  g.append('line').attr('class', 'tl-grid')
+   .attr('x1', 0).attr('x2', W).attr('y1', totalY - 16).attr('y2', totalY - 16);
+  g.append('text').attr('class', 'tl-row-total')
+   .attr('x', 8).attr('y', totalY)
+   .style('font-size', cellFont).style('font-weight', 700).style('fill', 'var(--on-surface)').text('Total');
+  dayStarts.forEach((_, d) => {
+    g.append('text').attr('class', 'tl-row-total')
+     .attr('x', dayCx(d)).attr('y', totalY).attr('text-anchor', 'middle')
+     .style('font-size', cellFont).style('font-weight', 700).style('fill', 'var(--on-surface)')
+     .text(fmtCell(dayTotals[d]));
+  });
+  g.append('text').attr('class', 'tl-row-total')
+   .attr('x', W - 8).attr('y', totalY).attr('text-anchor', 'end')
+   .style('font-size', cellFont).style('font-weight', 700).style('fill', 'var(--on-surface)')
+   .text(fmtCell(weekTotal));
+
   svgNode.onclick = (e) => {
     const t = e.target.closest('[data-entry-id],[data-live]');
     if (!t) return;
