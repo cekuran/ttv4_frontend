@@ -2598,32 +2598,8 @@ function togglePw(btn) {
   btn.setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
 }
 
-const VIEWS = ['dashboard','tasks','logs','stats','reports','routines','admin','account'];
-
 function bindNav() {
   $$('.nav-item').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
-  // ponytail: native touch swipe between views — no lib, 50px threshold, vertical scroll wins
-  let tx = null;
-  document.addEventListener('touchstart', e => { if (e.touches.length === 1) tx = e.touches[0].clientX; }, { passive: true });
-  document.addEventListener('touchend',   e => {
-    if (tx == null) return;
-    const dx = e.changedTouches[0].clientX - tx; tx = null;
-    if (Math.abs(dx) < 50) return;
-    const rol = (readSession() || {}).rol;
-    const visibleViews = VIEWS.filter(v => {
-      if (v === 'account') return false; // ponytail: Mi cuenta vive en el dropdown del avatar
-      if (state.sinHojas)  return v === 'admin' && rol === 'admin'; // ponytail: sin hoja, swipe limitado
-      if (v === 'admin')   return rol === 'admin';
-      return true;
-    });
-    if (visibleViews.length < 2) return; // ponytail: nada a lo que cambiar
-    const cur = $('.view.active')?.id.replace('view-', '');
-    const idxInVisible = visibleViews.indexOf(cur);
-    if (idxInVisible < 0) return;
-    const next = dx < 0 ? Math.min(idxInVisible + 1, visibleViews.length - 1)
-                        : Math.max(idxInVisible - 1, 0);
-    if (next !== idxInVisible) showView(visibleViews[next]);
-  }, { passive: true });
 }
 let uiBound = false; // listeners globales ya registrados (startApp corre en cada login)
 
@@ -2639,7 +2615,7 @@ function renderView_(name) {
 
 function showView(name) {
   // ponytail: guarda de rol — un usuario no-admin no puede aterrizar en 'admin'
-  // por ninguna vía (nav, swipe, estado heredado). Se redirige a dashboard.
+  // por ninguna vía (nav, estado heredado). Se redirige a dashboard.
   if (name === 'admin' && (readSession() || {}).rol !== 'admin') name = 'dashboard';
   $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   $$('.view').forEach(v => v.classList.toggle('active', v.id === `view-${name}`));
