@@ -949,20 +949,10 @@
   .task-card.done .task-toggle-done { background: var(--secondary); border-color: var(--secondary); color: var(--on-secondary); }
   .task-card.done .task-toggle-done:hover { background: #005a40; border-color: #005a40; color: var(--on-secondary); }
 
-  /* === Reports === */
-  .report-filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 20px; }
+  /* === Format toggle (usado en Stats) === */
   .format-toggle { display: inline-flex; background: var(--surface-low); border-radius: var(--r-md); padding: 3px; gap: 2px; }
   .format-toggle button { background: transparent; color: var(--on-surface-variant); border: 0; padding: 6px 14px; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; }
   .format-toggle button.active { background: var(--primary); color: var(--on-primary); }
-  .download-btn { background: var(--secondary); color: var(--on-secondary); border: 0; padding: 10px 20px; border-radius: var(--r-md); font-weight: 600; cursor: pointer; font-family: inherit; }
-  .download-btn:hover { background: #005a40; }
-  .download-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .preview-table { background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-1); }
-  .preview-table table { width: 100%; border-collapse: collapse; }
-  .preview-table th { background: var(--surface-low); font-weight: 600; color: var(--on-surface-variant); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--outline-variant); }
-  .preview-table td { padding: 12px 14px; border-bottom: 1px solid var(--surface-low); font-size: 13px; }
-  .preview-table tr:last-child td { border-bottom: 0; }
-  .preview-table td b { font-family: 'JetBrains Mono', ui-monospace, monospace; }
 
   /* === Top bar — sólo vive en mobile (default oculto, se muestra dentro del @media mobile) === */
   .mobile-top {
@@ -1071,8 +1061,8 @@
     form#task-form input, form#task-form select, form#task-form button,
     form#manual-form input, form#manual-form select, form#manual-form button { width: 100%; }
     input, select, button { padding: 10px 14px; font-size: 15px; }
-    table.data, .preview-table { display: block; overflow-x: auto; white-space: nowrap; border-radius: var(--r-md); -webkit-overflow-scrolling: touch; }
-    table.data th, table.data td, .preview-table th, .preview-table td { padding: 10px 12px; font-size: 13px; }
+    table.data { display: block; overflow-x: auto; white-space: nowrap; border-radius: var(--r-md); -webkit-overflow-scrolling: touch; }
+    table.data th, table.data td { padding: 10px 12px; font-size: 13px; }
     /* ponytail: log entries become cards on mobile so task names wrap and every field is visible */
     #log-table, #log-table thead, #log-table tbody, #log-table tr { display: block; }
     #log-table { white-space: normal; overflow: visible; }
@@ -1087,23 +1077,6 @@
     #log-table td.log-task { white-space: normal; overflow-wrap: anywhere; text-align: right; }
     #log-table td[data-label=""]::before { content: none; }
     #log-table td:last-child { justify-content: flex-end; padding-top: 6px; }
-    /* ponytail: reports preview also becomes cards on mobile — same pattern as #log-table */
-    #report-preview .preview-table > table, #report-preview .preview-table > table thead, #report-preview .preview-table > table tbody, #report-preview .preview-table > table tr { display: block; }
-    #report-preview .preview-table > table { background: transparent; padding: 0; box-shadow: none; border: 0; overflow: visible; white-space: normal; }
-    #report-preview .preview-table > table thead { display: none; }
-    #report-preview .preview-table > table tbody tr {
-      border: 1px solid var(--outline-variant); border-radius: var(--r-md);
-      margin-bottom: 8px; padding: 8px 12px; background: #fff;
-    }
-    #report-preview .preview-table > table td {
-      display: flex; justify-content: space-between; align-items: center; gap: 12px;
-      padding: 4px 0; border: 0; white-space: normal; font-size: 13px;
-    }
-    #report-preview .preview-table > table td::before {
-      content: attr(data-label); color: var(--on-surface-variant); font-size: 11px;
-      text-transform: uppercase; letter-spacing: 0.04em; flex: 0 0 auto;
-    }
-    #report-preview .preview-table > table td[data-label="Duration"] { justify-content: flex-end; }
     .task-card { flex-wrap: wrap; padding: 14px; gap: 8px 10px; }
     /* ponytail: title + meta own the full first row — single-line clamp keeps long titles from breaking the card */
     .task-card .task-info { flex: 1 1 100%; min-width: 0; }
@@ -1132,8 +1105,6 @@
     .activity-panel .row .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
     .format-toggle { width: 100%; }
     .format-toggle button { flex: 1; font-size: 13px; padding: 8px 16px; }
-    .download-btn { width: 100%; font-size: 14px; padding: 10px 20px; }
-    .report-filters { flex-direction: column; align-items: stretch; }
     .bottom-nav {
       display: flex !important; position: fixed; bottom: 0; left: 0; right: 0;
       background: rgba(255,255,255,0.92);
@@ -1385,7 +1356,6 @@
     <button class="nav-item" data-view="tasks"><span class="material-icons">checklist</span>Tasks</button>
     <button class="nav-item" data-view="logs"><span class="material-icons">history</span>Logs</button>
     <button class="nav-item" data-view="stats"><span class="material-icons">bar_chart</span>Stats</button>
-    <button class="nav-item" data-view="reports"><span class="material-icons">description</span>Reports</button>
     <button class="nav-item" data-view="routines"><span class="material-icons">rule</span>Recurrentes</button>
     <button class="nav-item hidden" data-view="admin" id="nav-admin"><span class="material-icons">admin_panel_settings</span>Admin</button>
   </aside>
@@ -1551,31 +1521,6 @@
       <div class="rutinas-grid" id="stats-day-rutinas" style="grid-template-columns:1fr;" hidden></div>
     </section>
 
-    <!-- ====== Reports (NEW) ====== -->
-    <section id="view-reports" class="view">
-      <div class="view-header">
-        <h1>Reports</h1>
-        <p>Export your data as CSV or JSON.</p>
-      </div>
-
-      <div class="report-filters panel">
-        <label>From <input type="date" id="report-from"></label>
-        <label>To <input type="date" id="report-to"></label>
-        <div class="format-toggle">
-          <button class="active" data-format="csv">CSV</button>
-          <button data-format="json">JSON</button>
-        </div>
-        <button class="download-btn" id="report-download" disabled>Download</button>
-      </div>
-
-      <div class="panel" style="padding: 16px 20px;">
-        <h3>Labels</h3>
-        <div class="chip-row" id="report-label-chips" style="margin-bottom: 0;"></div>
-      </div>
-
-      <div id="report-preview" style="margin-top: 20px;"></div>
-    </section>
-
     <!-- ====== Recurrentes ====== -->
     <section id="view-routines" class="view">
       <div class="view-header">
@@ -1693,7 +1638,6 @@
     <button class="nav-item" data-view="tasks"><span class="material-icons">checklist</span>Tasks</button>
     <button class="nav-item" data-view="logs"><span class="material-icons">history</span>Logs</button>
     <button class="nav-item" data-view="stats"><span class="material-icons">bar_chart</span>Stats</button>
-    <button class="nav-item" data-view="reports"><span class="material-icons">description</span>Reports</button>
     <button class="nav-item" data-view="routines"><span class="material-icons">rule</span>Recurrentes</button>
     <button class="nav-item hidden" data-view="admin" id="nav-admin-mobile"><span class="material-icons">admin_panel_settings</span>Admin</button>
   </nav>
@@ -2608,7 +2552,6 @@ function renderView_(name) {
   else if (name === 'logs') renderLogs();
   else if (name === 'tasks') renderTasksView();
   else if (name === 'stats') renderStats();
-  else if (name === 'reports') renderReports();
   else if (name === 'routines') renderRoutinesView();
   else if (name === 'admin') renderAdmin(true);
 }
@@ -2691,13 +2634,6 @@ function bindGlobal() {
   const statsTlWrap = $('#stats-day-timeline-wrap');
   if (statsTlWrap) state.dayTimelineResizeObs.observe(statsTlWrap);
   $('#timer-label-filter').addEventListener('change', populateTimerTaskSelect);
-  // Reports
-  ['report-from','report-to'].forEach(id => $('#'+id).addEventListener('change', renderReports));
-  $$('.format-toggle button').forEach(b => b.addEventListener('click', () => {
-    $$('.format-toggle button').forEach(x => x.classList.toggle('active', x === b));
-    renderReports();
-  }));
-  $('#report-download').addEventListener('click', downloadExport);
 }
 
 // Selects + widgets del timer (baratos). No re-renderiza vistas.
@@ -4918,106 +4854,6 @@ function tickDayTimeline() {
     // ponytail: si el live bar está a ~3 min de chocar contra el borde derecho, re-render (~cada 27 min) para extender la escala antes de que desborde
     if (lastH < 24 && lastH - nowH < 0.05) renderDayTimeline(opts);
   });
-}
-
-// ==== Reports ====
-let reportLabelFilter = new Set();
-let reportFormat = 'csv';
-
-function renderReports() {
-  // defaults: last 30 days
-  if (!$('#report-from').value) $('#report-from').value = localDay(Date.now() - 30*86400000);
-  if (!$('#report-to').value)   $('#report-to').value   = localDay(Date.now());
-
-  // label chips
-  const wrap = $('#report-label-chips');
-  wrap.innerHTML = `<button class="chip-filter ${reportLabelFilter.size===0?'active':''}" data-lid="">All labels</button>` +
-    state.labels.map(l => `<button class="chip-filter ${reportLabelFilter.has(l.id)?'active':''}" data-lid="${l.id}"><span class="dot" style="background:${l.color}"></span>${escapeHtml(l.name)}</button>`).join('');
-  $$('#report-label-chips .chip-filter').forEach(b => b.onclick = () => {
-    const lid = b.dataset.lid;
-    if (!lid) { reportLabelFilter.clear(); }
-    else if (reportLabelFilter.has(lid)) { reportLabelFilter.delete(lid); }
-    else { reportLabelFilter.add(lid); }
-    renderReports();
-  });
-
-  // filtered rows
-  const rows = getFilteredReportRows();
-  $('#report-download').disabled = rows.length === 0;
-
-  if (rows.length === 0) {
-    $('#report-preview').innerHTML = `<div class="empty">No entries in this range.</div>`;
-    return;
-  }
-  const head = `<div class="panel" style="margin-bottom: 12px;"><b>${rows.length}</b> entr${rows.length===1?'y':'ies'} match</div>`;
-  const preview = rows.slice(0, 20);
-  const table = `<div class="preview-table"><table>
-    <thead><tr><th>Date</th><th>Start</th><th>End</th><th>Task</th><th>Label</th><th>Duration</th></tr></thead>
-    <tbody>${preview.map(r => `<tr>
-      <td data-label="Date">${r.date}</td>
-      <td data-label="Start">${r.start}</td>
-      <td data-label="End">${r.end}</td>
-      <td data-label="Task">${escapeHtml(r.task)}</td>
-      <td data-label="Label">${r.label ? `<span class="chip" style="background:${r.labelColor}">${escapeHtml(r.label)}</span>` : '—'}</td>
-      <td data-label="Duration"><b>${fmtHM(r.min)}</b></td>
-    </tr>`).join('')}</tbody></table></div>`;
-  const more = rows.length > 20 ? `<div style="text-align:center; color:var(--outline); font-size:13px; margin-top:8px;">Showing 20 of ${rows.length}. Download to see all.</div>` : '';
-  $('#report-preview').innerHTML = head + table + more;
-}
-
-function getFilteredReportRows() {
-  const from = $('#report-from').value;
-  const to   = $('#report-to').value;
-  const fromStart = from ? parseLocalInput(from + 'T00:00') : null;
-  const toEnd     = to   ? parseLocalInput(to   + 'T23:59') : null;
-  if (toEnd) toEnd.setSeconds(59, 999);
-  return state.entries
-    .filter(e => {
-      const d = new Date(e.startTime);
-      if (fromStart && d < fromStart) return false;
-      if (toEnd && d > toEnd) return false;
-      const lid = taskLabelId(e.taskId);
-      if (reportLabelFilter.size > 0 && !reportLabelFilter.has(lid || '')) return false;
-      return true;
-    })
-    .sort((a,b) => new Date(b.startTime) - new Date(a.startTime))
-    .map(e => {
-      const lid = taskLabelId(e.taskId);
-      return {
-        date:  fmtDate(e.startTime),
-        start: fmtTime(e.startTime),
-        end:   fmtTime(e.endTime),
-        task:  taskName(e.taskId),
-        label: lid ? labelName(lid) : '',
-        labelColor: lid ? labelColor(lid) : '',
-        min:   Number(e.durationMinutes || 0),
-        notes: e.notes || ''
-      };
-    });
-}
-
-function downloadExport() {
-  const rows = getFilteredReportRows();
-  if (!rows.length) return;
-  const fmt = $$('.format-toggle button').find(b => b.classList.contains('active'))?.dataset.format || 'csv';
-  const filename = `tasktime-${localDay(Date.now())}.${fmt}`;
-  let blob, text;
-  if (fmt === 'csv') {
-    const esc = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g,'""')}"` : v;
-    const cols = ['date','start','end','task','label','min','notes'];
-    text = cols.join(',') + '\n' + rows.map(r => cols.map(c => esc(r[c])).join(',')).join('\n');
-    blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
-  } else {
-    text = JSON.stringify(rows, null, 2);
-    blob = new Blob([text], { type: 'application/json' });
-  }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(a.href);
 }
 
 // ==== Admin ====
