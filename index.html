@@ -1039,8 +1039,13 @@
     .view-header h1 { font-size: 24px; line-height: 1.2; }
     .view-header p  { font-size: 13px; }
     .stat-grid { grid-template-columns: 1fr; gap: 12px; }
-    #stats-cards { grid-template-columns: repeat(2, 1fr); }
+    #stats-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     #stats-cards .stat-card:last-child { grid-column: 1 / -1; }
+    #stats-cards .stat-card { min-width: 0; }
+    #stats-cards .stat-value { overflow-wrap: anywhere; }
+    /* ponytail: más ancho útil para el SVG de Stats (se dibuja a clientWidth) */
+    #stats-day-timeline-wrap { padding: 14px 10px 16px; }
+    #stats-day-timeline-wrap h3 { padding-left: 6px; }
     .stat-card { padding: 18px; }
     .stat-card .stat-label { font-size: 11px; margin-bottom: 10px; }
     .stat-card .stat-value { font-size: 26px; line-height: 1.1; }
@@ -1247,7 +1252,8 @@
   @media (max-width: 480px) {
     main { padding: 16px 16px 92px; }
     .view-header h1 { font-size: 22px; }
-    .stat-card .stat-value { font-size: 24px; }
+    .stat-card .stat-value { font-size: 22px; }
+    #stats-cards .stat-card { padding: 14px; }
     .active-card { padding: 16px; }
     .active-card .info .name { font-size: 16px; }
     .active-card .stop-btn { width: 100%; }
@@ -1289,8 +1295,10 @@
     .rutina-day-cell { aspect-ratio: auto; min-height: 28px; min-width: 0; max-height: 32px; }
     .rutina-day-cell .material-icons { font-size: 13px; }
     /* ponytail: barra por tarea en móvil — ancho completo, count al lado. */
-    .rutina-row-week .rutina-task-bar { width: 100%; }
-    .rutina-row-week .rutina-task-count { position: static; transform: none; padding-left: 8px; }
+    /* ponytail: la barra mide 10px con overflow:hidden, así que el conteo (estático) quedaba recortado y invisible.
+       Dejamos overflow visible y el texto debajo de la barra, reservando su alto con margin-bottom. */
+    .rutina-row-week .rutina-task-bar { width: 100%; overflow: visible; margin-bottom: 16px; }
+    .rutina-row-week .rutina-task-count { position: absolute; top: 14px; left: 0; right: auto; transform: none; padding: 0; white-space: nowrap; }
     /* ponytail: barras semanales — apilamos name / bar / squares en columna en lugar de grid 3-col */
     .week-rutina-row { grid-template-columns: 1fr; gap: 6px; }
     .week-rutina-squares { grid-template-columns: repeat(7, 1fr); }
@@ -2017,6 +2025,8 @@ const $  = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
 
 const fmtHM = (min) => `${Math.floor(min/60)}h ${String(Math.floor(min%60)).padStart(2,'0')}m`;
+// ponytail: horas decimales ("2.5") para celdas muy estrechas en móvil — 3-4 caracteres como máximo
+const fmtDecH = (min) => min <= 0 ? '—' : String(Math.max(0.1, Math.round(min / 6) / 10));
 const fmtHMS = (ms) => {
   const s = Math.max(0, Math.floor(ms/1000));
   return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
@@ -4315,7 +4325,7 @@ function renderDayTimeline(opts) {
     const tg = svg.append('g');
     const isMob = isMobile;
     const nameW = isMob ? Math.min(100, W * 0.28) : Math.min(220, W * 0.22);
-    const totX = W - 8, sesX = W - (isMob ? 58 : 96);
+    const totX = W - 8, sesX = W - (isMob ? 68 : 96);
     const cellFont = isMob ? '10px' : '11px';
     const rowRects = new Map();
     let pinned = null;
@@ -4458,8 +4468,8 @@ function renderMonthTimeline(opts) {
   const y = d3.scaleLinear().domain([0, maxH * 1.05 || 1]).nice().range([CHART_H, 0]);
 
   // Tabla
-  const tblNameW = isMobile ? Math.min(100, W * 0.28) : Math.min(220, W * 0.22);
-  const tblTotW = isMobile ? 46 : 72;
+  const tblNameW = isMobile ? Math.min(84, W * 0.29) : Math.min(220, W * 0.22);
+  const tblTotW = isMobile ? 40 : 72;
   const tblColW = (W - tblNameW - tblTotW) / N;
   const ROW_H = 24;
   const tblTop = M.top + CHART_H + 64;
@@ -4471,15 +4481,18 @@ function renderMonthTimeline(opts) {
   const weekTotalEls = [];
   const rowRects = new Map();
   let pinned = null;
+  // ponytail: si la banda de una semana es estrecha (móvil) los totales encima de las barras se pisan — usar horas decimales
+  const compactTot = x.step() < 58;
+  const fmtWk = min => min > 0 ? (compactTot ? fmtDecH(min) + 'h' : fmtHM(min)) : '—';
   function applyFocus(key) {
     plot.selectAll('rect.mo-seg').style('opacity', function () { return !key || this.dataset.task === key ? null : 0.2; });
     const perWeek = key ? (groupWeekMap.get(key) || []) : null;
     weekTotalEls.forEach((el, i) => {
       if (key) {
         const v = perWeek[i] || 0;
-        el.text(v > 0 ? fmtHM(v) : '—').style('fill', groupColor(key)).style('font-weight', 700);
+        el.text(fmtWk(v)).style('fill', groupColor(key)).style('font-weight', 700);
       } else {
-        el.text(weekTotals[i] > 0 ? fmtHM(weekTotals[i]) : '—').style('fill', null).style('font-weight', null);
+        el.text(fmtWk(weekTotals[i])).style('fill', null).style('font-weight', null);
       }
     });
     rowRects.forEach((r, id) => r.style('fill', id === key ? 'var(--surface-low)' : 'transparent'));
@@ -4512,7 +4525,8 @@ function renderMonthTimeline(opts) {
     const cx = x(i) + x.bandwidth() / 2;
     weekTotalEls.push(plot.append('text').attr('class', 'tl-row-total')
       .attr('x', cx).attr('y', y(weekTotals[i] / 60) - 6).attr('text-anchor', 'middle')
-      .text(fmtHM(weekTotals[i])));
+      .style('font-size', compactTot ? '10px' : null)
+      .text(fmtWk(weekTotals[i])));
     const lastDay = new Date(w.end.getFullYear(), w.end.getMonth(), w.end.getDate() - 1).getDate();
     plot.append('text').attr('class', 'tl-hour-label')
       .attr('x', cx).attr('y', CHART_H + 16).attr('text-anchor', 'middle')
@@ -4524,16 +4538,20 @@ function renderMonthTimeline(opts) {
   });
 
   // Tabla: grupo × semana
+  // ponytail: 3 niveles según el ancho de columna: "1h 30m" / "1:30" / "1.5" (horas decimales, el título lleva "(h)")
+  const decCells = tblColW < 34;
   const fmtCell = min => {
     if (min <= 0) return '—';
     if (tblColW >= 46) return fmtHM(min);
+    if (decCells) return fmtDecH(min);
     const t = Math.round(min);
     return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   };
-  const cellFont = isMobile ? '10px' : '11px';
+  const cellFont = decCells ? '9.5px' : (isMobile ? '10px' : '11px');
   const colCx = i => tblNameW + i * tblColW + tblColW / 2;
   g.append('text').attr('class', 'tl-row-total')
-   .attr('x', 8).attr('y', tblTop).style('font-weight', 600).text(byLabel ? 'Total por etiqueta' : 'Total por tarea');
+   .attr('x', 8).attr('y', tblTop).style('font-weight', 600).style('font-size', cellFont)
+   .text(tblNameW < 140 ? (byLabel ? 'Etiqueta' : 'Tarea') + (decCells ? ' (h)' : '') : (byLabel ? 'Total por etiqueta' : 'Total por tarea'));
   weeks.forEach((_, i) => {
     g.append('text').attr('class', 'tl-hour-label')
      .attr('x', colCx(i)).attr('y', tblTop).attr('text-anchor', 'middle')
@@ -4645,6 +4663,9 @@ function renderWeekTimeline(opts) {
   const GUTTER = isMobile ? 32 : 48, HEADER_H = 64, HOUR_H = 44;
   const colW = (W - GUTTER) / 7;
   const colX = i => GUTTER + i * colW;
+  // ponytail: total por día en la cabecera — con columnas estrechas (móvil) "2h 30m" se solapa con el vecino, usar "2.5h"
+  const compactHdr = colW < 52;
+  const fmtHdr = min => min > 0 ? (compactHdr ? fmtDecH(min) + 'h' : fmtHM(min)) : '—';
 
   // Rango horario visible: primer..último evento de la semana (mín. 6 h).
   const MIN_VIS_H = 18 / HOUR_H;
@@ -4678,8 +4699,8 @@ function renderWeekTimeline(opts) {
   }
 
   // Tabla por tarea (debajo del calendario): fila por tarea, columna por día + total semanal
-  const tblNameW = isMobile ? Math.min(100, W * 0.28) : Math.min(220, W * 0.22);
-  const tblWeekW = isMobile ? 46 : 72;
+  const tblNameW = isMobile ? Math.min(84, W * 0.29) : Math.min(220, W * 0.22);
+  const tblWeekW = isMobile ? 40 : 72;
   const tblDayW = (W - tblNameW - tblWeekW) / 7;
   const legendTop = HEADER_H + gridH + 28;
   const LEGEND_ROW_H = 24;
@@ -4698,10 +4719,9 @@ function renderWeekTimeline(opts) {
     const perDay = key ? (taskDayMap.get(key) || []) : null;
     dayTotalEls.forEach((el, i) => {
       if (key) {
-        const v = perDay[i] || 0;
-        el.text(v > 0 ? fmtHM(v) : '—').style('fill', groupColor(key)).style('font-weight', 700);
+        el.text(fmtHdr(perDay[i] || 0)).style('fill', groupColor(key)).style('font-weight', 700);
       } else {
-        el.text(dayTotals[i] > 0 ? fmtHM(dayTotals[i]) : '—').style('fill', null).style('font-weight', null);
+        el.text(fmtHdr(dayTotals[i])).style('fill', null).style('font-weight', null);
       }
     });
     rowRects.forEach((r, id) => r.style('fill', id === key ? 'var(--surface-low)' : 'transparent'));
@@ -4745,7 +4765,8 @@ function renderWeekTimeline(opts) {
      .text(d.getDate());
     dayTotalEls.push(g.append('text').attr('class', 'tl-row-total')
      .attr('x', cx).attr('y', 56).attr('text-anchor', 'middle')
-     .text(dayTotals[i] > 0 ? fmtHM(dayTotals[i]) : '—'));
+     .style('font-size', compactHdr ? '10px' : null)
+     .text(fmtHdr(dayTotals[i])));
   });
 
   // Eventos
@@ -4771,7 +4792,7 @@ function renderWeekTimeline(opts) {
       .attr('x', ex).attr('y', ey).attr('width', ew).attr('height', eh).attr('rx', 4)
       .attr('fill', color).attr('stroke', '#fff').attr('stroke-width', 1);
     if (ev.live) rect.attr('fill-opacity', 0.6).attr('stroke', color).attr('stroke-dasharray', '4 2');
-    if (ew >= 28) {
+    if (ew >= (isMobile ? 56 : 28)) { // ponytail: en móvil los bloques son estrechos — el texto recortado sólo ensucia
       const clipId = `wk-clip-${n}`;
       defs.append('clipPath').attr('id', clipId).append('rect')
         .attr('x', ex + 2).attr('y', ey).attr('width', ew - 4).attr('height', eh);
@@ -4799,16 +4820,20 @@ function renderWeekTimeline(opts) {
   }
 
   // Tabla: total por tarea y por día
+  // ponytail: 3 niveles según el ancho de columna: "1h 30m" / "1:30" / "1.5" (horas decimales, el título lleva "(h)")
+  const decCells = tblDayW < 34;
   const fmtCell = min => {
     if (min <= 0) return '—';
     if (tblDayW >= 46) return fmtHM(min);
+    if (decCells) return fmtDecH(min);
     const t = Math.round(min);
     return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   };
-  const cellFont = isMobile ? '10px' : '11px';
+  const cellFont = decCells ? '9.5px' : (isMobile ? '10px' : '11px');
   const dayCx = i => tblNameW + i * tblDayW + tblDayW / 2;
   g.append('text').attr('class', 'tl-row-total')
-   .attr('x', 8).attr('y', legendTop).style('font-weight', 600).text(byLabel ? 'Total por etiqueta' : 'Total por tarea');
+   .attr('x', 8).attr('y', legendTop).style('font-weight', 600).style('font-size', cellFont)
+   .text(tblNameW < 140 ? (byLabel ? 'Etiqueta' : 'Tarea') + (decCells ? ' (h)' : '') : (byLabel ? 'Total por etiqueta' : 'Total por tarea'));
   dayStarts.forEach((_, i) => {
     g.append('text').attr('class', 'tl-hour-label')
      .attr('x', dayCx(i)).attr('y', legendTop).attr('text-anchor', 'middle')
