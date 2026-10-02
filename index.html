@@ -291,6 +291,9 @@
   }
   /* ponytail: format-toggle inside .filters — wrap inline so it sits next to the label */
   .filters .format-toggle { padding: 2px; }
+  /* ponytail: flechas laterales del anchor de Stats (día/semana/mes anterior y siguiente) */
+  .filters .anchor-nav { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
+  .filters .anchor-nav .icon-btn { flex: 0 0 auto; }
   .filters label:has(.format-toggle) { display: inline-flex; align-items: center; gap: 8px; }
   h3.section { margin: 24px 0 12px; font-size: 12px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
   .fold-btn { background: none; color: var(--on-surface-variant); border: 0; cursor: pointer; font-size: 12px; padding: 4px 8px; width: 28px; line-height: 1; border-radius: var(--r-sm); }
@@ -1041,6 +1044,9 @@
     .filters { flex-direction: column; align-items: stretch; padding: 14px; gap: 10px; }
     .filters label { display: block; font-size: 13px; }
     .filters input, .filters select, .filters button { width: 100%; min-width: 0; }
+    .filters .anchor-nav { display: flex; }
+    .filters .anchor-nav input { flex: 1; }
+    .filters .anchor-nav .icon-btn { width: auto; }
     .filters input[type="date"] { max-width: 100%; }
     .quickstart-form { flex-direction: column; align-items: stretch; }
     .quickstart-form select, .quickstart-form button { width: 100%; }
@@ -1494,7 +1500,13 @@
           <option value="week">Week</option>
           <option value="month">Month</option>
         </select></label>
-        <label>Anchor <input id="stats-anchor"></label>
+        <label>Anchor
+          <span class="anchor-nav">
+            <button type="button" class="icon-btn" id="stats-prev" aria-label="Anterior" title="Anterior"><span class="material-icons">chevron_left</span></button>
+            <input id="stats-anchor">
+            <button type="button" class="icon-btn" id="stats-next" aria-label="Siguiente" title="Siguiente"><span class="material-icons">chevron_right</span></button>
+          </span>
+        </label>
         <label>Group by <select id="stats-group">
           <option value="task">Task</option>
           <option value="label">Label</option>
@@ -2640,6 +2652,18 @@ function bindGlobal() {
     renderLogs();
   });
   ['stats-range','stats-group','stats-anchor'].forEach(id => $('#'+id).addEventListener('change', renderStats));
+  // ponytail: flechas del anchor — desplazan un día / semana / mes según el rango
+  const shiftStatsAnchor = delta => {
+    const range = $('#stats-range').value, inp = $('#stats-anchor');
+    const [start] = rangeBounds(range, inp);
+    const next = new Date(start);
+    if (range === 'month') next.setMonth(next.getMonth() + delta);
+    else next.setDate(next.getDate() + delta * (range === 'week' ? 7 : 1));
+    inp.value = defaultAnchorValue(range, next);
+    renderStats();
+  };
+  $('#stats-prev').addEventListener('click', () => shiftStatsAnchor(-1));
+  $('#stats-next').addEventListener('click', () => shiftStatsAnchor(1));
   // ponytail: cierre del modal de detalles de entrada (overlay + botón close)
   $$('#entry-details-modal [data-modal-close]').forEach(el => el.addEventListener('click', () => { $('#entry-details-modal').hidden = true; }));
   // ponytail: re-render de la línea del día al cambiar el ancho del wrap (mismo patrón que stats-chart)
@@ -3813,8 +3837,8 @@ function rangeBounds(range, anchor) {
   return [new Date(y, mo, 1), new Date(y, mo+1, 1)];
 }
 
-function defaultAnchorValue(range) {
-  const now = new Date(), p = n => String(n).padStart(2,'0');
+function defaultAnchorValue(range, date) {
+  const now = date ? new Date(date) : new Date(), p = n => String(n).padStart(2,'0');
   if (range === 'day')   return `${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}`;
   if (range === 'month') return `${now.getFullYear()}-${p(now.getMonth()+1)}`;
   const thu = new Date(now); thu.setHours(0,0,0,0); thu.setDate(thu.getDate() - ((now.getDay() + 6) % 7) + 3);
