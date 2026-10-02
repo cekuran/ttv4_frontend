@@ -79,6 +79,7 @@
 
   /* === Rutinas (ponytail: reutiliza .panel + estilos existentes; sólo añade lo nuevo) === */
   .rutinas-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
+  #stats-day-rutinas[hidden], #stats-week-rutinas-wrap[hidden] { display: none; } /* ponytail: .rutinas-grid { display:grid } pisa el [hidden] del navegador */
   .rutina-card { background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); padding: 16px 18px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 10px; }
   .rutina-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .rutina-card h4 { margin: 0; font: 600 11px/14px 'Inter', sans-serif; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.04em; }
