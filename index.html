@@ -1509,6 +1509,7 @@
         <h3>Recurrentes diarias — semana</h3>
         <div id="stats-week-rutinas-list"></div>
       </div>
+      <div class="rutinas-grid" id="stats-day-rutinas" style="grid-template-columns:1fr;" hidden></div>
     </section>
 
     <!-- ====== Reports (NEW) ====== -->
@@ -2877,6 +2878,54 @@ async function renderStatsWeekRutinas(weekStart) {
   paintWeekRutinas_(host, rows);
 }
 
+// ponytail: Stats > Day — tarjeta "Recurrentes de hoy" (misma del dashboard) para el día seleccionado, a ancho completo.
+// Sólo lectura: el estado de cada diaria sale de la semana (lun-dom) que contiene ese día, con la misma caché por offset.
+async function renderStatsDayRutinas(day) {
+  const host = $('#stats-day-rutinas');
+  if (!host) return;
+  if (!day) { host.hidden = true; return; }
+  const d0 = new Date(day); d0.setHours(0,0,0,0);
+  const monday = new Date(d0); monday.setDate(d0.getDate() - ((d0.getDay() + 6) % 7));
+  const curMonday = new Date(); curMonday.setHours(0,0,0,0);
+  curMonday.setDate(curMonday.getDate() - ((curMonday.getDay() + 6) % 7));
+  const offset = Math.round((curMonday - monday) / (7 * 86400000));
+  const isToday = fmtDailyKey(d0) === fmtDailyKey(new Date());
+  const title = isToday ? 'Recurrentes de hoy' : 'Recurrentes del día';
+  const card = body => `<div class="rutina-card"><div class="rutina-card-head"><h4>${title}</h4></div>${body}</div>`;
+  host.hidden = false;
+  if (offset < 0) { host.innerHTML = card('<div class="empty-row">Día futuro: sin registros.</div>'); return; }
+  if (offset > 52) { host.innerHTML = card('<div class="empty-row">Sin datos: el historial de recurrentes llega hasta 52 semanas atrás.</div>'); return; }
+  const token = state.statsDayRutinasToken = offset + ':' + d0.getTime();
+  let rows = state.routineWeekCache.get(offset);
+  if (!rows) {
+    try {
+      rows = (await call('getDailyRoutineWeekStatus', 7, offset)) || [];
+      state.routineWeekCache.set(offset, rows);
+    } catch (e) {
+      if (state.statsDayRutinasToken === token) host.innerHTML = card('<div class="empty-row">No se pudo cargar las recurrentes de este día.</div>');
+      return;
+    }
+  }
+  if (state.statsDayRutinasToken !== token) return; // el usuario cambió de día/rango mientras cargaba
+  if (!Array.isArray(rows) || rows.length === 0) { host.innerHTML = card('<div class="empty-row">No hay recurrentes diarias.</div>'); return; }
+  const key = fmtDailyKey(d0);
+  const list = rows.map(r => ({ name: r.name, completed: !!(r.days.find(x => x.date === key) || {}).completed }));
+  const done = list.filter(x => x.completed).length;
+  const total = list.length;
+  const pct = total ? Math.round(done * 100 / total) : 0;
+  host.innerHTML = card(`
+    <div class="rutina-progress">
+      <span><b>${done}</b> / ${total} ${total === 1 ? 'completada' : 'completadas'}</span>
+      <span class="pct">${pct}%</span>
+    </div>
+    <div class="rutina-progress-bar"><div style="width:${pct}%"></div></div>
+    <ul>${list.map(x => `
+      <li class="${x.completed ? 'done' : ''}" style="cursor:default;">
+        <span class="material-icons" style="font-size:20px; color:${x.completed ? 'var(--secondary)' : 'var(--outline)'};">${x.completed ? 'check_box' : 'check_box_outline_blank'}</span>
+        <span class="rutina-name" title="${escapeHtml(x.name)}">${escapeHtml(x.name)}</span>
+      </li>`).join('')}</ul>`);
+}
+
 // ponytail: helper — recarga state.routineWeek para la semana que el usuario está viendo.
 // Lo llaman bulkToggle, toggleRutina y el click en las day-cells. Se evita el refetch
 // si los toggles vienen de una actualización optimista local (sólo se llama si el estado
@@ -3815,6 +3864,7 @@ function renderStats() {
     else renderMonthTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', monthStart: start, groupBy });
   }
   renderStatsWeekRutinas(range === 'week' ? start : null);
+  renderStatsDayRutinas(range === 'day' ? start : null);
 
   const inRange = state.entries.filter(e => {
     const d = new Date(e.startTime);
