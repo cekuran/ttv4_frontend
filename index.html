@@ -79,7 +79,19 @@
 
   /* === Rutinas (ponytail: reutiliza .panel + estilos existentes; sólo añade lo nuevo) === */
   .rutinas-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
-  #stats-day-rutinas[hidden], #stats-week-rutinas-wrap[hidden] { display: none; } /* ponytail: .rutinas-grid { display:grid } pisa el [hidden] del navegador */
+  #stats-day-rutinas[hidden], #stats-week-rutinas-wrap[hidden], #stats-month-rutinas-wrap[hidden] { display: none; } /* ponytail: .rutinas-grid { display:grid } pisa el [hidden] del navegador */
+  /* ponytail: panel mensual de recurrentes diarias — nombre | barra del mes | una celda por semana (k/n días hechos) */
+  #stats-month-rutinas-wrap .rutina-row-week,
+  #stats-month-rutinas-wrap .rutina-week-header { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 320px); }
+  .rutina-month-labels, .rutina-month-cells { display: grid; gap: 6px; min-width: 0; }
+  .rutina-month-labels { text-align: center; }
+  .rutina-month-cell {
+    height: 26px; box-sizing: border-box; border-radius: 5px; border: 1.5px solid var(--outline-variant); background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font: 600 11px/1 'JetBrains Mono', ui-monospace, monospace; color: var(--outline); font-variant-numeric: tabular-nums;
+  }
+  .rutina-month-cell.part { border-color: var(--secondary); color: var(--secondary); background: color-mix(in srgb, var(--secondary) 14%, #fff); }
+  .rutina-month-cell.full { background: var(--secondary); border-color: var(--secondary); color: var(--on-secondary); }
   .rutina-card { background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); padding: 16px 18px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 10px; }
   .rutina-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .rutina-card h4 { margin: 0; font: 600 11px/14px 'Inter', sans-serif; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.04em; }
@@ -1264,6 +1276,8 @@
     #rutinas-board .rutina-week-header,
     #week-rutinas-wrap .rutina-week-header,
     #stats-week-rutinas-wrap .rutina-week-header { grid-template-columns: 1fr; gap: 4px; }
+    #stats-month-rutinas-wrap .rutina-row-week { grid-template-columns: 1fr; gap: 6px; padding: 6px 0; }
+    #stats-month-rutinas-wrap .rutina-week-header { grid-template-columns: 1fr; gap: 4px; }
     .rutina-week-header > span { display: none; }
     /* ponytail: las etiquetas de día replican exactamente el grid de las celdas (7 col, gap 4px)
        para que L/M/X/J/V/S/D queden alineadas con cada casilla debajo. */
@@ -1521,6 +1535,10 @@
       <div class="panel week-rutinas" id="stats-week-rutinas-wrap" hidden>
         <h3>Recurrentes diarias — semana</h3>
         <div id="stats-week-rutinas-list"></div>
+      </div>
+      <div class="panel week-rutinas" id="stats-month-rutinas-wrap" hidden>
+        <h3>Recurrentes diarias — mes</h3>
+        <div id="stats-month-rutinas-list"></div>
       </div>
       <div class="rutinas-grid" id="stats-day-rutinas" style="grid-template-columns:1fr;" hidden></div>
     </section>
@@ -2951,6 +2969,72 @@ async function renderStatsDayRutinas(day) {
       </li>`).join('')}</ul>`);
 }
 
+// ponytail: Stats > Month — total semanal de cada recurrente diaria dentro del mes: una celda por semana (lun-dom
+// recortada al mes) con "hechos/días", y una barra con el total del mes. Usa getDailyRoutineWeekStatus por semana
+// (misma caché por offset que el resto de paneles).
+async function renderStatsMonthRutinas(monthStart) {
+  const wrap = $('#stats-month-rutinas-wrap');
+  const host = $('#stats-month-rutinas-list');
+  if (!wrap || !host) return;
+  if (!monthStart) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  const mStart = new Date(monthStart); mStart.setHours(0,0,0,0);
+  const mEnd = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 1);
+  const weeks = [];
+  for (let cur = new Date(mStart); cur < mEnd;) {
+    const next = new Date(cur); next.setDate(cur.getDate() + (7 - ((cur.getDay() + 6) % 7)));
+    const end = next < mEnd ? next : mEnd;
+    weeks.push({ start: new Date(cur), end });
+    cur = end;
+  }
+  const curMonday = new Date(); curMonday.setHours(0,0,0,0);
+  curMonday.setDate(curMonday.getDate() - ((curMonday.getDay() + 6) % 7));
+  weeks.forEach(w => {
+    const mon = new Date(w.start); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+    w.offset = Math.round((curMonday - mon) / (7 * 86400000));
+    w.n = Math.round((w.end - w.start) / 86400000);
+    w.kStart = fmtDailyKey(w.start); w.kEnd = fmtDailyKey(w.end);
+  });
+  const token = state.statsMonthRutinasToken = mStart.getTime();
+  const rowsByWeek = await Promise.all(weeks.map(async w => {
+    if (w.offset < 0 || w.offset > 52) return null; // futuro o fuera del historial del backend
+    let rows = state.routineWeekCache.get(w.offset);
+    if (!rows) {
+      try {
+        rows = (await call('getDailyRoutineWeekStatus', 7, w.offset)) || [];
+        state.routineWeekCache.set(w.offset, rows);
+      } catch (e) { return undefined; }
+    }
+    return rows;
+  }));
+  if (state.statsMonthRutinasToken !== token) return; // el usuario cambió de mes/rango mientras cargaba
+  if (rowsByWeek.some(r => r === undefined)) { host.innerHTML = '<div class="week-rutina-empty">No se pudo cargar las recurrentes de este mes.</div>'; return; }
+  const routines = new Map();
+  rowsByWeek.forEach(rows => (rows || []).forEach(r => { if (!routines.has(r.id)) routines.set(r.id, r.name); }));
+  if (!routines.size) { host.innerHTML = '<div class="week-rutina-empty">No hay recurrentes diarias.</div>'; return; }
+  const N = weeks.length;
+  const labels = `<div class="rutina-month-labels" style="grid-template-columns: repeat(${N}, minmax(0, 1fr));">${weeks.map((w, i) => `<span title="${w.start.getDate()}–${new Date(w.end.getTime() - 86400000).getDate()}">S${i + 1}</span>`).join('')}</div>`;
+  const body = [...routines.entries()].map(([id, name]) => {
+    let doneTot = 0, daysTot = 0;
+    const cells = weeks.map((w, i) => {
+      const rows = rowsByWeek[i];
+      const r = rows && rows.find(x => x.id === id);
+      if (!r) return `<span class="rutina-month-cell" title="Sin datos">—</span>`;
+      const done = r.days.filter(d => d.completed && d.date >= w.kStart && d.date < w.kEnd).length;
+      doneTot += done; daysTot += w.n;
+      const cls = done === w.n ? 'full' : done > 0 ? 'part' : '';
+      return `<span class="rutina-month-cell ${cls}" title="Semana ${i + 1}: ${done} de ${w.n} días">${done}/${w.n}</span>`;
+    }).join('');
+    const pct = daysTot ? Math.round(doneTot * 100 / daysTot) : 0;
+    return `<div class="rutina-row-week">
+      <span class="rutina-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+      <div class="rutina-task-bar"><div style="width:${pct}%"></div><span class="rutina-task-count">${doneTot} / ${daysTot} · ${pct}%</span></div>
+      <div class="rutina-month-cells" style="grid-template-columns: repeat(${N}, minmax(0, 1fr));">${cells}</div>
+    </div>`;
+  }).join('');
+  host.innerHTML = `<div class="rutina-week-header"><span></span><span></span>${labels}</div>` + body;
+}
+
 // ponytail: helper — recarga state.routineWeek para la semana que el usuario está viendo.
 // Lo llaman bulkToggle, toggleRutina y el click en las day-cells. Se evita el refetch
 // si los toggles vienen de una actualización optimista local (sólo se llama si el estado
@@ -3890,6 +3974,7 @@ function renderStats() {
   }
   renderStatsWeekRutinas(range === 'week' ? start : null);
   renderStatsDayRutinas(range === 'day' ? start : null);
+  renderStatsMonthRutinas(range === 'month' ? start : null);
 
   const inRange = state.entries.filter(e => {
     const d = new Date(e.startTime);
