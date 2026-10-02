@@ -91,7 +91,7 @@
   .rutina-progress-bar > div { height: 100%; background: var(--secondary); transition: width .25s ease; }
   /* ponytail: panel semanal del dashboard — una fila por rutina diaria con barra + 7 cuadros.
      Cuadrícula idéntica L..D para todas las filas, alineada por grid, así se ve un calendario. */
-  .week-rutinas-list, #week-rutinas-list { display: flex; flex-direction: column; gap: 12px; }
+  .week-rutinas-list, #week-rutinas-list, #stats-week-rutinas-list { display: flex; flex-direction: column; gap: 12px; }
   .week-rutina-row {
     display: grid; grid-template-columns: minmax(120px, 22%) 1fr 180px; align-items: center; gap: 14px;
   }
@@ -196,7 +196,9 @@
   #rutinas-board .rutina-row-week,
   #rutinas-board .rutina-week-header,
   #week-rutinas-wrap .rutina-row-week,
-  #week-rutinas-wrap .rutina-week-header {
+  #week-rutinas-wrap .rutina-week-header,
+  #stats-week-rutinas-wrap .rutina-row-week,
+  #stats-week-rutinas-wrap .rutina-week-header {
     /* ponytail: minmax(0,1fr) en nombre y barra — sin esto, el 1fr colapsa a 0 cuando la suma
        de las columnas fijas (bar+cells+gaps) excede el ancho del panel (e.g. tras fix de min-width:0
        en main). El bar mantiene min-width propio de 60px vía .rutina-task-bar. */
@@ -1216,7 +1218,9 @@
     #rutinas-board .rutina-row-week,
     #rutinas-board .rutina-week-header,
     #week-rutinas-wrap .rutina-row-week,
-    #week-rutinas-wrap .rutina-week-header {
+    #week-rutinas-wrap .rutina-week-header,
+    #stats-week-rutinas-wrap .rutina-row-week,
+    #stats-week-rutinas-wrap .rutina-week-header {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 220px;
     }
   }
@@ -1248,9 +1252,11 @@
        por orden de cascada. Con selectores de clase sueltos, el grid de escritorio (1fr 360px
        220px) se colaba en móvil y aplastaba nombre + celdas fuera de pantalla. */
     #rutinas-board .rutina-row-week,
-    #week-rutinas-wrap .rutina-row-week { grid-template-columns: 1fr; gap: 6px; padding: 6px 0; }
+    #week-rutinas-wrap .rutina-row-week,
+    #stats-week-rutinas-wrap .rutina-row-week { grid-template-columns: 1fr; gap: 6px; padding: 6px 0; }
     #rutinas-board .rutina-week-header,
-    #week-rutinas-wrap .rutina-week-header { grid-template-columns: 1fr; gap: 4px; }
+    #week-rutinas-wrap .rutina-week-header,
+    #stats-week-rutinas-wrap .rutina-week-header { grid-template-columns: 1fr; gap: 4px; }
     .rutina-week-header > span { display: none; }
     /* ponytail: las etiquetas de día replican exactamente el grid de las celdas (7 col, gap 4px)
        para que L/M/X/J/V/S/D queden alineadas con cada casilla debajo. */
@@ -1498,6 +1504,10 @@
       <div class="panel day-timeline-wrap" id="stats-day-timeline-wrap" hidden>
         <h3 id="stats-day-timeline-title">Línea del día</h3>
         <svg class="day-timeline-svg" id="stats-day-timeline-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+      <div class="panel week-rutinas" id="stats-week-rutinas-wrap" hidden>
+        <h3>Recurrentes diarias — semana</h3>
+        <div id="stats-week-rutinas-list"></div>
       </div>
     </section>
 
@@ -2802,10 +2812,16 @@ async function renderWeekRutinas() {
   }
   if (!Array.isArray(rows) || rows.length === 0) {
     host.innerHTML = `<div class="week-rutina-empty">Aún no hay rutinas diarias. Crea una en <a href="#" id="rutinas-go-week">Recurrentes</a> para verla aquí.</div>`;
-    const cta = $('#rutinas-go-week');
+    const cta = host.querySelector('a');
     if (cta) cta.onclick = e => { e.preventDefault(); showView('routines'); };
     return;
   }
+  paintWeekRutinas_(host, rows);
+}
+
+// ponytail: pinta la cuadrícula semanal de rutinas diarias en `host` (Dashboard y Stats la comparten).
+// La columna de hoy sólo se resalta si la semana mostrada contiene hoy.
+function paintWeekRutinas_(host, rows) {
   // ponytail: todayIdx local al panel — Dashboard siempre es semana actual, así que siempre
   // resalta la columna del día de hoy (misma lógica que Recurrentes en su semana 0).
   const todayKey = fmtDailyKey(new Date());
@@ -2829,6 +2845,36 @@ async function renderWeekRutinas() {
       <div class="rutina-week-cells">${cells}</div>
     </div>`;
   }).join('');
+}
+
+// ponytail: Stats > Week — recurrentes diarias de la semana seleccionada (offset en semanas hacia atrás
+// respecto a la semana actual; el backend admite 0..52). Caché compartida con Recurrentes por offset.
+async function renderStatsWeekRutinas(weekStart) {
+  const wrap = $('#stats-week-rutinas-wrap');
+  const host = $('#stats-week-rutinas-list');
+  if (!wrap || !host) return;
+  if (!weekStart) { wrap.hidden = true; return; }
+  const curMonday = new Date(); curMonday.setHours(0,0,0,0);
+  curMonday.setDate(curMonday.getDate() - ((curMonday.getDay() + 6) % 7));
+  const offset = Math.round((curMonday - weekStart) / (7 * 86400000));
+  wrap.hidden = false;
+  const note = msg => { host.innerHTML = `<div class="week-rutina-empty">${msg}</div>`; };
+  if (offset < 0) return note('Semana futura: sin registros.');
+  if (offset > 52) return note('Sin datos: el historial de recurrentes llega hasta 52 semanas atrás.');
+  const token = state.statsRutinasToken = offset + ':' + weekStart.getTime();
+  let rows = state.routineWeekCache.get(offset);
+  if (!rows) {
+    try {
+      rows = (await call('getDailyRoutineWeekStatus', 7, offset)) || [];
+      state.routineWeekCache.set(offset, rows);
+    } catch (e) {
+      if (state.statsRutinasToken === token) note('No se pudo cargar las recurrentes de esta semana.');
+      return;
+    }
+  }
+  if (state.statsRutinasToken !== token) return; // el usuario cambió de semana/rango mientras cargaba
+  if (!Array.isArray(rows) || rows.length === 0) return note('No hay recurrentes diarias.');
+  paintWeekRutinas_(host, rows);
 }
 
 // ponytail: helper — recarga state.routineWeek para la semana que el usuario está viendo.
@@ -3768,6 +3814,7 @@ function renderStats() {
     else if (range === 'week') renderWeekTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', weekStart: start, groupBy });
     else renderMonthTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', monthStart: start, groupBy });
   }
+  renderStatsWeekRutinas(range === 'week' ? start : null);
 
   const inRange = state.entries.filter(e => {
     const d = new Date(e.startTime);
