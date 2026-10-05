@@ -1460,7 +1460,8 @@
 
       <form class="panel" id="manual-form">
         <h3>Add manual entry</h3>
-        <select id="manual-task" required></select>
+        <select id="manual-label" aria-label="Label"></select>
+        <select id="manual-task" aria-label="Task" required></select>
         <input type="datetime-local" id="manual-start" required>
         <input type="datetime-local" id="manual-end" required>
         <input type="text" id="manual-notes" placeholder="Notes (optional)">
@@ -2131,6 +2132,39 @@ function populateLabelSelect(sel, placeholder) {
   });
   if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
 }
+// Manual entry: 1.º se elige label (o "No label"), 2.º la tarea de ese label.
+const MANUAL_NO_LABEL = '__none__';
+function populateManualLabelSelect() {
+  const sel = $('#manual-label');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">All labels</option>';
+  state.labels.forEach(l => {
+    const o = document.createElement('option');
+    o.value = l.id; o.textContent = l.name;
+    sel.appendChild(o);
+  });
+  const none = document.createElement('option');
+  none.value = MANUAL_NO_LABEL; none.textContent = 'No label';
+  sel.appendChild(none);
+  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+}
+function populateManualTaskSelect() {
+  const filter = $('#manual-label').value;
+  const sel = $('#manual-task');
+  const prev = sel.value;
+  const visible = state.tasks.filter(t => {
+    if (t.completed === true || String(t.completed || '') === 'true') return false;
+    if (!filter) return true;
+    return filter === MANUAL_NO_LABEL ? !t.labelId : t.labelId === filter;
+  });
+  sel.innerHTML = '<option value="">Select task</option>';
+  visible.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t.id; o.textContent = t.name;
+    sel.appendChild(o);
+  });
+  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+}
 function populateTimerTaskSelect() {
   const filter = $('#timer-label-filter').value;
   const sel = $('#timer-task');
@@ -2634,13 +2668,15 @@ function bindGlobal() {
   const statsTlWrap = $('#stats-day-timeline-wrap');
   if (statsTlWrap) state.dayTimelineResizeObs.observe(statsTlWrap);
   $('#timer-label-filter').addEventListener('change', populateTimerTaskSelect);
+  $('#manual-label').addEventListener('change', populateManualTaskSelect);
 }
 
 // Selects + widgets del timer (baratos). No re-renderiza vistas.
 function refreshShell_() {
   populateLabelSelect($('#timer-label-filter'), 'All labels');
   populateTimerTaskSelect();
-  populateTaskSelect($('#manual-task'));
+  populateManualLabelSelect();
+  populateManualTaskSelect();
   renderActiveCard();
   renderActiveWidget();
 }
@@ -3629,9 +3665,15 @@ async function onManualSubmit(e) {
   const end    = $('#manual-end').value;
   const notes  = $('#manual-notes').value;
   if (!taskId) { alert('Pick a task'); return; }
+  const startD = parseLocalInput(start), endD = parseLocalInput(end);
+  if (isNaN(startD) || isNaN(endD)) { alert('Invalid start/end time'); return; }
+  if (endD <= startD) { alert('End must be after start'); return; }
   try {
-    const entry = await call('createEntry', { taskId, startTime: parseLocalInput(start).toISOString(), endTime: parseLocalInput(end).toISOString(), source: 'manual', notes });
-    e.target.reset();
+    const entry = await call('createEntry', { taskId, startTime: startD.toISOString(), endTime: endD.toISOString(), source: 'manual', notes });
+    // conserva label/tarea elegidos; renderLogs repone las fechas por defecto
+    $('#manual-start').value = '';
+    $('#manual-end').value = '';
+    $('#manual-notes').value = '';
     state.entries = [...state.entries, entry];
     renderLogs();
   } catch (err) { alert(err.message); }
@@ -4411,6 +4453,14 @@ function renderMonthTimeline(opts) {
   }
 
   // Eje Y + rejilla
+  // ponytail: resaltar la semana actual (mismo fondo que la columna de hoy en la vista semanal)
+  const nowMid = new Date(); nowMid.setHours(0, 0, 0, 0);
+  const curWeek = weekOf(nowMid);
+  if (curWeek >= 0) {
+    const padX = (x.step() - x.bandwidth()) / 2;
+    plot.append('rect').attr('x', x(curWeek) - padX).attr('y', -14).attr('width', x.step()).attr('height', CHART_H + 14 + 38)
+      .attr('rx', 6).style('fill', 'var(--surface-low)');
+  }
   y.ticks(5).forEach(v => {
     plot.append('line').attr('class', 'tl-grid').attr('x1', 0).attr('x2', pw).attr('y1', y(v)).attr('y2', y(v));
     plot.append('text').attr('class', 'tl-hour-label')
@@ -4442,7 +4492,7 @@ function renderMonthTimeline(opts) {
     const lastDay = new Date(w.end.getFullYear(), w.end.getMonth(), w.end.getDate() - 1).getDate();
     plot.append('text').attr('class', 'tl-hour-label')
       .attr('x', cx).attr('y', CHART_H + 16).attr('text-anchor', 'middle')
-      .style('font-weight', 600).style('fill', 'var(--on-surface)')
+      .style('font-weight', 600).style('fill', i === curWeek ? 'var(--secondary)' : 'var(--on-surface)')
       .text(isMobile ? `S${i + 1}` : `Sem ${i + 1}`);
     plot.append('text').attr('class', 'tl-hour-label')
       .attr('x', cx).attr('y', CHART_H + 30).attr('text-anchor', 'middle')
@@ -4461,13 +4511,18 @@ function renderMonthTimeline(opts) {
   };
   const cellFont = decCells ? '9.5px' : (isMobile ? '10px' : '11px');
   const colCx = i => tblNameW + i * tblColW + tblColW / 2;
+  if (curWeek >= 0) {
+    g.append('rect').attr('x', tblNameW + curWeek * tblColW).attr('y', tblTop - 16)
+      .attr('width', tblColW).attr('height', 54 + groups.length * ROW_H)
+      .attr('rx', 6).style('fill', 'var(--surface-low)');
+  }
   g.append('text').attr('class', 'tl-row-total')
    .attr('x', 8).attr('y', tblTop).style('font-weight', 600).style('font-size', cellFont)
    .text(tblNameW < 140 ? (byLabel ? 'Etiqueta' : 'Tarea') + (decCells ? ' (h)' : '') : (byLabel ? 'Total por etiqueta' : 'Total por tarea'));
   weeks.forEach((_, i) => {
     g.append('text').attr('class', 'tl-hour-label')
      .attr('x', colCx(i)).attr('y', tblTop).attr('text-anchor', 'middle')
-     .style('font-weight', 600).text(`S${i + 1}`);
+     .style('font-weight', 600).style('fill', i === curWeek ? 'var(--secondary)' : null).text(`S${i + 1}`);
   });
   g.append('text').attr('class', 'tl-hour-label')
    .attr('x', W - 8).attr('y', tblTop).attr('text-anchor', 'end')
