@@ -79,7 +79,7 @@
 
   /* === Rutinas (ponytail: reutiliza .panel + estilos existentes; sólo añade lo nuevo) === */
   .rutinas-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
-  #stats-day-rutinas[hidden], #stats-week-rutinas-wrap[hidden], #stats-month-rutinas-wrap[hidden] { display: none; } /* ponytail: .rutinas-grid { display:grid } pisa el [hidden] del navegador */
+  #stats-day-rutinas[hidden], #stats-week-weekly[hidden], #stats-week-rutinas-wrap[hidden], #stats-month-rutinas-wrap[hidden] { display: none; } /* ponytail: .rutinas-grid { display:grid } pisa el [hidden] del navegador */
   /* ponytail: panel mensual de recurrentes diarias — nombre | barra del mes | una celda por semana (k/n días hechos) */
   #stats-month-rutinas-wrap .rutina-row-week,
   #stats-month-rutinas-wrap .rutina-week-header { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 320px); }
@@ -1515,6 +1515,7 @@
         <h3>Recurrentes diarias — semana</h3>
         <div id="stats-week-rutinas-list"></div>
       </div>
+      <div class="rutinas-grid" id="stats-week-weekly" style="grid-template-columns:1fr;" hidden></div>
       <div class="panel week-rutinas" id="stats-month-rutinas-wrap" hidden>
         <h3>Recurrentes diarias — mes</h3>
         <div id="stats-month-rutinas-list"></div>
@@ -2083,7 +2084,7 @@ function rawCall(fn, ...args) { return rawCallImpl(fn, args, 0); }
 
 // Lecturas idempotentes: si ya hay una petición idéntica en vuelo se reutiliza
 // su promesa (doble clic, render duplicado, navegación rápida) en vez de repetirla.
-const DEDUPE_ACTIONS = new Set(['bootstrap', 'getDailyRoutineWeekStatus', 'getRoutineStatus', 'adminOverview']);
+const DEDUPE_ACTIONS = new Set(['bootstrap', 'getDailyRoutineWeekStatus', 'getWeeklyRoutineWeekStatus', 'getRoutineStatus', 'adminOverview']);
 const _inflight = new Map();
 function call(fn, ...args) {
   if (!DEDUPE_ACTIONS.has(fn)) return rawCall(fn, ...args);
@@ -2304,6 +2305,7 @@ async function startApp(boot) {
       routineStatus: boot.routineStatus || { today: [], week: [], month: [] },
       routineWeek: [],
       routineWeekCache: new Map(),
+      routineWeeklyCache: new Map(),
       weekOffset: 0,
       adminData: null,
       sinHojas: !!boot.sin_hojas
@@ -2426,7 +2428,7 @@ function bindLogout() {
     clearSession();
     state.tasks = []; state.labels = []; state.entries = []; state.activeTimer = null;
     state.routines = []; state.routineStatus = { today: [], week: [], month: [] };
-    state.routineWeek = []; state.routineWeekCache = new Map(); state.weekOffset = 0;
+    state.routineWeek = []; state.routineWeekCache = new Map(); state.routineWeeklyCache = new Map(); state.weekOffset = 0;
     state.adminData = null;
     showLogin();
   };
@@ -2877,6 +2879,55 @@ async function renderStatsWeekRutinas(weekStart) {
   if (state.statsRutinasToken !== token) return; // el usuario cambió de semana/rango mientras cargaba
   if (!Array.isArray(rows) || rows.length === 0) return note('No hay recurrentes diarias.');
   paintWeekRutinas_(host, rows);
+}
+
+// ponytail: Stats > Week — tarjeta "Recurrentes de la semana" (periodo semanal) de la semana seleccionada, sólo lectura.
+// La semana actual sale del estado local (siempre al día tras marcar); las pasadas se piden al backend y se cachean por offset.
+async function renderStatsWeekWeekly(weekStart) {
+  const host = $('#stats-week-weekly');
+  if (!host) return;
+  if (!weekStart) { host.hidden = true; return; }
+  const curMonday = new Date(); curMonday.setHours(0,0,0,0);
+  curMonday.setDate(curMonday.getDate() - ((curMonday.getDay() + 6) % 7));
+  const offset = Math.round((curMonday - weekStart) / (7 * 86400000));
+  const card = body => `<div class="rutina-card"><div class="rutina-card-head"><h4>Recurrentes de la semana</h4></div>${body}</div>`;
+  host.hidden = false;
+  if (offset < 0) { host.innerHTML = card('<div class="empty-row">Semana futura: sin registros.</div>'); return; }
+  if (offset > 52) { host.innerHTML = card('<div class="empty-row">Sin datos: el historial de recurrentes llega hasta 52 semanas atrás.</div>'); return; }
+  const token = state.statsWeekWeeklyToken = offset + ':' + weekStart.getTime();
+  let list;
+  if (offset === 0) {
+    list = (state.routineStatus.week || []).map(x => ({ name: x.routine.name, completed: !!x.completed }));
+  } else {
+    state.routineWeeklyCache = state.routineWeeklyCache || new Map();
+    let rows = state.routineWeeklyCache.get(offset);
+    if (!rows) {
+      try {
+        rows = (await call('getWeeklyRoutineWeekStatus', offset)) || [];
+        state.routineWeeklyCache.set(offset, rows);
+      } catch (e) {
+        if (state.statsWeekWeeklyToken === token) host.innerHTML = card('<div class="empty-row">No se pudo cargar (¿backend sin redeploy?).</div>');
+        return;
+      }
+    }
+    if (state.statsWeekWeeklyToken !== token) return; // el usuario cambió de semana/rango mientras cargaba
+    list = rows.map(r => ({ name: r.name, completed: !!r.completed }));
+  }
+  if (!list.length) { host.innerHTML = card('<div class="empty-row">No hay recurrentes semanales.</div>'); return; }
+  const done = list.filter(x => x.completed).length;
+  const total = list.length;
+  const pct = Math.round(done * 100 / total);
+  host.innerHTML = card(`
+    <div class="rutina-progress">
+      <span><b>${done}</b> / ${total} ${total === 1 ? 'completada' : 'completadas'}</span>
+      <span class="pct">${pct}%</span>
+    </div>
+    <div class="rutina-progress-bar"><div style="width:${pct}%"></div></div>
+    <ul>${list.map(x => `
+      <li class="${x.completed ? 'done' : ''}" style="cursor:default;">
+        <span class="material-icons" style="font-size:20px; color:${x.completed ? 'var(--secondary)' : 'var(--outline)'};">${x.completed ? 'check_box' : 'check_box_outline_blank'}</span>
+        <span class="rutina-name" title="${escapeHtml(x.name)}">${escapeHtml(x.name)}</span>
+      </li>`).join('')}</ul>`);
 }
 
 // ponytail: Stats > Day — tarjeta "Recurrentes de hoy" (misma del dashboard) para el día seleccionado, a ancho completo.
@@ -3937,6 +3988,7 @@ function renderStats() {
     else renderMonthTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', monthStart: start, groupBy });
   }
   renderStatsWeekRutinas(range === 'week' ? start : null);
+  renderStatsWeekWeekly(range === 'week' ? start : null);
   renderStatsDayRutinas(range === 'day' ? start : null);
   renderStatsMonthRutinas(range === 'month' ? start : null);
 
