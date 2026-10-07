@@ -2811,6 +2811,7 @@ async function renderWeekRutinas() {
   else {
     try {
       rows = await call('getDailyRoutineWeekStatus', 7, 0);
+      if (!Array.isArray(rows)) rows = [];
       state.routineWeekCache.set(0, rows);
       if (state.weekOffset === 0) state.routineWeek = rows;
     }
@@ -3020,9 +3021,10 @@ async function renderStatsMonthRutinas(monthStart) {
   const rowsByWeek = await Promise.all(weeks.map(async w => {
     if (w.offset < 0 || w.offset > 52) return null; // futuro o fuera del historial del backend
     let rows = state.routineWeekCache.get(w.offset);
-    if (!rows) {
+    if (!Array.isArray(rows)) {
       try {
-        rows = (await call('getDailyRoutineWeekStatus', 7, w.offset)) || [];
+        rows = await call('getDailyRoutineWeekStatus', 7, w.offset);
+        if (!Array.isArray(rows)) rows = [];
         state.routineWeekCache.set(w.offset, rows);
       } catch (e) { return undefined; }
     }
@@ -3031,7 +3033,7 @@ async function renderStatsMonthRutinas(monthStart) {
   if (state.statsMonthRutinasToken !== token) return; // el usuario cambió de mes/rango mientras cargaba
   if (rowsByWeek.some(r => r === undefined)) { host.innerHTML = '<div class="week-rutina-empty">No se pudo cargar las recurrentes de este mes.</div>'; return; }
   const routines = new Map();
-  rowsByWeek.forEach(rows => (rows || []).forEach(r => { if (!routines.has(r.id)) routines.set(r.id, r.name); }));
+  rowsByWeek.forEach(rows => (Array.isArray(rows) ? rows : []).forEach(r => { if (!routines.has(r.id)) routines.set(r.id, r.name); }));
   if (!routines.size) { host.innerHTML = '<div class="week-rutina-empty">No hay recurrentes diarias.</div>'; return; }
   const N = weeks.length;
   const labels = `<div class="rutina-month-labels" style="grid-template-columns: repeat(${N}, minmax(0, 1fr));">${weeks.map((w, i) => `<span title="${w.start.getDate()}–${new Date(w.end.getTime() - 86400000).getDate()}">S${i + 1}</span>`).join('')}</div>`;
