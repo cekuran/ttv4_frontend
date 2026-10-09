@@ -2046,8 +2046,26 @@ function readSession() {
 function writeSession(s) { if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s)); else localStorage.removeItem(SESSION_KEY); }
 function clearSession() { setAuthToken(''); writeSession(null); }
 
+// Cold-start de Apps Script: la 1.ª petición puede agotar el timeout del proxy
+// (o devolver 5xx / cortar la conexión) mientras el runtime arranca. Sólo las
+// acciones idempotentes se reintentan solas; las mutaciones (createEntry, etc.)
+// podrían duplicarse, así que antes de enviarlas se "calienta" el backend con ping.
+const RETRY_SAFE_ACTIONS = new Set([
+  'ping', 'authStatus', 'loginUsuario', 'bootstrap', 'bootstrapBase', 'getInitialData',
+  'getTasks', 'getLabels', 'getEntries', 'getActiveTimer', 'getRoutines',
+  'getRoutineStatus', 'getDailyRoutineWeekStatus', 'getWeeklyRoutineWeekStatus',
+  'getMonthlyRoutineMonthStatus', 'listarMisHojas', 'listarUsuariosAdmin',
+  'listarSpreadsheetsAdmin', 'listarVinculacionesAdmin', 'adminOverview'
+]);
+const RETRY_DELAYS_MS = [2000, 5000, 10000];
+const TRANSIENT_STATUS = new Set([502, 503, 504, 520, 521, 522, 523, 524]);
+const WARM_WINDOW_MS = 4 * 60 * 1000; // sin tráfico durante más → el contenedor puede estar frío
+let _lastOkAt = 0;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
 async function rawCallImpl(fn, args, attempt) {
   const body = JSON.stringify({ action: fn, args, token: authToken() });
+  const canRetry = RETRY_SAFE_ACTIONS.has(fn) && attempt < RETRY_DELAYS_MS.length;
   let response;
   try {
     response = await fetch(API_URL, {
@@ -2057,20 +2075,15 @@ async function rawCallImpl(fn, args, attempt) {
       redirect: 'follow'
     });
   } catch (err) {
+    // Error de red / respuesta sin CORS (p. ej. 5xx de Cloudflare): típico de cold-start.
+    if (canRetry) { await sleep(RETRY_DELAYS_MS[attempt]); return rawCallImpl(fn, args, attempt + 1); }
     throw new Error('No se pudo contactar la API (' + API_URL + '): ' + err.message);
   }
   const text = await response.text();
-  // 504/502 del proxy → mensaje accionable (cold-start, deploy, red).
-  if (response.status === 504 || response.status === 502) {
+  // 5xx del proxy/Apps Script → reintento (acciones seguras) o mensaje accionable.
+  if (TRANSIENT_STATUS.has(response.status)) {
+    if (canRetry) { await sleep(RETRY_DELAYS_MS[attempt]); return rawCallImpl(fn, args, attempt + 1); }
     const msg = (text || '').trim() || `HTTP ${response.status}`;
-    // Cold-start de Apps Script: la 1.ª petición agota el timeout del proxy (29s)
-    // mientras el runtime arranca. Esperamos 30s (Apps Script suele estar listo
-    // en 30-60s desde el primer hit) y reintentamos hasta 2 veces antes de fallar.
-    if (response.status === 504 && attempt < 2) {
-      const waitMs = attempt === 0 ? 30000 : 15000; // 30s → 1.er reintento, 15s → 2.º
-      await new Promise(r => setTimeout(r, waitMs));
-      return rawCallImpl(fn, args, attempt + 1);
-    }
     if (/timeout/i.test(msg) || response.status === 504) {
       throw new Error('El backend está arrancando (cold-start). Espera unos segundos y vuelve a intentarlo.');
     }
@@ -2079,8 +2092,10 @@ async function rawCallImpl(fn, args, attempt) {
   let payload;
   try { payload = JSON.parse(text); }
   catch (e) {
+    if (canRetry) { await sleep(RETRY_DELAYS_MS[attempt]); return rawCallImpl(fn, args, attempt + 1); }
     throw new Error('La API devolvió HTML en lugar de JSON (' + (response.url || API_URL) + '). Revisa que API_URL apunte al Web App correcto (/exec) y que el deploy esté publicado como Anyone.');
   }
+  _lastOkAt = Date.now();
   if (payload && payload.ok === false) {
     const err = new Error(payload.error || 'Error desconocido');
     err.serverError = true;
@@ -2092,7 +2107,31 @@ async function rawCallImpl(fn, args, attempt) {
   return payload ? payload.data : null;
 }
 
-function rawCall(fn, ...args) { return rawCallImpl(fn, args, 0); }
+// Calienta el backend (ping idempotente, con reintentos) si lleva rato sin tráfico.
+let _warming = null;
+function ensureWarm() {
+  if (Date.now() - _lastOkAt < WARM_WINDOW_MS) return Promise.resolve();
+  if (!_warming) _warming = rawCallImpl('ping', [], 0).then(() => {}).finally(() => { _warming = null; });
+  return _warming;
+}
+
+async function rawCall(fn, ...args) {
+  if (!RETRY_SAFE_ACTIONS.has(fn)) await ensureWarm();
+  return rawCallImpl(fn, args, 0);
+}
+
+// Keep-alive: mientras la pestaña está visible, un ping ligero cada ~4 min evita
+// que Apps Script enfríe; al volver a la pestaña tras un rato, se calienta de nuevo.
+function startKeepAlive() {
+  setInterval(() => {
+    if (document.visibilityState === 'visible' && Date.now() - _lastOkAt >= WARM_WINDOW_MS - 15000) {
+      ensureWarm().catch(() => {});
+    }
+  }, 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') ensureWarm().catch(() => {});
+  });
+}
 
 // Lecturas idempotentes: si ya hay una petición idéntica en vuelo se reutiliza
 // su promesa (doble clic, render duplicado, navegación rápida) en vez de repetirla.
@@ -2200,7 +2239,7 @@ function populateTimerTaskSelect() {
 }
 
 // ==== Bootstrap ====
-const PING_TIMEOUT_MS = 115000; // cubre hasta 3 intentos de rawCallImpl: 29s + 30s + 29s + 15s + 29s ≈ 132s → margen extra
+const PING_TIMEOUT_MS = 150000; // cubre 4 intentos de rawCallImpl: 4 × ~29s + esperas 2s+5s+10s ≈ 133s
 
 function pingWithTimeout() {
   return new Promise((resolve, reject) => {
@@ -2215,6 +2254,7 @@ function pingWithTimeout() {
 async function init() {
   bindLogin();
   bindSetup();
+  startKeepAlive();
   // boot-screen está visible por defecto. Se quita al final con hideBoot().
   // Tras 10s sin respuesta, avisamos que el backend está arrancando (cold-start).
   const coldStartTimer = setTimeout(() => {
