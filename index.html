@@ -1976,6 +1976,13 @@ const $  = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
 
 const fmtHM = (min) => `${Math.floor(min/60)}h ${String(Math.floor(min%60)).padStart(2,'0')}m`;
+// Escala de color del progreso de recurrentes: 0% rojo → 50% amarillo → 100% verde (interpolación lineal por tramos).
+const progColor = (pct) => {
+  const p = Math.max(0, Math.min(100, Number(pct) || 0)) / 100;
+  const R = [217, 48, 37], Y = [242, 166, 0], G = [0, 138, 92];
+  const [a, b, t] = p < 0.5 ? [R, Y, p / 0.5] : [Y, G, (p - 0.5) / 0.5];
+  return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(',')})`;
+};
 // ponytail: horas decimales ("2.5") para celdas muy estrechas en móvil — 3-4 caracteres como máximo
 const fmtDecH = (min) => min <= 0 ? '—' : String(Math.max(0.1, Math.round(min / 6) / 10));
 const fmtHMS = (ms) => {
@@ -2750,10 +2757,10 @@ function renderRutinasPanel(host) {
         ${total > 0 ? `<button class="rutina-bulk" data-bulk="${bulkAction}" data-period="${period}" data-key="${escapeHtml(list[0] ? list[0].periodKey : '')}" title="${bulkLabel}">${bulkLabel}</button>` : ''}
       </div>
       <div class="rutina-progress">
-        <span><b>${done}</b> / ${total} ${total === 1 ? 'completada' : 'completadas'}</span>
-        <span class="pct">${pct}%</span>
+        <span><b style="color:${progColor(pct)}">${done}</b> / ${total} ${total === 1 ? 'completada' : 'completadas'}</span>
+        <span class="pct" style="color:${progColor(pct)}">${pct}%</span>
       </div>
-      <div class="rutina-progress-bar"><div style="width:${pct}%"></div></div>
+      <div class="rutina-progress-bar"><div style="width:${pct}%;background:${progColor(pct)}"></div></div>
       <ul>${rows}</ul>
     </div>`;
   };
@@ -2852,7 +2859,7 @@ function paintWeekRutinas_(host, rows) {
     }).join('');
     return `<div class="rutina-row-week">
       <span class="rutina-name" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
-      <div class="rutina-task-bar"><div style="width:${pct}%"></div><span class="rutina-task-count">${r.count} / ${total} · ${pct}%</span></div>
+      <div class="rutina-task-bar"><div style="width:${pct}%;background:${progColor(pct)}"></div><span class="rutina-task-count" style="color:${progColor(pct)}">${r.count} / ${total} · ${pct}%</span></div>
       <div class="rutina-week-cells">${cells}</div>
     </div>`;
   }).join('');
@@ -2926,10 +2933,10 @@ async function renderStatsWeekWeekly(weekStart) {
   const pct = Math.round(done * 100 / total);
   host.innerHTML = card(`
     <div class="rutina-progress">
-      <span><b>${done}</b> / ${total} ${total === 1 ? 'completada' : 'completadas'}</span>
-      <span class="pct">${pct}%</span>
+      <span><b style="color:${progColor(pct)}">${done}</b> / ${total} ${total === 1 ? 'completada' : 'completadas'}</span>
+      <span class="pct" style="color:${progColor(pct)}">${pct}%</span>
     </div>
-    <div class="rutina-progress-bar"><div style="width:${pct}%"></div></div>
+    <div class="rutina-progress-bar"><div style="width:${pct}%;background:${progColor(pct)}"></div></div>
     <ul>${list.map(x => `
       <li class="${x.completed ? 'done' : ''}" style="cursor:default;">
         <span class="material-icons" style="font-size:20px; color:${x.completed ? 'var(--secondary)' : 'var(--outline)'};">${x.completed ? 'check_box' : 'check_box_outline_blank'}</span>
@@ -2974,10 +2981,10 @@ async function renderStatsDayRutinas(day) {
   const pct = total ? Math.round(done * 100 / total) : 0;
   host.innerHTML = card(`
     <div class="rutina-progress">
-      <span><b>${done}</b> / ${total} ${total === 1 ? 'completada' : 'completadas'}</span>
-      <span class="pct">${pct}%</span>
+      <span><b style="color:${progColor(pct)}">${done}</b> / ${total} ${total === 1 ? 'completada' : 'completadas'}</span>
+      <span class="pct" style="color:${progColor(pct)}">${pct}%</span>
     </div>
-    <div class="rutina-progress-bar"><div style="width:${pct}%"></div></div>
+    <div class="rutina-progress-bar"><div style="width:${pct}%;background:${progColor(pct)}"></div></div>
     <ul>${list.map(x => `
       <li class="${x.completed ? 'done' : ''}" style="cursor:default;">
         <span class="material-icons" style="font-size:20px; color:${x.completed ? 'var(--secondary)' : 'var(--outline)'};">${x.completed ? 'check_box' : 'check_box_outline_blank'}</span>
@@ -3045,13 +3052,16 @@ async function renderStatsMonthRutinas(monthStart) {
       if (!r) return `<span class="rutina-month-cell" title="Sin datos">—</span>`;
       const done = r.days.filter(d => d.completed && d.date >= w.kStart && d.date < w.kEnd).length;
       doneTot += done; daysTot += w.n;
-      const cls = done === w.n ? 'full' : done > 0 ? 'part' : '';
-      return `<span class="rutina-month-cell ${cls}" title="Semana ${i + 1}: ${done} de ${w.n} días">${done}/${w.n}</span>`;
+      const col = progColor(w.n ? Math.round(done * 100 / w.n) : 0);
+      const sty = done === w.n
+        ? `background:${col};border-color:${col};color:#fff;`
+        : `border-color:${col};color:${col};background:color-mix(in srgb, ${col} 14%, #fff);`;
+      return `<span class="rutina-month-cell" style="${sty}" title="Semana ${i + 1}: ${done} de ${w.n} días">${done}/${w.n}</span>`;
     }).join('');
     const pct = daysTot ? Math.round(doneTot * 100 / daysTot) : 0;
     return `<div class="rutina-row-week">
       <span class="rutina-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
-      <div class="rutina-task-bar"><div style="width:${pct}%"></div><span class="rutina-task-count">${doneTot} / ${daysTot} · ${pct}%</span></div>
+      <div class="rutina-task-bar"><div style="width:${pct}%;background:${progColor(pct)}"></div><span class="rutina-task-count" style="color:${progColor(pct)}">${doneTot} / ${daysTot} · ${pct}%</span></div>
       <div class="rutina-month-cells" style="grid-template-columns: repeat(${N}, minmax(0, 1fr));">${cells}</div>
     </div>`;
   }).join('');
@@ -3102,7 +3112,7 @@ async function renderStatsMonthWeekly(monthStart) {
     const pct = weeksTot ? Math.round(doneTot * 100 / weeksTot) : 0;
     return `<div class="rutina-row-week">
       <span class="rutina-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
-      <div class="rutina-task-bar"><div style="width:${pct}%"></div><span class="rutina-task-count">${doneTot} / ${weeksTot} · ${pct}%</span></div>
+      <div class="rutina-task-bar"><div style="width:${pct}%;background:${progColor(pct)}"></div><span class="rutina-task-count" style="color:${progColor(pct)}">${doneTot} / ${weeksTot} · ${pct}%</span></div>
       <div class="rutina-month-cells" style="grid-template-columns: repeat(${N}, minmax(0, 1fr));">${cells}</div>
     </div>`;
   }).join('');
@@ -3147,10 +3157,10 @@ async function renderStatsMonthMonthly(monthStart) {
   const pct = Math.round(done * 100 / total);
   host.innerHTML = card(`
     <div class="rutina-progress">
-      <span><b>${done}</b> / ${total} ${total === 1 ? 'completada' : 'completadas'}</span>
-      <span class="pct">${pct}%</span>
+      <span><b style="color:${progColor(pct)}">${done}</b> / ${total} ${total === 1 ? 'completada' : 'completadas'}</span>
+      <span class="pct" style="color:${progColor(pct)}">${pct}%</span>
     </div>
-    <div class="rutina-progress-bar"><div style="width:${pct}%"></div></div>
+    <div class="rutina-progress-bar"><div style="width:${pct}%;background:${progColor(pct)}"></div></div>
     <ul>${list.map(x => `
       <li class="${x.completed ? 'done' : ''}" style="cursor:default;">
         <span class="material-icons" style="font-size:20px; color:${x.completed ? 'var(--secondary)' : 'var(--outline)'};">${x.completed ? 'check_box' : 'check_box_outline_blank'}</span>
@@ -3335,7 +3345,7 @@ function renderRoutinesView() {
       // ponytail: barra por tarea (mirroring dashboard) — pct + count en una sola pieza.
       return `<div class="rutina-row rutina-row-week">
         <span class="rutina-name" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
-        <div class="rutina-task-bar"><div style="width:${rPct}%"></div><span class="rutina-task-count">${rDone} / ${N} · ${rPct}%</span></div>
+        <div class="rutina-task-bar"><div style="width:${rPct}%;background:${progColor(rPct)}"></div><span class="rutina-task-count" style="color:${progColor(rPct)}">${rDone} / ${N} · ${rPct}%</span></div>
         <div class="rutina-week-cells" style="--week-days: ${N}; grid-template-columns: repeat(${N}, 1fr);">${cells}</div>
       </div>`;
     }).join('');
@@ -3349,7 +3359,7 @@ function renderRoutinesView() {
     const nextDisabled = isCurrentWeek ? 'disabled' : '';
     return `<div class="rutina-list-card">
       <h3>
-        <span>Días de la semana <span class="badge">${doneCells} / ${totalCells}</span></span>
+        <span>Días de la semana <span class="badge" style="color:${progColor(totalCells ? Math.round(doneCells * 100 / totalCells) : 0)}">${doneCells} / ${totalCells}</span></span>
         ${goTodayBtn}
       </h3>
       <div class="rutina-week-nav">
@@ -3389,10 +3399,10 @@ function renderRoutinesView() {
     const bulkAction = done === total && total > 0 ? 'clear' : done === 0 ? 'all' : 'remaining';
     return `<div class="rutina-list-card">
       <h3>
-        <span>${title} <span class="badge">${done} / ${total}</span></span>
+        <span>${title} <span class="badge" style="color:${progColor(pct)}">${done} / ${total}</span></span>
         ${total > 0 ? `<button class="rutina-bulk" data-bulk="${bulkAction}" data-period="${period}" data-key="${escapeHtml(list[0] ? list[0].periodKey : '')}" style="margin-left:auto;">${bulkLabel}</button>` : ''}
       </h3>
-      <div class="rutina-progress-bar" style="margin-bottom:10px;"><div style="width:${pct}%"></div></div>
+      <div class="rutina-progress-bar" style="margin-bottom:10px;"><div style="width:${pct}%;background:${progColor(pct)}"></div></div>
       ${body}
     </div>`;
   };
