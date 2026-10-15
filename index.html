@@ -1873,6 +1873,7 @@
       <div class="name" id="timer-details-name">—</div>
       <div class="elapsed" id="timer-details-elapsed">00:00:00</div>
       <div class="meta" id="timer-details-label"></div>
+      <div class="meta" id="timer-details-start"></div>
     </div>
     <button class="stop-btn" id="timer-details-stop">Stop</button>
   </div>
@@ -3688,6 +3689,8 @@ function renderActiveWidget() {
       $('#timer-details-name').textContent = name;
       $('#timer-details-label').textContent = labelTxt || 'Sin etiqueta';
       $('#timer-details-elapsed').textContent = hms;
+      const st = state.activeTimer.startTime;
+      $('#timer-details-start').textContent = `Inicio: ${fmtDate(st)} · ${fmtTime(st)}`;
       // ponytail: tintar el card del modal con el color de la etiqueta
       paintModalByLabel(modalEl, lid);
     }
@@ -3714,6 +3717,16 @@ function openEntryDetails(entry) {
   const dateStr = fmtDate(entry.startTime);
   const range   = `${fmtTime(entry.startTime)} – ${fmtTime(entry.endTime)}`;
   $('#entry-details-meta').textContent    = dateStr ? `${dateStr} · ${range}` : range;
+  paintModalByLabel($('#entry-details-modal'), lid);
+  $('#entry-details-modal').hidden = false;
+}
+
+// ponytail: mismo modal que openEntryDetails pero para totales agregados (resumen del mes: grupo × semana)
+function openGroupDetails({ lid, label, name, minutes, meta }) {
+  $('#entry-details-label').textContent   = label;
+  $('#entry-details-name').textContent    = name;
+  $('#entry-details-elapsed').textContent = fmtHM(minutes);
+  $('#entry-details-meta').textContent    = meta;
   paintModalByLabel($('#entry-details-modal'), lid);
   $('#entry-details-modal').hidden = false;
 }
@@ -4620,12 +4633,14 @@ function renderMonthTimeline(opts) {
   const weekTotals = new Array(N).fill(0);
   const groupTotalsMap = new Map();
   const groupWeekMap = new Map();
+  const groupSesMap = new Map();
   events.forEach(ev => {
     ev.gk = keyOf(ev.taskId);
     weekTotals[ev.week] += ev.minutes;
     groupTotalsMap.set(ev.gk, (groupTotalsMap.get(ev.gk) || 0) + ev.minutes);
-    if (!groupWeekMap.has(ev.gk)) groupWeekMap.set(ev.gk, new Array(N).fill(0));
+    if (!groupWeekMap.has(ev.gk)) { groupWeekMap.set(ev.gk, new Array(N).fill(0)); groupSesMap.set(ev.gk, new Array(N).fill(0)); }
     groupWeekMap.get(ev.gk)[ev.week] += ev.minutes;
+    groupSesMap.get(ev.gk)[ev.week]++;
   });
   const monthTotal = weekTotals.reduce((s, v) => s + v, 0);
   const groups = [...groupTotalsMap.entries()].sort((a, b) => b[1] - a[1]);
@@ -4700,6 +4715,19 @@ function renderMonthTimeline(opts) {
         .attr('rx', 2).attr('fill', groupColor(gk)).attr('stroke', '#fff').attr('stroke-width', 1)
         .on('mouseenter', () => applyFocus(gk))
         .on('mouseleave', () => applyFocus(pinned))
+        .on('click', () => {
+          const lid = byLabel ? (gk || null) : taskLabelId(gk);
+          const ses = groupSesMap.get(gk)[i];
+          const lastD = new Date(w.end.getFullYear(), w.end.getMonth(), w.end.getDate() - 1).getDate();
+          const mon = w.start.toLocaleDateString('es-ES', { month: 'short' });
+          openGroupDetails({
+            lid,
+            label: byLabel ? 'Etiqueta' : (lid ? labelName(lid) : 'Tiempo registrado'),
+            name: groupName(gk),
+            minutes: min,
+            meta: `Sem ${i + 1} · ${w.start.getDate()}–${lastD} ${mon} · ${ses} ${ses === 1 ? 'sesión' : 'sesiones'}`
+          });
+        })
         .append('title').text(`${groupName(gk)} · ${fmtHM(min)}`);
     });
     const cx = x(i) + x.bandwidth() / 2;
