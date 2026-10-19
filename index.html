@@ -3928,11 +3928,23 @@ async function renderTasksView() {
   // Filter chips
   const chips = $('#task-filter-chips');
   chips.innerHTML = `<button class="chip-filter ${taskFilter===''?'active':''}" data-lid="">All</button>` +
-    state.labels.map(l => `<button class="chip-filter ${taskFilter===l.id?'active':''}" data-lid="${l.id}"><span class="dot" style="background:${l.color}"></span>${escapeHtml(l.name)}</button>`).join('');
-  $$('#task-filter-chips .chip-filter').forEach(b => b.onclick = () => {
+    state.labels.map(l => `<button class="chip-filter ${taskFilter===l.id?'active':''}" data-lid="${l.id}"><span class="dot" style="background:${l.color}"></span>${escapeHtml(l.name)}</button>`).join('') +
+    (taskFilter && labelById(taskFilter) ? `<button class="chip-filter" id="label-rename-btn" title="Editar nombre de la etiqueta" aria-label="Editar nombre de la etiqueta"><span class="material-icons" style="font-size:16px;">edit</span>Editar etiqueta</button>` : '');
+  $$('#task-filter-chips .chip-filter[data-lid]').forEach(b => b.onclick = () => {
     taskFilter = b.dataset.lid;
     renderTasksView();
   });
+  const renameBtn = $('#label-rename-btn');
+  if (renameBtn) renameBtn.onclick = async () => {
+    const lbl = labelById(taskFilter);
+    if (!lbl) return;
+    const name = (prompt('Nuevo nombre de la etiqueta:', lbl.name) || '').trim();
+    if (!name || name === lbl.name) return;
+    try {
+      state.labels = await call('updateLabel', lbl.id, { name });
+      refreshAll();
+    } catch (e) { toast(e.message, 'warn'); }
+  };
 
   // Tab panel (Active / Completed)
   $$('#task-tabs .task-tab').forEach(b => b.onclick = () => {
