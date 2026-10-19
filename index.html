@@ -3545,25 +3545,74 @@ async function onRoutineCreate(e) {
 }
 
 // ==== Active timer ====
-async function onStart() {
+// Start/stop son optimistas: la UI cambia al instante con la hora del cliente y la
+// llamada al backend se hace en segundo plano. Las llamadas de timer se serializan
+// (cola) para que un stop nunca adelante a su start; si fallan se revierte el estado.
+let _timerQueue = Promise.resolve();
+function enqueueTimerCall_(fn) {
+  const p = _timerQueue.then(fn);
+  _timerQueue = p.catch(() => {});
+  return p;
+}
+function refreshTimerViews_() {
+  renderActiveCard();
+  renderActiveWidget();
+  if ($('#view-dashboard').classList.contains('active')) renderDashboard();
+  if ($('#view-tasks').classList.contains('active'))     renderTasksView();
+  if ($('#view-logs').classList.contains('active'))      renderLogs();
+  if ($('#view-stats').classList.contains('active'))     renderStats();
+}
+function startTimerFor(taskId) {
+  if (state.activeTimer && state.activeTimer.taskId === taskId) return Promise.resolve();
+  const prev = state.activeTimer;
+  const optimistic = { taskId, startTime: new Date().toISOString() };
+  state.activeTimer = optimistic;
+  startTicker();
+  refreshTimerViews_();
+  return enqueueTimerCall_(() => call('startTimer', taskId, optimistic.startTime)).then(res => {
+    // El backend puede haber ajustado la hora (clamp); solo se aplica si el timer sigue siendo este.
+    if (res && res.startTime && state.activeTimer === optimistic) optimistic.startTime = res.startTime;
+  }).catch(err => {
+    if (state.activeTimer === optimistic) {
+      state.activeTimer = prev;
+      if (!prev) { stopTicker(); clearTaskLiveTicks(); }
+      refreshTimerViews_();
+    }
+    toast('No se pudo iniciar el timer: ' + err.message, 'warn');
+  });
+}
+function onStart() {
   const taskId = $('#timer-task').value;
   if (!taskId) { alert('Pick a task'); return; }
-  state.activeTimer = await call('startTimer', taskId);
-  startTicker();
-  // ponytail: re-render del dashboard para que línea del día y paneles de actividad reflejen el nuevo timer
-  if ($('#view-dashboard').classList.contains('active')) renderDashboard();
+  return startTimerFor(taskId);
 }
-async function onStop() {
-  // stopTimer devuelve solo la entrada creada (o null): se añade al estado local.
-  const entry = await call('stopTimer');
+function onStop() {
+  const t = state.activeTimer;
+  if (!t) return Promise.resolve();
+  const endTime = new Date().toISOString();
+  const ms = new Date(endTime) - new Date(t.startTime);
+  const tmpId = 'tmp-' + Date.now();
+  const tmpEntry = {
+    id: tmpId, taskId: t.taskId, startTime: t.startTime, endTime,
+    durationMinutes: Math.max(1, Math.round(ms / 60000)), source: 'timer', notes: '', createdAt: endTime
+  };
   state.activeTimer = null;
+  state.entries = [...state.entries, tmpEntry];
   stopTicker();
   clearTaskLiveTicks();
-  if (entry) state.entries = [...state.entries, entry];
-  if ($('#view-dashboard').classList.contains('active')) renderDashboard();
-  if ($('#view-tasks').classList.contains('active'))    renderTasksView();
-  if ($('#view-logs').classList.contains('active'))    renderLogs();
-  if ($('#view-stats').classList.contains('active'))     renderStats();
+  refreshTimerViews_();
+  return enqueueTimerCall_(() => call('stopTimer', endTime)).then(entry => {
+    // Sustituye la entrada provisional por la real (con id del servidor).
+    state.entries = entry
+      ? state.entries.map(e => e.id === tmpId ? entry : e)
+      : state.entries.filter(e => e.id !== tmpId);
+    refreshTimerViews_();
+  }).catch(err => {
+    state.entries = state.entries.filter(e => e.id !== tmpId);
+    if (!state.activeTimer) { state.activeTimer = t; startTicker(); }
+    refreshTimerViews_();
+    toast('No se pudo detener el timer: ' + err.message, 'warn');
+  });
 }
 function startTicker() {
   if (state.tickInterval) return;
@@ -4024,8 +4073,7 @@ async function renderTasksView() {
   // event handlers
   $$('#task-table-wrap .play-btn').forEach(b => b.onclick = async () => {
     if (b.classList.contains('stop')) { await onStop(); return; }
-    state.activeTimer = await call('startTimer', b.dataset.id);
-    startTicker();
+    startTimerFor(b.dataset.id);
     showView('dashboard');
   });
   $$('#task-table-wrap .del').forEach(b => b.onclick = async () => {
