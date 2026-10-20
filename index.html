@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Time Tracker</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23102b8a'/><circle cx='30' cy='32' r='19' fill='white'/><rect x='29' y='14.5' width='2' height='4' rx='1' fill='%23102b8a'/><rect x='29' y='45.5' width='2' height='4' rx='1' fill='%23102b8a'/><rect x='12.5' y='31' width='4' height='2' rx='1' fill='%23102b8a'/><rect x='43.5' y='31' width='4' height='2' rx='1' fill='%23102b8a'/><line x1='30' y1='32' x2='22' y2='24' stroke='%23102b8a' stroke-width='2.5' stroke-linecap='round'/><line x1='30' y1='32' x2='38' y2='26' stroke='%23102b8a' stroke-width='2.5' stroke-linecap='round'/><circle cx='30' cy='32' r='1.8' fill='%23102b8a'/><circle cx='48' cy='16' r='10' fill='white'/><circle cx='48' cy='16' r='8' fill='%23102b8a'/><path d='M44 16 L47 19 L52 13' stroke='white' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="icon" id="favicon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23102b8a'/><circle cx='30' cy='32' r='19' fill='white'/><rect x='29' y='14.5' width='2' height='4' rx='1' fill='%23102b8a'/><rect x='29' y='45.5' width='2' height='4' rx='1' fill='%23102b8a'/><rect x='12.5' y='31' width='4' height='2' rx='1' fill='%23102b8a'/><rect x='43.5' y='31' width='4' height='2' rx='1' fill='%23102b8a'/><line x1='30' y1='32' x2='22' y2='24' stroke='%23102b8a' stroke-width='2.5' stroke-linecap='round'/><line x1='30' y1='32' x2='38' y2='26' stroke='%23102b8a' stroke-width='2.5' stroke-linecap='round'/><circle cx='30' cy='32' r='1.8' fill='%23102b8a'/><circle cx='48' cy='16' r='10' fill='white'/><circle cx='48' cy='16' r='8' fill='%23102b8a'/><path d='M44 16 L47 19 L52 13' stroke='white' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Hanken+Grotesk:wght@600;700&display=swap" rel="stylesheet">
@@ -875,6 +875,9 @@
   .active-card .info .elapsed { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 14px; color: var(--on-primary-cnt); margin-top: 4px; font-weight: 500; }
   .active-card .stop-btn { background: var(--on-primary); color: var(--primary); border: 0; padding: 8px 18px; border-radius: var(--r-md); font-weight: 600; cursor: pointer; }
   .active-card .stop-btn:hover { background: var(--surface-container); }
+  /* ponytail: cuando el card toma el color de la etiqueta, el contador va en blanco */
+  .label-tinted .info .elapsed { color: var(--on-primary); opacity: 0.92; }
+  .mobile-top-timer.label-tinted .elapsed { opacity: 1; }
 
   .quickstart-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
   .quickstart-form select { flex: 1; min-width: 200px; }
@@ -3709,9 +3712,29 @@ function renderActiveCard() {
     $('#active-task-name').textContent = taskName(state.activeTimer.taskId);
     const ms = Date.now() - new Date(state.activeTimer.startTime).getTime();
     $('#active-elapsed').textContent = fmtHMS(ms);
+    tintByLabel(card, taskLabelId(state.activeTimer.taskId));
   } else {
     card.hidden = true;
   }
+}
+
+// ponytail: pinta card/widget con el color de la etiqueta activa; sin etiqueta → gradiente default
+function tintByLabel(el, lid) {
+  if (!el) return;
+  const color = lid ? labelColor(lid) : '';
+  el.style.background = color;
+  el.classList.toggle('label-tinted', !!color);
+  const stop = el.querySelector('.stop-btn');
+  if (stop && el.id === 'active-card') stop.style.color = color;
+}
+
+// ponytail: el favicon (lo que se ve en la pestaña junto al contador del título) toma el color de la etiqueta activa
+let FAVICON_BASE = null;
+function setFaviconColor(color) {
+  const link = document.getElementById('favicon');
+  if (!link) return;
+  if (FAVICON_BASE === null) FAVICON_BASE = link.getAttribute('href');
+  link.setAttribute('href', color ? FAVICON_BASE.split('%23102b8a').join(encodeURIComponent(color)) : FAVICON_BASE);
 }
 
 // ponytail: mirrors active-card into the sidebar widget, mobile banner, and timer-details modal
@@ -3725,6 +3748,9 @@ function renderActiveWidget() {
     const labelTxt = lid ? labelName(lid) : '';
     const ms = Date.now() - new Date(state.activeTimer.startTime).getTime();
     const hms = fmtHMS(ms);
+    tintByLabel(sidebarEl, lid);
+    tintByLabel(mobileEl, lid);
+    setFaviconColor(lid ? labelColor(lid) : '');
     if (sidebarEl) {
       sidebarEl.hidden = false;
       $('#sidebar-timer-name').textContent = name;
@@ -3744,6 +3770,7 @@ function renderActiveWidget() {
       paintModalByLabel(modalEl, lid);
     }
   } else {
+    setFaviconColor('');
     if (sidebarEl) sidebarEl.hidden = true;
     if (mobileEl) mobileEl.hidden = true;
     if (modalEl && !modalEl.hidden) modalEl.hidden = true;
