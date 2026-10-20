@@ -3586,6 +3586,7 @@ function onStart() {
   if (!taskId) { alert('Pick a task'); return; }
   return startTimerFor(taskId);
 }
+const USER_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { return ''; } })();
 function onStop() {
   const t = state.activeTimer;
   if (!t) return Promise.resolve();
@@ -3601,11 +3602,10 @@ function onStop() {
   stopTicker();
   clearTaskLiveTicks();
   refreshTimerViews_();
-  return enqueueTimerCall_(() => call('stopTimer', endTime)).then(entry => {
-    // Sustituye la entrada provisional por la real (con id del servidor).
-    state.entries = entry
-      ? state.entries.map(e => e.id === tmpId ? entry : e)
-      : state.entries.filter(e => e.id !== tmpId);
+  return enqueueTimerCall_(() => call('stopTimer', endTime, USER_TZ)).then(created => {
+    // Sustituye la entrada provisional por las reales (con id del servidor; varias si cruza medianoche).
+    const real = created ? [].concat(created) : [];
+    state.entries = [...state.entries.filter(e => e.id !== tmpId), ...real];
     refreshTimerViews_();
   }).catch(err => {
     state.entries = state.entries.filter(e => e.id !== tmpId);
@@ -3946,12 +3946,12 @@ async function onManualSubmit(e) {
   if (isNaN(startD) || isNaN(endD)) { alert('Invalid start/end time'); return; }
   if (endD <= startD) { alert('End must be after start'); return; }
   try {
-    const entry = await call('createEntry', { taskId, startTime: startD.toISOString(), endTime: endD.toISOString(), source: 'manual', notes });
+    const created = await call('createEntry', { taskId, startTime: startD.toISOString(), endTime: endD.toISOString(), source: 'manual', notes, tz: USER_TZ });
     // conserva label/tarea elegidos; renderLogs repone las fechas por defecto
     $('#manual-start').value = '';
     $('#manual-end').value = '';
     $('#manual-notes').value = '';
-    state.entries = [...state.entries, entry];
+    state.entries = [...state.entries, ...[].concat(created)];
     renderLogs();
   } catch (err) { alert(err.message); }
 }
