@@ -882,6 +882,42 @@
   .quickstart-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
   .quickstart-form select { flex: 1; min-width: 200px; }
   .quickstart-form button { width: auto; }
+  .label-picker { position: relative; }
+  .quickstart-form .label-picker-btn {
+    display: inline-flex; align-items: center; gap: 8px; min-width: 170px; max-width: 240px; height: 40px;
+    padding: 6px 10px 6px 12px; background: #fff; color: var(--on-surface);
+    border: 1px solid var(--outline-variant); font-weight: 500;
+  }
+  .quickstart-form .label-picker-btn:hover, .quickstart-form .label-picker-btn[aria-expanded="true"] { background: var(--surface-low); border-color: var(--primary); }
+  .quickstart-form .label-picker-btn:focus-visible { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.12); }
+  .label-picker-btn .material-icons { font-size: 20px; line-height: 1; flex-shrink: 0; color: var(--on-surface-variant); }
+  .label-picker-btn .lp-name { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .label-picker-btn .lp-caret { font-size: 18px; color: var(--outline); transition: transform .15s; }
+  .label-picker-btn[aria-expanded="true"] .lp-caret { transform: rotate(180deg); }
+  .label-picker-menu {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 100%; width: max-content; max-width: 300px;
+    max-height: 280px; overflow-y: auto; padding: 6px; background: #fff;
+    border: 1px solid var(--outline-variant); border-radius: var(--r-md); box-shadow: var(--shadow-2);
+  }
+  .label-picker-menu[hidden] { display: none; }
+  .label-picker-menu .lp-opt {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 8px;
+    background: transparent; color: var(--on-surface); border: 0; font-size: 14px; font-weight: 500; text-align: left;
+  }
+  .label-picker-menu .lp-opt:hover { background: var(--surface-low); color: var(--primary); }
+  .label-picker-menu .lp-opt.selected { background: rgba(var(--primary-rgb),0.08); color: var(--primary); font-weight: 600; }
+  .label-picker-menu .lp-opt .material-icons { font-size: 18px; color: var(--on-surface-variant); }
+  .label-picker-menu .lp-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin: 0 4px; }
+  .quickstart-form .play-btn {
+    width: 44px; height: 44px; padding: 0; border-radius: 50%; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--secondary); color: var(--on-secondary); box-shadow: var(--shadow-1);
+    transition: transform .12s, box-shadow .15s, background .15s;
+  }
+  .quickstart-form .play-btn:hover { background: #00855f; box-shadow: var(--shadow-2); transform: scale(1.06); }
+  .quickstart-form .play-btn:active { transform: scale(0.96); }
+  .quickstart-form .play-btn:focus-visible { outline: 2px solid var(--secondary); outline-offset: 2px; }
+  .play-btn .material-icons { font-size: 28px; line-height: 1; }
 
   .activity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
   .activity-panel { background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); padding: 18px 20px; box-shadow: var(--shadow-1); min-width: 0; } /* ponytail: min-width:0 evita que el grid fuerce la columna al ancho de la palabra más larga sin espacios */
@@ -1060,6 +1096,9 @@
     .filters input[type="date"] { max-width: 100%; }
     .quickstart-form { flex-direction: column; align-items: stretch; }
     .quickstart-form select, .quickstart-form button { width: 100%; }
+    .quickstart-form .label-picker, .quickstart-form .label-picker-btn { width: 100%; max-width: none; }
+    .label-picker-menu { max-width: none; width: 100%; }
+    .quickstart-form .play-btn { width: 100%; height: 44px; border-radius: var(--r-md); }
     form#task-form, form#manual-form { flex-direction: column; align-items: stretch; }
     form#task-form input, form#task-form select, form#task-form button,
     form#manual-form input, form#manual-form select, form#manual-form button { width: 100%; }
@@ -1402,9 +1441,17 @@
       <div class="panel">
         <h3>Start a session</h3>
         <div class="quickstart-form">
-          <select id="timer-label-filter" style="min-width:160px;"></select>
+          <div class="label-picker" id="timer-label-picker">
+            <button type="button" class="label-picker-btn" id="timer-label-btn" aria-haspopup="listbox" aria-expanded="false" title="Filtrar por etiqueta">
+              <span class="material-icons" id="timer-label-icon">label</span>
+              <span class="lp-name" id="timer-label-name">All labels</span>
+              <span class="material-icons lp-caret">expand_more</span>
+            </button>
+            <div class="label-picker-menu" id="timer-label-menu" role="listbox" hidden></div>
+          </div>
+          <select id="timer-label-filter" hidden></select>
           <select id="timer-task" style="min-width:240px; flex:1;"></select>
-          <button id="start-btn">Start</button>
+          <button type="button" id="start-btn" class="play-btn" title="Start" aria-label="Start"><span class="material-icons">play_arrow</span></button>
         </div>
       </div>
 
@@ -2240,6 +2287,25 @@ function populateTimerTaskSelect() {
     });
     if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
   }
+  renderTimerLabelPicker();
+}
+
+// Picker de etiqueta del launcher: espeja el <select id="timer-label-filter"> oculto.
+function renderTimerLabelPicker() {
+  const sel = $('#timer-label-filter'), menu = $('#timer-label-menu');
+  if (!sel || !menu) return;
+  const cur = sel.value;
+  const l = cur ? labelById(cur) : null;
+  $('#timer-label-name').textContent = l ? l.name : 'All labels';
+  $('#timer-label-icon').style.color = l ? l.color : '';
+  const opt = (id, name, color) => `<button type="button" class="lp-opt${id === cur ? ' selected' : ''}" role="option" aria-selected="${id === cur}" data-lid="${id}">` +
+    (color ? `<span class="lp-dot" style="background:${color}"></span>` : '<span class="material-icons">label_outline</span>') +
+    `<span>${escapeHtml(name)}</span></button>`;
+  menu.innerHTML = opt('', 'All labels', '') + state.labels.map(x => opt(x.id, x.name, x.color)).join('');
+}
+function setTimerLabelMenu(open) {
+  $('#timer-label-menu').hidden = !open;
+  $('#timer-label-btn').setAttribute('aria-expanded', String(open));
 }
 
 // ==== Bootstrap ====
@@ -2727,6 +2793,17 @@ function bindGlobal() {
   const statsTlWrap = $('#stats-day-timeline-wrap');
   if (statsTlWrap) state.dayTimelineResizeObs.observe(statsTlWrap);
   $('#timer-label-filter').addEventListener('change', populateTimerTaskSelect);
+  $('#timer-label-btn').addEventListener('click', (e) => { e.stopPropagation(); setTimerLabelMenu($('#timer-label-menu').hidden); });
+  $('#timer-label-menu').addEventListener('click', (e) => {
+    const b = e.target.closest('.lp-opt');
+    if (!b) return;
+    $('#timer-label-filter').value = b.dataset.lid;
+    setTimerLabelMenu(false);
+    populateTimerTaskSelect();
+    $('#timer-label-btn').focus();
+  });
+  document.addEventListener('click', (e) => { if (!e.target.closest('#timer-label-picker')) setTimerLabelMenu(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setTimerLabelMenu(false); });
   $('#manual-label').addEventListener('change', populateManualTaskSelect);
 }
 
