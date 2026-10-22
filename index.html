@@ -1520,11 +1520,12 @@
       <div class="filters">
         <label>From <input type="date" id="log-from"></label>
         <label>To <input type="date" id="log-to"></label>
-        <label>Task <select id="log-task"></select></label>
-        <label>Label <select id="log-label"></select></label>
         <label><button type="button" class="icon-btn group-toggle" data-group-input="log-group" aria-pressed="false" title="Agrupado por tarea" aria-label="Agrupado por tarea"><svg viewBox="0 0 26 24" aria-hidden="true"><path fill="currentColor" d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M15.5 2.5l9 9a2 2 0 0 1 0 2.8L18 20.8"/></svg></button><input type="hidden" id="log-group" value="task"></label>
+        <button type="button" class="secondary" id="log-fold-all" title="Contraer todo" aria-label="Contraer todo"><span class="material-icons" style="font-size:18px; vertical-align:middle;">unfold_less</span> <span id="log-fold-all-txt">Contraer todo</span></button>
         <button class="secondary" id="log-clear">Clear filters</button>
       </div>
+      <div class="chip-row" id="log-filter-chips"></div>
+      <div class="filters"><label>Task <select id="log-task"></select></label></div>
 
       <div id="log-summary"></div>
     </section>
@@ -2765,10 +2766,15 @@ function bindGlobal() {
     input.value = on ? 'label' : 'task';
     input.dispatchEvent(new Event('change'));
   }));
-  ['log-from','log-to','log-task','log-label','log-group'].forEach(id => $('#'+id).addEventListener('change', renderLogs));
+  ['log-from','log-to','log-task','log-group'].forEach(id => $('#'+id).addEventListener('change', renderLogs));
   $('#log-clear').addEventListener('click', () => {
-    ['log-from','log-to','log-task','log-label'].forEach(id => $('#'+id).value = '');
+    ['log-from','log-to','log-task'].forEach(id => $('#'+id).value = '');
+    logLabelFilter.clear();
     renderLogs();
+  });
+  $('#log-fold-all').addEventListener('click', () => {
+    logsCollapsedAll = !logsCollapsedAll;
+    applyLogsFold();
   });
   ['stats-range','stats-group','stats-anchor','stats-from','stats-to'].forEach(id => $('#'+id).addEventListener('change', renderStats));
   // ponytail: flechas del anchor — desplazan un día / semana / mes según el rango
@@ -3994,9 +4000,40 @@ function paintModalByLabel(modalEl, lid) {
 }
 
 // ==== Logs ====
+let logLabelFilter = new Set();
+let logsCollapsedAll = false;
+
+function applyLogsFold() {
+  $$('#log-summary .grp-row').forEach(r => r.classList.toggle('collapsed', logsCollapsedAll));
+  $$('#log-summary .grp-hdr .fold-btn').forEach(b => b.textContent = logsCollapsedAll ? '▸' : '▾');
+  const txt = logsCollapsedAll ? 'Expandir todo' : 'Contraer todo';
+  const btn = $('#log-fold-all');
+  btn.title = txt;
+  btn.setAttribute('aria-label', txt);
+  $('#log-fold-all-txt').textContent = txt;
+  btn.querySelector('.material-icons').textContent = logsCollapsedAll ? 'unfold_more' : 'unfold_less';
+}
+
 function renderLogs() {
   populateTaskSelect($('#log-task'), 'All tasks');
-  populateLabelSelect($('#log-label'), 'All labels');
+  [...logLabelFilter].forEach(id => { if (!labelById(id)) logLabelFilter.delete(id); });
+  // La lista de tareas sólo incluye las de las etiquetas seleccionadas
+  const taskSel = $('#log-task');
+  if (logLabelFilter.size) {
+    const allowed = new Set(state.tasks.filter(t => logLabelFilter.has(t.labelId)).map(t => t.id));
+    [...taskSel.options].forEach(o => { if (o.value && !allowed.has(o.value)) o.remove(); });
+  }
+  const chips = $('#log-filter-chips');
+  chips.innerHTML = `<button class="chip-filter ${logLabelFilter.size===0?'active':''}" data-lid="">All</button>` +
+    state.labels.map(l => `<button class="chip-filter ${logLabelFilter.has(l.id)?'active':''}" data-lid="${l.id}"><span class="dot" style="background:${l.color}"></span>${escapeHtml(l.name)}</button>`).join('');
+  $$('#log-filter-chips .chip-filter').forEach(b => b.onclick = () => {
+    const lid = b.dataset.lid;
+    if (!lid) logLabelFilter.clear();
+    else if (logLabelFilter.has(lid)) logLabelFilter.delete(lid);
+    else logLabelFilter.add(lid);
+    renderLogs();
+  });
+  $('#log-fold-all').hidden = !$('#log-group').value;
   // defaults: last 30 days (local dates so they line up with entry timestamps)
   if (!$('#log-from').value) $('#log-from').value = localDay(Date.now() - 30*86400000);
   if (!$('#log-to').value)   $('#log-to').value   = localDay(Date.now());
@@ -4011,7 +4048,7 @@ function renderLogs() {
   const from = $('#log-from').value;
   const to   = $('#log-to').value;
   const taskFilter  = $('#log-task').value;
-  const labelFilter = $('#log-label').value;
+  const labelFilter = logLabelFilter;
 
   // Build both bounds in LOCAL time so they match the entry instants we compare against.
   const fromStart = from ? parseLocalInput(from + 'T00:00') : null;
@@ -4024,7 +4061,7 @@ function renderLogs() {
       if (fromStart && d < fromStart) return false;
       if (toEnd && d > toEnd) return false;
       if (taskFilter && e.taskId !== taskFilter) return false;
-      if (labelFilter && taskLabelId(e.taskId) !== labelFilter) return false;
+      if (labelFilter.size && !labelFilter.has(taskLabelId(e.taskId))) return false;
       return true;
     })
     .sort((a,b) => new Date(b.startTime) - new Date(a.startTime));
@@ -4056,7 +4093,7 @@ function renderLogs() {
     if (fromStart && d < fromStart) return false;
     if (toEnd && d > toEnd) return false;
     if (taskFilter && liveTimer.taskId !== taskFilter) return false;
-    if (labelFilter && taskLabelId(liveTimer.taskId) !== labelFilter) return false;
+    if (labelFilter.size && !labelFilter.has(taskLabelId(liveTimer.taskId))) return false;
     return true;
   })();
   const liveRowHtml = liveVisible ? buildLiveRow(liveTimer) : '';
@@ -4124,6 +4161,7 @@ function renderLogs() {
 
   html += '</tbody></table>';
   $('#log-summary').innerHTML = html;
+  applyLogsFold();
   const liveStop = $('#log-live-stop');
   if (liveStop) liveStop.onclick = onStop;
   $$('#log-summary .del').forEach(b => b.onclick = async () => {
@@ -4138,6 +4176,13 @@ function renderLogs() {
     const collapsed = btn.textContent === '▸';
     $$(`#log-summary .grp-row[data-gid="${gid}"]`).forEach(r => r.classList.toggle('collapsed', !collapsed));
     btn.textContent = collapsed ? '▾' : '▸';
+    const hdrs = $$('#log-summary .grp-hdr .fold-btn');
+    logsCollapsedAll = hdrs.length > 0 && hdrs.every(b => b.textContent === '▸');
+    const txt = logsCollapsedAll ? 'Expandir todo' : 'Contraer todo';
+    $('#log-fold-all-txt').textContent = txt;
+    $('#log-fold-all').title = txt;
+    $('#log-fold-all').setAttribute('aria-label', txt);
+    $('#log-fold-all .material-icons').textContent = logsCollapsedAll ? 'unfold_more' : 'unfold_less';
   });
 }
 
