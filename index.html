@@ -2008,6 +2008,8 @@ const state = {
   // El grid SIEMPRE pinta 7 días (una semana); sólo cambia la ventana que pedimos al backend.
   // routineWeekCache guarda semanas ya visitadas para no refetch al revisitarlas.
   routineWeek: [], routineWeekCache: new Map(), weekOffset: 0,
+  // offsets de las tarjetas semanal/mensual de Recurrentes (0 = periodo actual); cachés compartidas con Stats.
+  routineWeeklyCache: new Map(), routineMonthlyCache: new Map(), weeklyOffset: 0, monthlyOffset: 0,
   adminData: null,              // cache de adminOverview (users/sheets/links); null = pedir al backend
   activeTimer: null,
   tickInterval: null, chart: null,
@@ -2425,7 +2427,7 @@ async function startApp(boot) {
       routineWeekCache: new Map(),
       routineWeeklyCache: new Map(),
       routineMonthlyCache: new Map(),
-      weekOffset: 0,
+      weekOffset: 0, weeklyOffset: 0, monthlyOffset: 0,
       adminData: null,
       sinHojas: !!boot.sin_hojas
     });
@@ -2548,6 +2550,7 @@ function bindLogout() {
     state.tasks = []; state.labels = []; state.entries = []; state.activeTimer = null;
     state.routines = []; state.routineStatus = { today: [], week: [], month: [] };
     state.routineWeek = []; state.routineWeekCache = new Map(); state.routineWeeklyCache = new Map(); state.routineMonthlyCache = new Map(); state.weekOffset = 0;
+    state.weeklyOffset = 0; state.monthlyOffset = 0;
     state.adminData = null;
     showLogin();
   };
@@ -3324,6 +3327,59 @@ async function navigateRoutineWeek(delta) {
   if ($('#view-routines').classList.contains('active')) renderRoutinesView();
 }
 
+// ponytail: periodos semanal/mensual navegables en Recurrentes. Offset 0 sale de routineStatus (siempre al día);
+// offsets >0 se piden a getWeeklyRoutineWeekStatus / getMonthlyRoutineMonthStatus y se cachean por offset.
+const PERIOD_NAV = {
+  weekly:  { stateKey: 'weeklyOffset',  cache: 'routineWeeklyCache',  max: 52, action: 'getWeeklyRoutineWeekStatus',   unit: 'Semana' },
+  monthly: { stateKey: 'monthlyOffset', cache: 'routineMonthlyCache', max: 36, action: 'getMonthlyRoutineMonthStatus', unit: 'Mes' }
+};
+function routineKeyForOffset_(period, offset) {
+  const p = n => String(n).padStart(2, '0');
+  if (period === 'monthly') {
+    const now = new Date();
+    const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}`;
+  }
+  // semana ISO (YYYY-Www) calculada desde el jueves de la semana, igual que periodKeyLocal_ del backend
+  const thu = getViewWeekMonday(offset); thu.setDate(thu.getDate() + 3);
+  const jan4 = new Date(thu.getFullYear(), 0, 4);
+  const monW1 = new Date(jan4); monW1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+  return `${thu.getFullYear()}-W${p(1 + Math.round((thu - monW1) / (7 * 86400000)))}`;
+}
+// Items {routine:{id,name}, periodKey, completed} del periodo visto; null si aún no está cacheado.
+function routinePeriodItems_(period, offset) {
+  if (offset === 0) return state.routineStatus[STATUS_KEY_FOR_PERIOD[period]] || [];
+  const rows = state[PERIOD_NAV[period].cache].get(offset);
+  if (!rows) return null;
+  const key = routineKeyForOffset_(period, offset);
+  return rows.map(r => ({ routine: { id: r.id, name: r.name }, periodKey: key, completed: !!r.completed }));
+}
+function findPeriodItem_(rid, period, periodKey) {
+  const cur = (state.routineStatus[STATUS_KEY_FOR_PERIOD[period]] || []).find(x => String(x.routine.id) === String(rid) && x.periodKey === periodKey);
+  if (cur) return cur;
+  for (const [off, rows] of state[PERIOD_NAV[period].cache]) {
+    if (routineKeyForOffset_(period, off) !== periodKey) continue;
+    const row = rows.find(x => String(x.id) === String(rid));
+    if (row) return row;
+  }
+  return null;
+}
+async function navigateRoutinePeriod(period, delta) {
+  const nav = PERIOD_NAV[period];
+  const next = state[nav.stateKey] + delta;
+  if (next < 0 || next > nav.max) return;
+  if (next > 0 && !state[nav.cache].has(next)) {
+    try {
+      state[nav.cache].set(next, (await call(nav.action, next)) || []);
+    } catch (e) {
+      toast('No se pudo cargar el periodo', 'warn');
+      return;
+    }
+  }
+  state[nav.stateKey] = next;
+  if ($('#view-routines').classList.contains('active')) renderRoutinesView();
+}
+
 // ponytail: helpers de actualización optimista local — evita el refetch completo tras toggle.
 // El backend ya devuelve el nuevo estado, pero para daily el refetch de la semana entera
 // era el segundo round-trip que ralentizaba todo. Con esto, marcamos el toggle al instante
@@ -3344,9 +3400,8 @@ function setRoutineCompletedLocal_(rid, period, periodKey, completed) {
     const today = (state.routineStatus.today || []).find(x => String(x.routine.id) === String(rid));
     if (today && today.periodKey === periodKey) today.completed = completed;
   } else {
-    // weekly / monthly: state.routineStatus[week|month] tiene un bool por (rutina, periodo)
-    const key = STATUS_KEY_FOR_PERIOD[period];
-    const item = (state.routineStatus[key] || []).find(x => String(x.routine.id) === String(rid));
+    // weekly / monthly: periodo actual en routineStatus; periodos pasados en la caché por offset
+    const item = findPeriodItem_(rid, period, periodKey);
     if (item) item.completed = completed;
   }
 }
@@ -3358,15 +3413,15 @@ function flipRoutineLocal_(rid, period, periodKey) {
     const idx = wk ? wk.days.findIndex(d => d.date === periodKey) : -1;
     prev = idx >= 0 ? wk.days[idx].completed : false;
   } else {
-    const item = (state.routineStatus[STATUS_KEY_FOR_PERIOD[period]] || []).find(x => String(x.routine.id) === String(rid));
-    prev = item ? item.completed : false;
+    const item = findPeriodItem_(rid, period, periodKey);
+    prev = item ? !!item.completed : false;
   }
   setRoutineCompletedLocal_(rid, period, periodKey, !prev);
 }
 
-async function bulkToggle(period, action) {
+async function bulkToggle(period, action, offset = 0) {
   // ponytail: bulk sin iteración cliente→servidor→cliente para cada item.
-  const list = (state.routineStatus[STATUS_KEY_FOR_PERIOD[period]] || []).filter(x => action === 'all' ? !x.completed : action === 'clear' ? x.completed : !x.completed);
+  const list = (routinePeriodItems_(period, offset) || []).filter(x => action === 'all' ? !x.completed : action === 'clear' ? x.completed : !x.completed);
   if (!list.length) return;
   // 1. Update local state IMMEDIATELY (optimistic)
   const targetCompleted = action === 'clear' ? false : true;
@@ -3498,7 +3553,9 @@ function renderRoutinesView() {
 
   const buildChecklistCard = (period, title) => {
     if (period === 'daily') return buildDailyWeekCard(); // ponytail: daily es grid semanal, no single-checkbox
-    const list = state.routineStatus[STATUS_KEY_FOR_PERIOD[period]] || [];
+    const nav = PERIOD_NAV[period];
+    const offset = state[nav.stateKey];
+    const list = routinePeriodItems_(period, offset) || [];
     const total = list.length;
     const done = list.filter(x => x.completed).length;
     const pct = total ? Math.round(done * 100 / total) : 0;
@@ -3514,11 +3571,33 @@ function renderRoutinesView() {
           </div>`).join('');
     const bulkLabel = (done === 0 || done === total) ? (done === total && total > 0 ? 'Desmarcar todas' : 'Marcar todas') : 'Marcar restantes';
     const bulkAction = done === total && total > 0 ? 'clear' : done === 0 ? 'all' : 'remaining';
+    // ponytail: mismo patrón de navegación que "Días de la semana"; "next" se deshabilita en el periodo actual.
+    let rangeText;
+    if (period === 'weekly') {
+      const monday = getViewWeekMonday(offset);
+      const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+      rangeText = fmtWeekRange(monday, sunday);
+    } else {
+      const now = new Date();
+      const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      rangeText = `${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+    }
+    const goCurrentBtn = offset === 0 ? '' : `<button type="button" class="rutina-go-today" data-period-today="${period}">${period === 'weekly' ? 'Ir a esta semana' : 'Ir a este mes'}</button>`;
     return `<div class="rutina-list-card">
       <h3>
         <span>${title} <span class="badge" style="color:${progColor(pct)}">${done} / ${total}</span></span>
-        ${total > 0 ? `<button class="rutina-bulk" data-bulk="${bulkAction}" data-period="${period}" data-key="${escapeHtml(list[0] ? list[0].periodKey : '')}" style="margin-left:auto;">${bulkLabel}</button>` : ''}
+        ${goCurrentBtn}
+        ${total > 0 ? `<button class="rutina-bulk" data-bulk="${bulkAction}" data-period="${period}" data-key="${escapeHtml(list[0] ? list[0].periodKey : '')}" style="${offset === 0 ? 'margin-left:auto;' : ''}">${bulkLabel}</button>` : ''}
       </h3>
+      <div class="rutina-week-nav">
+        <button type="button" class="rutina-week-prev icon-btn" data-period-nav="${period}" data-delta="1" aria-label="${nav.unit} anterior" title="${nav.unit} anterior" ${offset >= nav.max ? 'disabled' : ''}>
+          <span class="material-icons">chevron_left</span>
+        </button>
+        <span class="rutina-week-range">${escapeHtml(rangeText)}</span>
+        <button type="button" class="rutina-week-next icon-btn" data-period-nav="${period}" data-delta="-1" aria-label="${nav.unit} siguiente" title="${nav.unit} siguiente" ${offset === 0 ? 'disabled' : ''}>
+          <span class="material-icons">chevron_right</span>
+        </button>
+      </div>
       <div class="rutina-progress-bar" style="margin-bottom:10px;"><div style="width:${pct}%;background:${progColor(pct)}"></div></div>
       ${body}
     </div>`;
@@ -3545,8 +3624,8 @@ function renderRoutinesView() {
 
   board.innerHTML =
     buildChecklistCard('daily',  'Días de la semana') +
-    buildChecklistCard('weekly', 'Esta semana') +
-    buildChecklistCard('monthly','Este mes') +
+    buildChecklistCard('weekly', state.weeklyOffset ? 'Semana' : 'Esta semana') +
+    buildChecklistCard('monthly', state.monthlyOffset ? 'Mes' : 'Este mes') +
     `<div class="rutina-list-card">
       <h3>Recurrentes definidas <span class="badge">${definedTotal}</span></h3>
       ${definedGroup('daily',  'Diarias')}
@@ -3581,7 +3660,9 @@ function renderRoutinesView() {
   if (prev) prev.onclick = () => navigateRoutineWeek(1);
   if (next) next.onclick = () => navigateRoutineWeek(-1);
   if (goToday) goToday.onclick = () => navigateRoutineWeek(-state.weekOffset);
-  board.querySelectorAll('.rutina-bulk').forEach(b => b.onclick = () => bulkToggle(b.dataset.period, b.dataset.bulk));
+  board.querySelectorAll('[data-period-nav]').forEach(b => b.onclick = () => navigateRoutinePeriod(b.dataset.periodNav, Number(b.dataset.delta)));
+  board.querySelectorAll('[data-period-today]').forEach(b => b.onclick = () => navigateRoutinePeriod(b.dataset.periodToday, -state[PERIOD_NAV[b.dataset.periodToday].stateKey]));
+  board.querySelectorAll('.rutina-bulk').forEach(b => b.onclick = () => bulkToggle(b.dataset.period, b.dataset.bulk, b.dataset.period === 'daily' ? 0 : state[PERIOD_NAV[b.dataset.period].stateKey]));
   board.querySelectorAll('[data-edit-rid]').forEach(b => b.onclick = () => openEditRoutineModal(b.dataset.editRid));
   board.querySelectorAll('[data-del-rid]').forEach(b => b.onclick = async () => {
     const rid = b.dataset.delRid;
@@ -3605,6 +3686,8 @@ function applyRoutinesPayload_(p) {
   state.routineWeek = p.routineWeek || [];
   state.routineWeekCache = new Map([[0, state.routineWeek]]);
   state.weekOffset = 0;
+  state.routineWeeklyCache = new Map(); state.routineMonthlyCache = new Map();
+  state.weeklyOffset = 0; state.monthlyOffset = 0;
 }
 
 async function onRoutineCreate(e) {
