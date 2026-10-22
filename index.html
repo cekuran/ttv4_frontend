@@ -49,6 +49,7 @@
   .panel h3 { margin: 0 0 14px; font-size: 12px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
   .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding: 14px 18px; background: #fff; border-radius: var(--r-lg); box-shadow: var(--shadow-1); margin-bottom: 16px; border: 1px solid var(--outline-variant); }
   .filters label { color: var(--on-surface-variant); font-size: 13px; margin-right: 4px; font-weight: 500; }
+  .filters label[hidden] { display: none; }
   form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   #manual-form > select, #manual-form > input { min-width: 160px; }
   #manual-form > input#manual-notes { flex: 1; min-width: 200px; }
@@ -1538,8 +1539,11 @@
           <option value="day">Day</option>
           <option value="week">Week</option>
           <option value="month">Month</option>
+          <option value="custom">Custom</option>
         </select></label>
-        <label>Anchor
+        <label id="stats-custom-from-wrap" hidden>From <input type="date" id="stats-from"></label>
+        <label id="stats-custom-to-wrap" hidden>To <input type="date" id="stats-to"></label>
+        <label id="stats-anchor-wrap">Anchor
           <span class="anchor-nav">
             <button type="button" class="icon-btn" id="stats-prev" aria-label="Anterior" title="Anterior"><span class="material-icons">chevron_left</span></button>
             <input id="stats-anchor">
@@ -2756,7 +2760,7 @@ function bindGlobal() {
     ['log-from','log-to','log-task','log-label'].forEach(id => $('#'+id).value = '');
     renderLogs();
   });
-  ['stats-range','stats-group','stats-anchor'].forEach(id => $('#'+id).addEventListener('change', renderStats));
+  ['stats-range','stats-group','stats-anchor','stats-from','stats-to'].forEach(id => $('#'+id).addEventListener('change', renderStats));
   // ponytail: flechas del anchor — desplazan un día / semana / mes según el rango
   const shiftStatsAnchor = delta => {
     const range = $('#stats-range').value, inp = $('#stats-anchor');
@@ -4402,9 +4406,32 @@ function renderStats() {
   const range = $('#stats-range').value;
   const groupBy = $('#stats-group').value;
   const anchor = $('#stats-anchor');
-  const wantType = range === 'day' ? 'date' : range === 'week' ? 'week' : 'month';
-  if (anchor.type !== wantType || !anchor.value) setStatsAnchorType(range);
-  const [start, end] = rangeBounds(range, anchor);
+  const isCustom = range === 'custom';
+  $('#stats-anchor-wrap').hidden = isCustom;
+  $('#stats-custom-from-wrap').hidden = !isCustom;
+  $('#stats-custom-to-wrap').hidden = !isCustom;
+
+  let start, end, customDays = 0;
+  if (isCustom) {
+    const from = $('#stats-from'), to = $('#stats-to');
+    if (!from.value || !to.value) {
+      const t = new Date(), f = new Date(t); f.setDate(f.getDate() - 6);
+      if (!from.value) from.value = defaultAnchorValue('day', f);
+      if (!to.value) to.value = defaultAnchorValue('day', t);
+    }
+    const parse = v => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v); return new Date(+m[1], +m[2]-1, +m[3]); };
+    let a = parse(from.value), b = parse(to.value);
+    if (b < a) [a, b] = [b, a];
+    start = a;
+    end = new Date(b); end.setDate(end.getDate() + 1);
+    customDays = Math.round((end - start) / 86400000);
+  } else {
+    const wantType = range === 'day' ? 'date' : range === 'week' ? 'week' : 'month';
+    if (anchor.type !== wantType || !anchor.value) setStatsAnchorType(range);
+    [start, end] = rangeBounds(range, anchor);
+  }
+  // ponytail: rango libre — hasta 7 días usa la vista semanal (N columnas), más de 7 la mensual (semanas)
+  const customWeek = isCustom && customDays <= 7;
 
   // ponytail: línea del día sólo cuando el rango es day, justo encima de la tabla de tasks
   // usa el día seleccionado en el anchor (no hoy) para que la stats muestre el histórico
@@ -4412,10 +4439,13 @@ function renderStats() {
   if (statsTimelineWrap) {
     statsTimelineWrap.hidden = false;
     const tlTitle = $('#stats-day-timeline-title');
-    if (tlTitle) tlTitle.textContent = range === 'week' ? 'Línea de la semana' : range === 'month' ? 'Resumen del mes por semanas' : 'Línea del día';
-    if (range === 'day') renderDayTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', day: start, groupBy });
-    else if (range === 'week') renderWeekTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', weekStart: start, groupBy });
-    else renderMonthTimeline({ wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', monthStart: start, groupBy });
+    const asWeek = range === 'week' || customWeek;
+    const asMonth = range === 'month' || (isCustom && !customWeek);
+    if (tlTitle) tlTitle.textContent = isCustom ? (customWeek ? 'Línea del rango' : 'Resumen del rango por semanas') : asWeek ? 'Línea de la semana' : asMonth ? 'Resumen del mes por semanas' : 'Línea del día';
+    const tlOpts = { wrapSel: '#stats-day-timeline-wrap', svgSel: '#stats-day-timeline-svg', groupBy };
+    if (asWeek) renderWeekTimeline({ ...tlOpts, weekStart: start, days: isCustom ? customDays : 7 });
+    else if (asMonth) renderMonthTimeline({ ...tlOpts, monthStart: start, monthEnd: isCustom ? end : null });
+    else renderDayTimeline({ ...tlOpts, day: start });
   }
   renderStatsWeekRutinas(range === 'week' ? start : null);
   renderStatsWeekWeekly(range === 'week' ? start : null);
@@ -4849,7 +4879,8 @@ function renderMonthTimeline(opts) {
 
   const { byLabel, keyOf, name: groupName, color: groupColor } = statsGrouper(opts.groupBy);
   const mStart = new Date(opts.monthStart); mStart.setHours(0, 0, 0, 0);
-  const mEnd = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 1);
+  const customRange = !!opts.monthEnd; // ponytail: rango libre > 7 días reutiliza esta vista con inicio/fin arbitrarios
+  const mEnd = customRange ? new Date(opts.monthEnd) : new Date(mStart.getFullYear(), mStart.getMonth() + 1, 1);
 
   // Semanas (lun-dom) recortadas al mes
   const weeks = [];
@@ -4861,6 +4892,10 @@ function renderMonthTimeline(opts) {
   }
   const N = weeks.length;
   const weekOf = d => weeks.findIndex(w => d >= w.start && d < w.end);
+  const wkRange = w => {
+    const last = new Date(w.end.getFullYear(), w.end.getMonth(), w.end.getDate() - 1);
+    return customRange ? `${w.start.getDate()}/${w.start.getMonth() + 1}–${last.getDate()}/${last.getMonth() + 1}` : `${w.start.getDate()}–${last.getDate()}`;
+  };
 
   const events = [];
   state.entries.forEach(e => {
@@ -4878,7 +4913,7 @@ function renderMonthTimeline(opts) {
     const w = svgNode.clientWidth || 800;
     svg.attr('viewBox', `0 0 ${w} 80`).attr('preserveAspectRatio', 'xMidYMid meet')
        .append('text').attr('class', 'tl-empty').attr('x', 16).attr('y', 36)
-       .text('No hay registros este mes.');
+       .text(customRange ? 'No hay registros en este rango.' : 'No hay registros este mes.');
     return;
   }
 
@@ -4970,14 +5005,12 @@ function renderMonthTimeline(opts) {
         .on('click', () => {
           const lid = byLabel ? (gk || null) : taskLabelId(gk);
           const ses = groupSesMap.get(gk)[i];
-          const lastD = new Date(w.end.getFullYear(), w.end.getMonth(), w.end.getDate() - 1).getDate();
-          const mon = w.start.toLocaleDateString('es-ES', { month: 'short' });
           openGroupDetails({
             lid,
             label: byLabel ? 'Etiqueta' : (lid ? labelName(lid) : 'Tiempo registrado'),
             name: groupName(gk),
             minutes: min,
-            meta: `Sem ${i + 1} · ${w.start.getDate()}–${lastD} ${mon} · ${ses} ${ses === 1 ? 'sesión' : 'sesiones'}`
+            meta: `Sem ${i + 1} · ${wkRange(w)} · ${ses} ${ses === 1 ? 'sesión' : 'sesiones'}`
           });
         })
         .append('title').text(`${groupName(gk)} · ${fmtHM(min)}`);
@@ -4987,14 +5020,13 @@ function renderMonthTimeline(opts) {
       .attr('x', cx).attr('y', y(weekTotals[i] / 60) - 6).attr('text-anchor', 'middle')
       .style('font-size', compactTot ? '10px' : null)
       .text(fmtWk(weekTotals[i])));
-    const lastDay = new Date(w.end.getFullYear(), w.end.getMonth(), w.end.getDate() - 1).getDate();
     plot.append('text').attr('class', 'tl-hour-label')
       .attr('x', cx).attr('y', CHART_H + 16).attr('text-anchor', 'middle')
       .style('font-weight', 600).style('fill', i === curWeek ? 'var(--secondary)' : 'var(--on-surface)')
       .text(isMobile ? `S${i + 1}` : `Sem ${i + 1}`);
     plot.append('text').attr('class', 'tl-hour-label')
       .attr('x', cx).attr('y', CHART_H + 30).attr('text-anchor', 'middle')
-      .text(`${w.start.getDate()}–${lastDay}`);
+      .text(wkRange(w));
   });
 
   // Tabla: grupo × semana
@@ -5024,7 +5056,7 @@ function renderMonthTimeline(opts) {
   });
   g.append('text').attr('class', 'tl-hour-label')
    .attr('x', W - 8).attr('y', tblTop).attr('text-anchor', 'end')
-   .style('font-weight', 600).text('Mes');
+   .style('font-weight', 600).text(customRange ? 'Total' : 'Mes');
   g.append('line').attr('class', 'tl-grid').attr('x1', 0).attr('x2', W).attr('y1', tblTop + 8).attr('y2', tblTop + 8);
 
   groups.forEach(([gk, min], i) => {
@@ -5078,9 +5110,11 @@ function renderWeekTimeline(opts) {
   if (state.dayTimelineXScales) delete state.dayTimelineXScales[opts.wrapSel];
 
   const weekStart = new Date(opts.weekStart); weekStart.setHours(0,0,0,0);
+  const ND = opts.days || 7; // ponytail: rango libre <= 7 días reutiliza esta vista con ND columnas
+  const customRange = !!opts.days;
   const dayStarts = [];
-  for (let i = 0; i < 7; i++) { const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); dayStarts.push(d); }
-  const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7);
+  for (let i = 0; i < ND; i++) { const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); dayStarts.push(d); }
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + ND);
   const todayMidnight = (() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); })();
   const dayIdx = ms => Math.floor((new Date(ms).setHours(0,0,0,0) - weekStart.getTime()) / 86400000);
 
@@ -5102,7 +5136,7 @@ function renderWeekTimeline(opts) {
     const w = svgNode.clientWidth || 800;
     svg.attr('viewBox', `0 0 ${w} 80`).attr('preserveAspectRatio', 'xMidYMid meet')
        .append('text').attr('class', 'tl-empty').attr('x', 16).attr('y', 36)
-       .text('No hay registros esta semana.');
+       .text(customRange ? 'No hay registros en este rango.' : 'No hay registros esta semana.');
     return;
   }
 
@@ -5111,13 +5145,13 @@ function renderWeekTimeline(opts) {
   events.forEach(ev => { ev.gk = groupKeyOf(ev.taskId); });
 
   // Totales por día y por grupo (+ live)
-  const dayTotals = new Array(7).fill(0);
+  const dayTotals = new Array(ND).fill(0);
   const taskTotalsMap = new Map();
   const taskDayMap = new Map();
   events.forEach(ev => {
     dayTotals[ev.day] += ev.minutes;
     taskTotalsMap.set(ev.gk, (taskTotalsMap.get(ev.gk) || 0) + ev.minutes);
-    if (!taskDayMap.has(ev.gk)) taskDayMap.set(ev.gk, new Array(7).fill(0));
+    if (!taskDayMap.has(ev.gk)) taskDayMap.set(ev.gk, new Array(ND).fill(0));
     taskDayMap.get(ev.gk)[ev.day] += ev.minutes;
   });
   const weekTotal = dayTotals.reduce((s, v) => s + v, 0);
@@ -5126,7 +5160,7 @@ function renderWeekTimeline(opts) {
   const W = svgNode.clientWidth || 800;
   const isMobile = window.matchMedia('(max-width: 1280px)').matches;
   const GUTTER = isMobile ? 32 : 48, HEADER_H = 64, HOUR_H = 44;
-  const colW = (W - GUTTER) / 7;
+  const colW = (W - GUTTER) / ND;
   const colX = i => GUTTER + i * colW;
   // ponytail: total por día en la cabecera — con columnas estrechas (móvil) "2h 30m" se solapa con el vecino, usar "2.5h"
   const compactHdr = colW < 52;
@@ -5149,7 +5183,7 @@ function renderWeekTimeline(opts) {
   const yOf = h => HEADER_H + (h - firstH) * HOUR_H;
 
   // Layout de solapes por día: cada evento recibe carril (lane) dentro de su cluster.
-  for (let d = 0; d < 7; d++) {
+  for (let d = 0; d < ND; d++) {
     const list = events.filter(ev => ev.day === d).sort((a, b) => a.hs - b.hs);
     let cluster = [], clusterEnd = -1, laneEnds = [];
     const flush = () => { const n = laneEnds.length; cluster.forEach(ev => { ev.lanes = n; }); cluster = []; laneEnds = []; clusterEnd = -1; };
@@ -5166,13 +5200,14 @@ function renderWeekTimeline(opts) {
   // Tabla por tarea (debajo del calendario): fila por tarea, columna por día + total semanal
   const tblNameW = isMobile ? Math.min(84, W * 0.29) : Math.min(220, W * 0.22);
   const tblWeekW = isMobile ? 40 : 72;
-  const tblDayW = (W - tblNameW - tblWeekW) / 7;
+  const tblDayW = (W - tblNameW - tblWeekW) / ND;
   const legendTop = HEADER_H + gridH + 28;
   const LEGEND_ROW_H = 24;
   const H = legendTop + 30 + (taskTotals.length + 1) * LEGEND_ROW_H + 8;
   svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
 
-  const DAY_NAMES = colW < 56 ? ['L', 'M', 'X', 'J', 'V', 'S', 'D'] : ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
+  const DAY_NAMES_ALL = colW < 56 ? ['L', 'M', 'X', 'J', 'V', 'S', 'D'] : ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
+  const DAY_NAMES = dayStarts.map(d => DAY_NAMES_ALL[(d.getDay() + 6) % 7]);
   const g = svg.append('g');
   // Foco por tarea: hover sobre fila (o clic para fijar) resalta sus bloques y muestra su total por día en la cabecera.
   const dayTotalEls = [];
@@ -5209,7 +5244,7 @@ function renderWeekTimeline(opts) {
     }
   }
   // Separadores verticales por día
-  for (let i = 0; i <= 7; i++) {
+  for (let i = 0; i <= ND; i++) {
     g.append('line').attr('class', 'tl-grid')
      .attr('x1', colX(i)).attr('x2', colX(i)).attr('y1', HEADER_H - 4).attr('y2', HEADER_H + gridH);
   }
@@ -5306,7 +5341,7 @@ function renderWeekTimeline(opts) {
   });
   g.append('text').attr('class', 'tl-hour-label')
    .attr('x', W - 8).attr('y', legendTop).attr('text-anchor', 'end')
-   .style('font-weight', 600).text(isMobile ? 'Sem' : 'Semana');
+   .style('font-weight', 600).text(customRange ? 'Total' : isMobile ? 'Sem' : 'Semana');
   g.append('line').attr('class', 'tl-grid')
    .attr('x1', 0).attr('x2', W).attr('y1', legendTop + 8).attr('y2', legendTop + 8);
   taskTotals.forEach(([tid, min], i) => {
