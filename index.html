@@ -3639,7 +3639,7 @@ function refreshTimerViews_() {
   if ($('#view-stats').classList.contains('active'))     renderStats();
 }
 function startTimerFor(taskId) {
-  if (state.activeTimer && state.activeTimer.taskId === taskId) return Promise.resolve();
+  if (state.activeTimer) return Promise.resolve();
   const prev = state.activeTimer;
   const optimistic = { taskId, startTime: new Date().toISOString() };
   state.activeTimer = optimistic;
@@ -3778,6 +3778,15 @@ function weekStartMs() {
   return d.getTime();
 }
 function renderActiveCard() {
+  const busy = !!state.activeTimer;
+  const startBtn = $('#start-btn'), taskSel = $('#timer-task');
+  if (startBtn) { startBtn.disabled = busy; startBtn.title = busy ? 'Ya hay un timer activo' : 'Start'; }
+  if (taskSel) taskSel.disabled = busy;
+  $$('#task-table-wrap .play-btn:not(.stop)').forEach(b => {
+    const card = b.closest('.task-card');
+    b.disabled = busy || !!(card && card.classList.contains('done'));
+    if (busy) b.title = 'Ya hay un timer activo';
+  });
   const card = $('#active-card');
   if (!card) return;
   if (state.activeTimer) {
@@ -4135,8 +4144,9 @@ async function renderTasksView() {
     const labelObj = lid ? labelById(lid) : null;
     const labelTag = labelObj ? `<span class="chip" style="background:${labelObj.color}">${escapeHtml(labelObj.name)}</span>` : '<span class="chip" style="background:var(--surface-low);color:var(--on-surface-variant);border:1px dashed var(--outline-variant);">Sin etiqueta</span>';
     const isDone = t.completed === true || String(t.completed || '') === 'true';
-    const playDisabled = isDone ? 'disabled' : '';
-    const playTitle = isDone ? 'Tarea completada' : (state.activeTimer && state.activeTimer.taskId === t.id ? 'Stop timer' : 'Start timer');
+    const isActiveTask = state.activeTimer && state.activeTimer.taskId === t.id;
+    const playDisabled = (isDone || (state.activeTimer && !isActiveTask)) ? 'disabled' : '';
+    const playTitle = isDone ? 'Tarea completada' : (isActiveTask ? 'Stop timer' : (state.activeTimer ? 'Ya hay un timer activo' : 'Start timer'));
     html += `<div class="task-card${state.activeTimer && state.activeTimer.taskId === t.id ? ' active' : ''}${isDone ? ' done' : ''}" data-tid="${t.id}">
       <div class="task-info">
         <div class="task-name">${escapeHtml(t.name)}</div>
