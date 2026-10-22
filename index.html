@@ -367,6 +367,8 @@
   /* ponytail: chevron "siguiente" deshabilitado en semana actual — gris, sin hover, sin click. */
   .icon-btn:disabled { color: var(--outline); cursor: not-allowed; opacity: .55; }
   .icon-btn:disabled:hover { background: transparent; color: var(--outline); }
+  button.icon-btn.group-toggle[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); }
+  .group-toggle svg { width: 20px; height: 20px; display: block; }
   .sidebar-timer {
     display: flex; align-items: center; gap: 10px; width: 100%;
     background: linear-gradient(135deg, var(--primary), var(--primary-container));
@@ -1520,7 +1522,7 @@
         <label>To <input type="date" id="log-to"></label>
         <label>Task <select id="log-task"></select></label>
         <label>Label <select id="log-label"></select></label>
-        <label>Group <select id="log-group"><option value="">None</option><option value="task">By task</option><option value="label">By label</option></select></label>
+        <label><button type="button" class="icon-btn group-toggle" data-group-input="log-group" aria-pressed="false" title="Agrupado por tarea" aria-label="Agrupado por tarea"><svg viewBox="0 0 26 24" aria-hidden="true"><path fill="currentColor" d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M15.5 2.5l9 9a2 2 0 0 1 0 2.8L18 20.8"/></svg></button><input type="hidden" id="log-group" value="task"></label>
         <button class="secondary" id="log-clear">Clear filters</button>
       </div>
 
@@ -1550,10 +1552,7 @@
             <button type="button" class="icon-btn" id="stats-next" aria-label="Siguiente" title="Siguiente"><span class="material-icons">chevron_right</span></button>
           </span>
         </label>
-        <label>Group by <select id="stats-group">
-          <option value="task">Task</option>
-          <option value="label">Label</option>
-        </select></label>
+        <label><button type="button" class="icon-btn group-toggle" data-group-input="stats-group" aria-pressed="false" title="Agrupado por tarea" aria-label="Agrupado por tarea"><svg viewBox="0 0 26 24" aria-hidden="true"><path fill="currentColor" d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M15.5 2.5l9 9a2 2 0 0 1 0 2.8L18 20.8"/></svg></button><input type="hidden" id="stats-group" value="task"></label>
       </div>
 
       <div class="stat-grid" id="stats-cards"></div>
@@ -2755,6 +2754,17 @@ function bindGlobal() {
   // ponytail: el heading "Gestionar rutinas →" del dashboard salta a la vista completa
   const rutinasGo = $('#rutinas-go');
   if (rutinasGo) rutinasGo.addEventListener('click', e => { e.preventDefault(); showView('routines'); });
+  // Toggle de etiqueta: encendido = agrupar por etiqueta, apagado = por tarea; escribe en el input oculto.
+  $$('.group-toggle').forEach(btn => btn.addEventListener('click', () => {
+    const on = btn.getAttribute('aria-pressed') !== 'true';
+    btn.setAttribute('aria-pressed', String(on));
+    const txt = on ? 'Agrupado por etiqueta' : 'Agrupado por tarea';
+    btn.title = txt;
+    btn.setAttribute('aria-label', txt);
+    const input = $('#' + btn.dataset.groupInput);
+    input.value = on ? 'label' : 'task';
+    input.dispatchEvent(new Event('change'));
+  }));
   ['log-from','log-to','log-task','log-label','log-group'].forEach(id => $('#'+id).addEventListener('change', renderLogs));
   $('#log-clear').addEventListener('click', () => {
     ['log-from','log-to','log-task','log-label'].forEach(id => $('#'+id).value = '');
