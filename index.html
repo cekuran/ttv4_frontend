@@ -1382,6 +1382,67 @@
     .week-rutina-legend > span { display: none; }
     .week-rutina-legend .week-rutina-squares-labels { text-align: center; }
   }
+
+  /* === FAB (estilo Materialize) === */
+  .fab { position: fixed; right: 24px; bottom: 24px; z-index: 105; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 14px; }
+  .fab-main {
+    width: 56px; height: 56px; border-radius: 50%; border: none; padding: 0;
+    background: var(--primary); color: var(--on-primary); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 16px rgba(16,43,138,0.30), 0 2px 6px rgba(16,43,138,0.20);
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  .fab-main:hover { box-shadow: 0 8px 22px rgba(16,43,138,0.36), 0 3px 8px rgba(16,43,138,0.24); }
+  .fab-main .material-icons { font-size: 28px; transition: transform .25s ease; }
+  .fab.open .fab-main .material-icons, .fab.panel-open .fab-main .material-icons { transform: rotate(45deg); }
+  .fab-panel {
+    position: absolute; right: 0; bottom: 72px; width: 300px; max-width: calc(100vw - 32px);
+    max-height: min(60vh, 460px); display: flex; flex-direction: column;
+    background: #fff; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 10px 30px rgba(16,43,138,0.22), 0 3px 8px rgba(16,43,138,0.12);
+    transform-origin: bottom right; animation: fab-pop .18s ease;
+  }
+  .fab-panel[hidden] { display: none; }
+  @keyframes fab-pop { from { opacity: 0; transform: scale(.85) translateY(8px); } to { opacity: 1; transform: none; } }
+  .fab-panel-head { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--outline-variant); }
+  .fab-panel-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; min-width: 0; }
+  .fab-panel-title span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fab-panel-back { background: none; border: none; padding: 4px; cursor: pointer; color: inherit; display: flex; border-radius: 50%; }
+  .fab-panel-back:hover { background: rgba(0,0,0,0.06); }
+  .fab-panel-body { overflow-y: auto; padding: 6px 0; }
+  .fab-list { display: flex; flex-direction: column; }
+  .fab-opt {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px;
+    background: none; border: none; border-radius: 0; cursor: pointer; text-align: left; color: inherit; font-size: 14px;
+  }
+  .fab-opt:hover, .fab-opt:focus-visible { background: rgba(16,43,138,0.06); }
+  .fab-opt-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fab-opt-count { font-size: 12px; color: var(--outline); }
+  .fab-opt .material-icons { font-size: 20px; color: var(--outline); }
+  .fab-opt .fab-opt-play { color: var(--secondary); }
+  .fab-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .fab-empty { padding: 12px 14px; font-size: 13px; color: var(--outline); }
+  .fab-new { display: flex; gap: 8px; padding: 8px 12px 6px; border-top: 1px solid var(--outline-variant); margin-top: 4px; }
+  .fab-new:first-child { border-top: none; margin-top: 0; }
+  .fab-new input { flex: 1; min-width: 0; }
+  .fab-new button { flex: none; width: 38px; height: 38px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .fab-actions { list-style: none; margin: 0; padding: 0 8px 0 0; display: flex; flex-direction: column-reverse; gap: 14px; align-items: flex-end; }
+  .fab-action { display: flex; align-items: center; gap: 10px; opacity: 0; transform: translateY(16px) scale(.4); pointer-events: none; transition: opacity .18s ease, transform .2s ease; }
+  .fab.open .fab-action { opacity: 1; transform: none; pointer-events: auto; }
+  .fab.open .fab-action:nth-child(2) { transition-delay: .04s; }
+  .fab-action-label { background: rgba(33,33,33,0.85); color: #fff; font-size: 12px; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
+  .fab-action button {
+    width: 40px; height: 40px; border-radius: 50%; border: none; padding: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; color: #fff;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.22);
+  }
+  .fab-action button .material-icons { font-size: 20px; }
+  .fab-action .fab-timer { background: var(--secondary); }
+  .fab-action .fab-timer.stop { background: #c62828; }
+  .fab-action .fab-task { background: #f57c00; }
+  @media (max-width: 1280px) {
+    .fab { right: 16px; bottom: calc(80px + env(safe-area-inset-bottom)); }
+  }
 </style>
 </head>
 <body>
@@ -1767,6 +1828,29 @@
     <button class="avatar-btn" id="user-menu-btn" aria-label="Menú de usuario" aria-haspopup="menu" aria-expanded="false">
       <span id="user-avatar-initial">T</span>
     </button>
+  </div>
+
+  <div class="fab" id="fab">
+    <div class="fab-panel" id="fab-panel" role="dialog" aria-labelledby="fab-panel-title" hidden>
+      <div class="fab-panel-head">
+        <button type="button" class="fab-panel-back" id="fab-panel-back" aria-label="Volver a etiquetas"><span class="material-icons">arrow_back</span></button>
+        <div class="fab-panel-title" id="fab-panel-title"></div>
+      </div>
+      <div class="fab-panel-body" id="fab-panel-body"></div>
+    </div>
+    <button type="button" class="fab-main" id="fab-main" aria-label="Acciones rápidas" aria-haspopup="true" aria-expanded="false" aria-controls="fab-actions">
+      <span class="material-icons">add</span>
+    </button>
+    <ul class="fab-actions" id="fab-actions">
+      <li class="fab-action">
+        <span class="fab-action-label" id="fab-timer-label">Iniciar timer</span>
+        <button type="button" class="fab-timer" id="fab-timer" aria-labelledby="fab-timer-label" tabindex="-1"><span class="material-icons" id="fab-timer-icon">play_arrow</span></button>
+      </li>
+      <li class="fab-action">
+        <span class="fab-action-label" id="fab-task-label">Nueva tarea</span>
+        <button type="button" class="fab-task" id="fab-task" aria-labelledby="fab-task-label" tabindex="-1"><span class="material-icons">add_task</span></button>
+      </li>
+    </ul>
   </div>
 
   <!-- Dropdown de usuario (móvil: bajo el avatar del banner; desktop: bajo el icono del sidebar). Vive fuera de .mobile-top porque en desktop el banner está oculto. -->
@@ -2786,7 +2870,148 @@ function showView(name) {
   renderView_(name);
 }
 
+// mode: null | 'timer' | 'task'; labelId: undefined = paso de etiquetas, '' = sin etiqueta
+const fabState = { mode: null, labelId: undefined, busy: false };
+const isTaskDone_ = (t) => t.completed === true || String(t.completed || '') === 'true';
+
+function setFabOpen(open) {
+  const fab = $('#fab');
+  if (!fab) return;
+  if (open) closeFabPanel();
+  fab.classList.toggle('open', open);
+  $('#fab-main').setAttribute('aria-expanded', String(open || !!fabState.mode));
+  $$('#fab-actions button').forEach(b => { b.tabIndex = open ? 0 : -1; });
+}
+
+function openFabPanel(mode) {
+  fabState.mode = mode;
+  fabState.labelId = undefined;
+  setFabOpen(false);
+  $('#fab').classList.add('panel-open');
+  $('#fab-main').setAttribute('aria-expanded', 'true');
+  $('#fab-panel').hidden = false;
+  renderFabPanel();
+}
+
+function closeFabPanel() {
+  fabState.mode = null;
+  fabState.labelId = undefined;
+  const fab = $('#fab');
+  if (!fab) return;
+  fab.classList.remove('panel-open');
+  $('#fab-panel').hidden = true;
+}
+
+function renderFabPanel() {
+  const { mode, labelId } = fabState;
+  if (!mode) return;
+  const body = $('#fab-panel-body');
+  const active = state.tasks.filter(t => !isTaskDone_(t));
+  const inLabel = (lid) => active.filter(t => (t.labelId || '') === lid);
+  const dot = (lid) => `<span class="fab-dot" style="background:${escapeHtml(lid ? labelColor(lid) : '#9aa0a6')}"></span>`;
+  $('#fab-panel-back').setAttribute('aria-label', labelId === undefined ? 'Volver al menú' : 'Volver a etiquetas');
+
+  if (labelId === undefined) {
+    $('#fab-panel-title').textContent = mode === 'timer' ? 'Iniciar timer · etiqueta' : 'Nueva tarea · etiqueta';
+    const opts = [...state.labels.map(l => ({ id: l.id, name: l.name })), { id: '', name: 'Sin etiqueta' }];
+    body.innerHTML = `<div class="fab-list">${opts.map(o => {
+      const n = inLabel(o.id).length;
+      return `<button type="button" class="fab-opt" data-lid="${escapeHtml(o.id)}">${dot(o.id)}<span class="fab-opt-name">${escapeHtml(o.name)}</span><span class="fab-opt-count">${n}</span><span class="material-icons">chevron_right</span></button>`;
+    }).join('')}</div>`;
+    return;
+  }
+
+  $('#fab-panel-title').innerHTML = `${dot(labelId)}<span>${escapeHtml(labelId ? labelName(labelId) : 'Sin etiqueta')}</span>`;
+  const tasks = mode === 'timer' ? inLabel(labelId) : [];
+  const list = mode === 'timer'
+    ? (tasks.length
+        ? `<div class="fab-list">${tasks.map(t => `<button type="button" class="fab-opt" data-tid="${escapeHtml(t.id)}"><span class="material-icons fab-opt-play">play_arrow</span><span class="fab-opt-name">${escapeHtml(t.name)}</span></button>`).join('')}</div>`
+        : '<div class="fab-empty">No hay tareas activas en esta etiqueta.</div>')
+    : '';
+  body.innerHTML = `${list}
+    <form class="fab-new" id="fab-new-form">
+      <input id="fab-new-name" placeholder="${mode === 'timer' ? 'O crea una nueva tarea…' : 'Nombre de la tarea'}" required autocomplete="off">
+      <button type="submit" title="${mode === 'timer' ? 'Crear e iniciar' : 'Crear tarea'}" aria-label="${mode === 'timer' ? 'Crear e iniciar' : 'Crear tarea'}"><span class="material-icons">${mode === 'timer' ? 'play_arrow' : 'add'}</span></button>
+    </form>`;
+  if (mode === 'task') $('#fab-new-name').focus();
+}
+
+async function onFabCreate(e) {
+  e.preventDefault();
+  const input = $('#fab-new-name');
+  const name = input.value.trim();
+  if (!name || fabState.busy) return;
+  const { mode, labelId } = fabState;
+  fabState.busy = true;
+  input.disabled = true;
+  try {
+    const created = await call('createTask', name, labelId || '');
+    state.tasks = [...state.tasks, created];
+    closeFabPanel();
+    refreshAll();
+    if (mode === 'timer') startTimerFor(created.id);
+    else toast(`Tarea "${name}" creada`);
+  } catch (err) {
+    input.disabled = false;
+    toast(err.message, 'warn');
+  } finally {
+    fabState.busy = false;
+  }
+}
+
+function bindFab() {
+  const fab = $('#fab');
+  if (!fab) return;
+  $('#fab-main').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (fabState.mode) { closeFabPanel(); setFabOpen(false); return; }
+    setFabOpen(!fab.classList.contains('open'));
+  });
+  // composedPath: el panel se re-renderiza al hacer click, así que e.target puede quedar desconectado
+  document.addEventListener('click', (e) => {
+    if (e.composedPath().includes(fab)) return;
+    setFabOpen(false); closeFabPanel();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (fabState.mode && fabState.labelId !== undefined) { fabState.labelId = undefined; renderFabPanel(); return; }
+    setFabOpen(false); closeFabPanel();
+  });
+  $('#fab-timer').addEventListener('click', () => {
+    if (state.activeTimer) { setFabOpen(false); onStop(); return; }
+    openFabPanel('timer');
+  });
+  $('#fab-task').addEventListener('click', () => openFabPanel('task'));
+  $('#fab-panel-back').addEventListener('click', () => {
+    if (fabState.labelId === undefined) { setFabOpen(true); return; }
+    fabState.labelId = undefined; renderFabPanel();
+  });
+  $('#fab-panel-body').addEventListener('click', (e) => {
+    const opt = e.target.closest('.fab-opt');
+    if (!opt) return;
+    if (opt.dataset.tid) {
+      const tid = opt.dataset.tid;
+      closeFabPanel();
+      startTimerFor(tid);
+      return;
+    }
+    fabState.labelId = opt.dataset.lid;
+    renderFabPanel();
+  });
+  $('#fab-panel-body').addEventListener('submit', (e) => { if (e.target.id === 'fab-new-form') onFabCreate(e); });
+}
+
+function renderFabTimer() {
+  const btn = $('#fab-timer');
+  if (!btn) return;
+  const busy = !!state.activeTimer;
+  btn.classList.toggle('stop', busy);
+  $('#fab-timer-icon').textContent = busy ? 'stop' : 'play_arrow';
+  $('#fab-timer-label').textContent = busy ? 'Detener timer' : 'Iniciar timer';
+}
+
 function bindGlobal() {
+  bindFab();
   $('#start-btn').addEventListener('click', onStart);
   $('#stop-btn').addEventListener('click', onStop);
   // ponytail: sidebar widget — click body opens details modal; stop button stops the timer (and event.stopPropagation prevents the modal from opening)
@@ -3940,6 +4165,7 @@ function weekStartMs() {
   return d.getTime();
 }
 function renderActiveCard() {
+  renderFabTimer();
   const busy = !!state.activeTimer;
   const startBtn = $('#start-btn'), taskSel = $('#timer-task');
   if (startBtn) { startBtn.disabled = busy; startBtn.title = busy ? 'Ya hay un timer activo' : 'Start'; }
