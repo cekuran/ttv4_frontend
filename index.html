@@ -1001,6 +1001,38 @@
   .subtask-list li.done label span { text-decoration: line-through; color: var(--outline); }
   .subtask-list .subtask-del .material-icons { font-size: 16px; }
   .subtask-add { display: flex; gap: 6px; margin-top: 6px; }
+  .subtask-check {
+    appearance: none; -webkit-appearance: none; margin: 0; padding: 0; flex-shrink: 0;
+    width: 16px; height: 16px; border-radius: 3px; cursor: pointer;
+    border: 1.5px solid var(--outline); background: #fff;
+    display: inline-grid; place-content: center; transition: background .15s, border-color .15s;
+  }
+  .subtask-check::after { content: ''; width: 3px; height: 8px; border: solid transparent; border-width: 0 2px 2px 0; transform: translateY(-1px) rotate(45deg); transition: border-color .15s; }
+  .subtask-check:hover { border-color: var(--secondary); }
+  .subtask-check:checked { background: var(--secondary); border-color: var(--secondary); }
+  .subtask-check:checked::after { border-color: var(--on-secondary); }
+  .subtask-check:checked:hover { background: #005a40; border-color: #005a40; }
+  .subtask-check:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  /* Subtareas dentro de .active-card (dashboard + modal): panel translúcido sobre el color de la etiqueta */
+  .active-subtasks {
+    margin-top: 14px; padding: 10px 12px; text-align: left;
+    background: rgba(255,255,255,0.10); border-radius: var(--r-md);
+  }
+  .active-subtasks[hidden] { display: none; }
+  .active-subtasks .active-subtasks-hdr { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.8; font-weight: 600; margin-bottom: 4px; }
+  .active-subtasks li { border-bottom: 1px solid rgba(255,255,255,0.14); color: inherit; padding: 6px 0; font-size: 14px; font-weight: 500; }
+  .active-subtasks li:last-child { border-bottom: 0; }
+  .active-subtasks .subtask-check { border-color: #fff; background: #fff; }
+  .active-subtasks .subtask-check:hover { border-color: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,0.3); }
+  .active-subtasks .subtask-check:checked { background: #fff; border-color: #fff; }
+  .active-subtasks .subtask-check:checked::after { border-color: var(--primary); }
+  .active-subtasks .subtask-check:focus-visible { outline-color: #fff; }
+  .active-subtasks .subtask-add { margin-top: 8px; }
+  .active-subtasks .subtask-add input { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.28); border-radius: var(--r-sm); color: inherit; }
+  .active-subtasks .subtask-add input:focus { outline: none; border-color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.18); }
+  .active-subtasks .subtask-add input::placeholder { color: inherit; opacity: .7; }
+  .active-subtasks .subtask-add button { color: inherit; background: rgba(255,255,255,0.10); border: 0; border-radius: 50%; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s; }
+  .active-subtasks .subtask-add button:hover { background: rgba(255,255,255,0.22); }
   .subtask-add input { flex: 1; min-width: 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--outline-variant); border-radius: var(--r-sm); font-family: inherit; }
   .task-card.done .task-name { text-decoration: line-through; color: var(--outline); }
   .task-card.done .task-meta { opacity: .7; }
@@ -1444,6 +1476,7 @@
           <div class="label">Active session</div>
           <div class="name" id="active-task-name">—</div>
           <div class="elapsed" id="active-elapsed">00:00:00</div>
+          <div class="active-subtasks" id="active-subtasks" aria-label="Subtareas pendientes" hidden></div>
         </div>
         <button class="stop-btn" id="stop-btn">Stop</button>
       </div>
@@ -1948,6 +1981,7 @@
       <div class="elapsed" id="timer-details-elapsed">00:00:00</div>
       <div class="meta" id="timer-details-label"></div>
       <div class="meta" id="timer-details-start"></div>
+      <div class="active-subtasks" id="timer-details-subtasks" aria-label="Subtareas pendientes" hidden></div>
     </div>
     <button class="stop-btn" id="timer-details-stop">Stop</button>
   </div>
@@ -3925,6 +3959,7 @@ function renderActiveCard() {
   } else {
     card.hidden = true;
   }
+  renderActiveSubtasks($('#active-subtasks'));
 }
 
 // ponytail: pinta card/widget con el color de la etiqueta activa; sin etiqueta → gradiente default
@@ -3975,6 +4010,7 @@ function renderActiveWidget() {
       $('#timer-details-elapsed').textContent = hms;
       const st = state.activeTimer.startTime;
       $('#timer-details-start').textContent = `Inicio: ${fmtDate(st)} · ${fmtTime(st)}`;
+      renderActiveSubtasks($('#timer-details-subtasks'), false);
       // ponytail: tintar el card del modal con el color de la etiqueta
       paintModalByLabel(modalEl, lid);
     }
@@ -4234,6 +4270,7 @@ async function onManualSubmit(e) {
 // ==== Tasks ====
 let taskFilter = '';
 let taskTab = 'active';
+var SUBTASK_ADD_FORM = `<form class="subtask-add"><input type="text" maxlength="500" placeholder="Añadir subtarea…" aria-label="Nueva subtarea"><button type="submit" class="icon-btn" aria-label="Añadir subtarea"><span class="material-icons">add</span></button></form>`;
 const expandedTasks = new Set();
 function parseSubtasks(t) {
   if (!t || !t.subtasks) return [];
@@ -4245,8 +4282,9 @@ async function saveSubtasks(tid, list) {
   if (!t) return;
   const prev = t.subtasks;
   const next = list.length ? JSON.stringify(list) : '';
+  const rerender = () => { renderTasksView(); renderActiveCard(); renderActiveWidget(); };
   state.tasks = state.tasks.map(x => x.id === tid ? { ...x, subtasks: next } : x);
-  renderTasksView();
+  rerender();
   try {
     const updated = await call('updateTask', tid, { subtasks: next });
     state.tasks = state.tasks.map(x => x.id === tid ? updated : x);
@@ -4254,7 +4292,36 @@ async function saveSubtasks(tid, list) {
     state.tasks = state.tasks.map(x => x.id === tid ? { ...x, subtasks: prev } : x);
     toast(e.message, 'warn');
   }
-  renderTasksView();
+  rerender();
+}
+// Pendientes de la tarea con timer activo; firma evita re-pintar (y perder foco) sin cambios.
+function renderActiveSubtasks(host, allowAdd = true) {
+  if (!host) return;
+  const tid = state.activeTimer ? state.activeTimer.taskId : '';
+  const pending = tid ? parseSubtasks(taskById(tid)).filter(s => !s.done) : [];
+  const sig = tid + '|' + JSON.stringify(pending);
+  if (host.dataset.sig === sig) return;
+  host.dataset.sig = sig;
+  host.hidden = !tid || (!allowAdd && !pending.length);
+  host.innerHTML = `<div class="active-subtasks-hdr">Subtareas${pending.length ? ` · ${pending.length} pendiente${pending.length === 1 ? '' : 's'}` : ''}</div>` +
+    `<ul class="subtask-list">${pending.map(s => `<li data-sid="${escapeHtml(s.id)}"><label><input type="checkbox" class="subtask-check"><span>${escapeHtml(s.text)}</span></label></li>`).join('')}</ul>` +
+    (allowAdd ? SUBTASK_ADD_FORM : '');
+  host.querySelectorAll('.subtask-check').forEach(cb => cb.onchange = () => {
+    const sid = cb.closest('li').dataset.sid;
+    saveSubtasks(tid, parseSubtasks(taskById(tid)).map(s => s.id === sid ? { ...s, done: true } : s));
+  });
+  const addForm = host.querySelector('.subtask-add');
+  if (addForm) addForm.onsubmit = e => {
+    e.preventDefault();
+    addSubtask(tid, e.target.querySelector('input').value);
+    setTimeout(() => { const i = host.querySelector('.subtask-add input'); if (i) i.focus(); }, 0);
+  };
+}
+function addSubtask(tid, raw) {
+  const text = String(raw || '').trim();
+  if (!text) return;
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  saveSubtasks(tid, [...parseSubtasks(taskById(tid)), { id, text, done: false }]);
 }
 
 async function renderTasksView() {
@@ -4337,6 +4404,11 @@ async function renderTasksView() {
     const playTitle = isDone ? 'Tarea completada' : (isActiveTask ? 'Stop timer' : (state.activeTimer ? 'Ya hay un timer activo' : 'Start timer'));
     const subs = parseSubtasks(t);
     const subsDone = subs.filter(s => s.done).length;
+    const subItem = s => `<li class="${s.done ? 'done' : ''}" data-sid="${escapeHtml(s.id)}">
+                <label><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''}><span>${escapeHtml(s.text)}</span></label>
+                <button type="button" class="subtask-del icon-btn" aria-label="Eliminar subtarea"><span class="material-icons">close</span></button>
+              </li>`;
+    const pendingSubs = subs.filter(s => !s.done);
     html += `<div class="task-card${state.activeTimer && state.activeTimer.taskId === t.id ? ' active' : ''}${isDone ? ' done' : ''}" data-tid="${t.id}">
       <div class="task-info">
         <div class="task-name">${escapeHtml(t.name)}</div>
@@ -4346,15 +4418,10 @@ async function renderTasksView() {
           <span>· ${entries.length} entr${entries.length===1?'y':'ies'}</span>
           ${subs.length ? `<span class="subtask-count${subsDone === subs.length ? ' all' : ''}" title="Subtareas completadas"><span class="material-icons">checklist</span>${subsDone}/${subs.length}</span>` : ''}
         </div>
+        <div class="subtasks" data-tid="${t.id}" style="margin:8px 0 0;"><ul class="subtask-list">${pendingSubs.map(subItem).join('')}</ul>${SUBTASK_ADD_FORM}</div>
         <div class="task-expand" id="task-expand-${t.id}" style="display:${expandedTasks.has(t.id) ? 'block' : 'none'}; margin-top:10px;">
           <div class="subtasks" data-tid="${t.id}">
-            <ul class="subtask-list">
-              ${subs.map(s => `<li class="${s.done ? 'done' : ''}" data-sid="${escapeHtml(s.id)}">
-                <label><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''}><span>${escapeHtml(s.text)}</span></label>
-                <button type="button" class="subtask-del icon-btn" aria-label="Eliminar subtarea"><span class="material-icons">close</span></button>
-              </li>`).join('')}
-            </ul>
-            <form class="subtask-add"><input type="text" maxlength="500" placeholder="Añadir subtarea…" aria-label="Nueva subtarea"><button type="submit" class="icon-btn" aria-label="Añadir subtarea"><span class="material-icons">add</span></button></form>
+            <ul class="subtask-list">${subs.filter(s => s.done).map(subItem).join('')}</ul>
           </div>
           <div class="task-entries" id="task-entries-${t.id}"></div>
         </div>
@@ -4428,14 +4495,11 @@ async function renderTasksView() {
       const sid = b.closest('li').dataset.sid;
       saveSubtasks(tid, current().filter(s => s.id !== sid));
     });
-    box.querySelector('.subtask-add').onsubmit = e => {
+    const addForm = box.querySelector('.subtask-add');
+    if (addForm) addForm.onsubmit = e => {
       e.preventDefault();
-      const input = e.target.querySelector('input');
-      const text = input.value.trim();
-      if (!text) return;
-      const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-      saveSubtasks(tid, [...current(), { id, text, done: false }]);
-      setTimeout(() => { const i = $(`.subtasks[data-tid="${tid}"] .subtask-add input`); if (i) i.focus(); }, 0);
+      addSubtask(tid, e.target.querySelector('input').value);
+      setTimeout(() => { const i = $(`.task-card[data-tid="${tid}"] .subtask-add input`); if (i) i.focus(); }, 0);
     };
   });
 }
