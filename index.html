@@ -55,6 +55,19 @@
   #manual-form > input#manual-notes { flex: 1; min-width: 200px; }
   input, select, button { font: inherit; padding: 8px 14px; border: 1px solid var(--outline-variant); border-radius: var(--r-md); background: white; color: var(--on-surface); transition: border-color .15s, box-shadow .15s; }
   input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(16,43,138,0.12); }
+  /* El popup nativo de <select> es una ventana del SO y se descoloca/recorta al mover el navegador entre monitores con distinto DPI; base-select lo pinta dentro de la página. */
+  @supports (appearance: base-select) {
+    select, ::picker(select) { appearance: base-select; }
+    select { display: inline-flex; align-items: center; gap: 8px; }
+    ::picker(select) {
+      background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-md);
+      box-shadow: var(--shadow-2); padding: 4px; max-height: min(320px, 60vh);
+    }
+    select option { padding: 6px 10px; border-radius: 6px; font-size: 14px; }
+    select option:hover, select option:focus-visible { background: var(--surface-low); color: var(--primary); outline: none; }
+    select option:checked { font-weight: 600; color: var(--primary); }
+    select option:disabled { color: var(--outline); }
+  }
   .pw-wrap { position: relative; }
   .pw-wrap > input { padding-right: 38px; width: 100%; }
   .pw-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: transparent; border: 0; color: var(--on-surface-variant); cursor: pointer; padding: 4px 8px; line-height: 1; border-radius: var(--r-sm); display: inline-flex; align-items: center; justify-content: center; }
@@ -900,7 +913,7 @@
   .label-picker-btn[aria-expanded="true"] .lp-caret { transform: rotate(180deg); }
   .label-picker-menu {
     position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 100%; width: max-content; max-width: 300px;
-    max-height: 280px; overflow-y: auto; padding: 6px; background: #fff;
+    max-height: min(280px, 50vh); overflow-y: auto; padding: 6px; background: #fff;
     border: 1px solid var(--outline-variant); border-radius: var(--r-md); box-shadow: var(--shadow-2);
   }
   .label-picker-menu[hidden] { display: none; }
