@@ -991,6 +991,17 @@
   .task-tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
   .task-tab .count { margin-left: 6px; color: var(--outline); font-size: 12px; font-weight: 500; }
   .task-tab.active .count { color: var(--primary); }
+  .task-card .subtask-count { display: inline-flex; align-items: center; gap: 3px; }
+  .task-card .subtask-count .material-icons { font-size: 14px; }
+  .task-card .subtask-count.all { color: var(--secondary); font-weight: 600; }
+  .subtasks { margin-bottom: 10px; cursor: default; }
+  .subtask-list { list-style: none; margin: 0; padding: 0; }
+  .subtask-list li { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--outline-variant); font-size: 13px; }
+  .subtask-list li label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; overflow-wrap: anywhere; }
+  .subtask-list li.done label span { text-decoration: line-through; color: var(--outline); }
+  .subtask-list .subtask-del .material-icons { font-size: 16px; }
+  .subtask-add { display: flex; gap: 6px; margin-top: 6px; }
+  .subtask-add input { flex: 1; min-width: 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--outline-variant); border-radius: var(--r-sm); font-family: inherit; }
   .task-card.done .task-name { text-decoration: line-through; color: var(--outline); }
   .task-card.done .task-meta { opacity: .7; }
   .task-card.done .task-total { color: var(--outline); font-weight: normal; }
@@ -4223,6 +4234,28 @@ async function onManualSubmit(e) {
 // ==== Tasks ====
 let taskFilter = '';
 let taskTab = 'active';
+const expandedTasks = new Set();
+function parseSubtasks(t) {
+  if (!t || !t.subtasks) return [];
+  if (Array.isArray(t.subtasks)) return t.subtasks;
+  try { const v = JSON.parse(t.subtasks); return Array.isArray(v) ? v : []; } catch (_) { return []; }
+}
+async function saveSubtasks(tid, list) {
+  const t = taskById(tid);
+  if (!t) return;
+  const prev = t.subtasks;
+  const next = list.length ? JSON.stringify(list) : '';
+  state.tasks = state.tasks.map(x => x.id === tid ? { ...x, subtasks: next } : x);
+  renderTasksView();
+  try {
+    const updated = await call('updateTask', tid, { subtasks: next });
+    state.tasks = state.tasks.map(x => x.id === tid ? updated : x);
+  } catch (e) {
+    state.tasks = state.tasks.map(x => x.id === tid ? { ...x, subtasks: prev } : x);
+    toast(e.message, 'warn');
+  }
+  renderTasksView();
+}
 
 async function renderTasksView() {
   await ensureTaskLabelSelect();
@@ -4302,6 +4335,8 @@ async function renderTasksView() {
     const isActiveTask = state.activeTimer && state.activeTimer.taskId === t.id;
     const playDisabled = (isDone || (state.activeTimer && !isActiveTask)) ? 'disabled' : '';
     const playTitle = isDone ? 'Tarea completada' : (isActiveTask ? 'Stop timer' : (state.activeTimer ? 'Ya hay un timer activo' : 'Start timer'));
+    const subs = parseSubtasks(t);
+    const subsDone = subs.filter(s => s.done).length;
     html += `<div class="task-card${state.activeTimer && state.activeTimer.taskId === t.id ? ' active' : ''}${isDone ? ' done' : ''}" data-tid="${t.id}">
       <div class="task-info">
         <div class="task-name">${escapeHtml(t.name)}</div>
@@ -4309,8 +4344,20 @@ async function renderTasksView() {
           ${labelTag}
           <button class="task-edit-btn" data-id="${t.id}" title="Editar tarea" aria-label="Editar tarea"><span class="material-icons">edit</span></button>
           <span>· ${entries.length} entr${entries.length===1?'y':'ies'}</span>
+          ${subs.length ? `<span class="subtask-count${subsDone === subs.length ? ' all' : ''}" title="Subtareas completadas"><span class="material-icons">checklist</span>${subsDone}/${subs.length}</span>` : ''}
         </div>
-        <div class="task-entries" id="task-entries-${t.id}" style="display:none; margin-top:10px;"></div>
+        <div class="task-expand" id="task-expand-${t.id}" style="display:${expandedTasks.has(t.id) ? 'block' : 'none'}; margin-top:10px;">
+          <div class="subtasks" data-tid="${t.id}">
+            <ul class="subtask-list">
+              ${subs.map(s => `<li class="${s.done ? 'done' : ''}" data-sid="${escapeHtml(s.id)}">
+                <label><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''}><span>${escapeHtml(s.text)}</span></label>
+                <button type="button" class="subtask-del icon-btn" aria-label="Eliminar subtarea"><span class="material-icons">close</span></button>
+              </li>`).join('')}
+            </ul>
+            <form class="subtask-add"><input type="text" maxlength="500" placeholder="Añadir subtarea…" aria-label="Nueva subtarea"><button type="submit" class="icon-btn" aria-label="Añadir subtarea"><span class="material-icons">add</span></button></form>
+          </div>
+          <div class="task-entries" id="task-entries-${t.id}"></div>
+        </div>
       </div>
       <button class="task-toggle-done" data-id="${t.id}" title="${isDone ? 'Reabrir tarea' : 'Marcar como completada'}" aria-label="${isDone ? 'Reabrir tarea' : 'Marcar como completada'}"><span class="material-icons">${isDone ? 'undo' : 'check'}</span></button>
       <div class="task-total${total ? '' : ' zero'}" data-tid="${t.id}">${fmtHM(total)}<span class="task-live" style="display:none; margin-left:6px; color:var(--secondary); font-weight:600;"></span></div>
@@ -4359,15 +4406,37 @@ async function renderTasksView() {
       refreshAll();
     } catch (e) { toast(e.message, 'warn'); }
   });
-  // click card body to toggle entries
+  // click card body to toggle checklist + entries
   $$('#task-table-wrap .task-card').forEach(card => {
     const tid = card.dataset.tid;
-    const row = $(`#task-entries-${tid}`);
+    const row = $(`#task-expand-${tid}`);
     if (row) card.querySelector('.task-info').addEventListener('click', e => {
-      if (e.target.closest('.task-edit-btn')) return;
+      if (e.target.closest('.task-edit-btn, .subtasks')) return;
       const shown = row.style.display !== 'none';
       row.style.display = shown ? 'none' : 'block';
+      if (shown) expandedTasks.delete(tid); else expandedTasks.add(tid);
     });
+  });
+  $$('#task-table-wrap .subtasks').forEach(box => {
+    const tid = box.dataset.tid;
+    const current = () => parseSubtasks(taskById(tid));
+    box.querySelectorAll('.subtask-check').forEach(cb => cb.onchange = () => {
+      const sid = cb.closest('li').dataset.sid;
+      saveSubtasks(tid, current().map(s => s.id === sid ? { ...s, done: cb.checked } : s));
+    });
+    box.querySelectorAll('.subtask-del').forEach(b => b.onclick = () => {
+      const sid = b.closest('li').dataset.sid;
+      saveSubtasks(tid, current().filter(s => s.id !== sid));
+    });
+    box.querySelector('.subtask-add').onsubmit = e => {
+      e.preventDefault();
+      const input = e.target.querySelector('input');
+      const text = input.value.trim();
+      if (!text) return;
+      const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      saveSubtasks(tid, [...current(), { id, text, done: false }]);
+      setTimeout(() => { const i = $(`.subtasks[data-tid="${tid}"] .subtask-add input`); if (i) i.focus(); }, 0);
+    };
   });
 }
 
