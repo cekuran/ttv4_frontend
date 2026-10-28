@@ -1497,6 +1497,7 @@
   .fab-subs { list-style: none; margin: 0; padding: 0 14px; font-size: 13px; }
   .fab-subs li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--outline-variant); overflow-wrap: anywhere; }
   .fab-subs li:last-child { border-bottom: 0; }
+  .fab-subs li[hidden] { display: none; }
   .fab-subs .material-icons { font-size: 16px; color: var(--outline); }
   @media (max-width: 1280px) {
     .fab { right: 16px; bottom: calc(80px + env(safe-area-inset-bottom)); }
@@ -3028,18 +3029,26 @@ function renderFabPanel() {
       : '<div class="fab-empty">No hay tareas activas en esta etiqueta.</div>';
     return;
   }
-  const tasks = mode === 'timer' ? inLabel(labelId) : [];
-  const list = mode === 'timer'
-    ? (tasks.length
-        ? `<div class="fab-list">${tasks.map(t => `<button type="button" class="fab-opt" data-tid="${escapeHtml(t.id)}"><span class="material-icons fab-opt-play">play_arrow</span><span class="fab-opt-name">${escapeHtml(t.name)}</span></button>`).join('')}</div>`
-        : '<div class="fab-empty">No hay tareas activas en esta etiqueta.</div>')
-    : '';
+  const tasks = inLabel(labelId);
+  const list = !tasks.length
+    ? '<div class="fab-empty">No hay tareas activas en esta etiqueta.</div>'
+    : mode === 'timer'
+      ? `<div class="fab-list">${tasks.map(t => `<button type="button" class="fab-opt" data-tid="${escapeHtml(t.id)}"><span class="material-icons fab-opt-play">play_arrow</span><span class="fab-opt-name">${escapeHtml(t.name)}</span></button>`).join('')}</div>`
+      : `<ul class="fab-subs" id="fab-existing">${tasks.map(t => `<li data-name="${escapeHtml(t.name.toLowerCase())}"><span class="material-icons">task_alt</span><span>${escapeHtml(t.name)}</span></li>`).join('')}</ul>`;
   body.innerHTML = `${list}
     <form class="fab-new" id="fab-new-form">
       <input id="fab-new-name" placeholder="${mode === 'timer' ? 'O crea una nueva tarea…' : 'Nombre de la tarea'}" required autocomplete="off">
       <button type="submit" title="${mode === 'timer' ? 'Crear e iniciar' : 'Crear tarea'}" aria-label="${mode === 'timer' ? 'Crear e iniciar' : 'Crear tarea'}"><span class="material-icons">${mode === 'timer' ? 'play_arrow' : 'add'}</span></button>
     </form>`;
-  if (mode === 'task') $('#fab-new-name').focus();
+  if (mode === 'task') {
+    const input = $('#fab-new-name');
+    // filtra las existentes mientras se escribe para evitar duplicados
+    input.addEventListener('input', () => {
+      const q = input.value.trim().toLowerCase();
+      $$('#fab-existing li').forEach(li => { li.hidden = !!q && !li.dataset.name.includes(q); });
+    });
+    input.focus();
+  }
 }
 
 async function onFabCreate(e) {
