@@ -1071,6 +1071,14 @@
   .active-subtasks .subtask-add input::placeholder { color: inherit; opacity: .7; }
   .active-subtasks .subtask-add button { color: inherit; background: rgba(255,255,255,0.10); border: 0; border-radius: 50%; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s; }
   .active-subtasks .subtask-add button:hover { background: rgba(255,255,255,0.22); }
+  .pending-subs-group + .pending-subs-group { margin-top: 12px; }
+  .pending-subs-group > h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 13px; }
+  .pending-subs-group > h4 .count { color: var(--outline); font-weight: 500; }
+  .pending-subs .subtask-list .pending-subs-body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .pending-subs .subtask-list .pending-subs-task { color: var(--outline); font-size: 12px; }
+  .pending-subs .subtask-list li.done .pending-subs-body,
+  .pending-subs .subtask-list li.done .pending-subs-task { text-decoration: none; }
+  .pending-subs .subtask-list li.done .pending-subs-body { color: inherit; }
   .subtask-add input { flex: 1; min-width: 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--outline-variant); border-radius: var(--r-sm); font-family: inherit; }
   .task-card.done .task-name { text-decoration: line-through; color: var(--outline); }
   .task-card.done .task-meta { opacity: .7; }
@@ -1625,6 +1633,14 @@
       <div class="activity-grid">
         <div class="activity-panel" id="activity-week"></div>
         <div class="activity-panel" id="activity-day"></div>
+      </div>
+
+      <div class="panel pending-subs" id="pending-subs-wrap">
+        <h3 style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px;">
+          <span>Subtareas pendientes</span>
+          <button type="button" class="chip-filter" id="pending-subs-done-toggle" aria-pressed="false" style="text-transform:none; letter-spacing:normal; padding:4px 10px; font-size:12px;"><span class="material-icons" style="font-size:16px;">done_all</span>Mostrar completadas</button>
+        </h3>
+        <div id="pending-subs-list"></div>
       </div>
 
       <!-- ponytail: barras semanales de rutinas diarias — completaciones de la semana ISO actual (L..D).
@@ -4565,7 +4581,7 @@ async function saveSubtasks(tid, list) {
   if (!t) return;
   const prev = t.subtasks;
   const next = list.length ? JSON.stringify(list) : '';
-  const rerender = () => { renderTasksView(); renderActiveCard(); renderActiveWidget(); };
+  const rerender = () => { renderTasksView(); renderActiveCard(); renderActiveWidget(); renderPendingSubtasks(); };
   state.tasks = state.tasks.map(x => x.id === tid ? { ...x, subtasks: next } : x);
   rerender();
   try {
@@ -5125,10 +5141,52 @@ function renderDashboard() {
   populateTimerTaskSelect();
   // ponytail: render de la línea del día (24h Gantt) — un solo call, los ticks se hacen aparte
   renderDayTimeline();
+  renderPendingSubtasks();
   // ponytail: barras semanales de rutinas diarias (cuadrícula L..D) — fetch async independiente
   renderWeekRutinas();
   // ponytail: panel de rutinas (separado de las tareas standard) — usa el status cacheado en state
   renderRutinasPanel($('#rutinas-grid'));
+}
+
+let pendingSubsShowDone = localStorage.getItem('tasktime_pending_subs_done') === '1';
+function renderPendingSubtasks() {
+  const host = $('#pending-subs-list');
+  if (!host) return;
+  const toggle = $('#pending-subs-done-toggle');
+  if (toggle) {
+    toggle.classList.toggle('active', pendingSubsShowDone);
+    toggle.setAttribute('aria-pressed', String(pendingSubsShowDone));
+    toggle.onclick = () => {
+      pendingSubsShowDone = !pendingSubsShowDone;
+      localStorage.setItem('tasktime_pending_subs_done', pendingSubsShowDone ? '1' : '0');
+      renderPendingSubtasks();
+    };
+  }
+  const groups = new Map();
+  state.tasks.forEach(t => {
+    if (t.completed === true || String(t.completed || '') === 'true') return;
+    const subs = parseSubtasks(t).filter(s => pendingSubsShowDone || !s.done);
+    if (!subs.length) return;
+    const lid = t.labelId || '';
+    if (!groups.has(lid)) groups.set(lid, []);
+    subs.forEach(s => groups.get(lid).push({ t, s }));
+  });
+  groups.forEach(items => items.sort((a, b) => !!a.s.done - !!b.s.done));
+  if (!groups.size) { host.innerHTML = `<div class="empty-row">No hay subtareas${pendingSubsShowDone ? '' : ' pendientes'}.</div>`; return; }
+  // Orden de etiquetas como en state.labels; "Sin etiqueta" al final.
+  const order = state.labels.map(l => l.id).filter(id => groups.has(id));
+  if (groups.has('')) order.push('');
+  host.innerHTML = order.map(lid => {
+    const items = groups.get(lid);
+    const chip = `<span class="chip" style="background:${lid ? labelColor(lid) : 'var(--outline)'}">${escapeHtml(lid ? labelName(lid) : 'Sin etiqueta')}</span>`;
+    const pendingCount = items.filter(x => !x.s.done).length;
+    return `<div class="pending-subs-group"><h4>${chip}<span class="count">${pendingCount}</span></h4><ul class="subtask-list">${items.map(({ t, s }) =>
+      `<li class="${s.done ? 'done' : ''}" data-tid="${escapeHtml(t.id)}" data-sid="${escapeHtml(s.id)}"><label><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}"><span class="pending-subs-body"><span>${escapeHtml(s.text)}</span> <span class="pending-subs-task">${escapeHtml(t.name)}</span></span></label></li>`).join('')}</ul></div>`;
+  }).join('');
+  host.querySelectorAll('.subtask-check').forEach(cb => cb.onchange = () => {
+    const { tid, sid } = cb.closest('li').dataset;
+    saveSubtasks(tid, parseSubtasks(taskById(tid)).map(s => s.id === sid ? { ...s, done: cb.checked } : s));
+  });
 }
 
 function renderActivityPanel(host, title, entries) {
