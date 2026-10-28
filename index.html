@@ -982,7 +982,6 @@
   .subtask-list li .icon-btn { width: 28px; height: 28px; opacity: .35; transition: opacity .15s; }
   .subtask-list li:hover .icon-btn, .subtask-list li:focus-within .icon-btn { opacity: 1; }
   @media (hover: none) { .subtask-list li .icon-btn { opacity: 1; } }
-  .subtask-list .subtask-edit .material-icons { font-size: 16px; }
   .task-body .subtask-list li:last-child { border-bottom: 0; }
   .subtask-done-list { margin-top: 2px; }
   .task-disclosure { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; margin-top: 8px; border: 1px solid var(--outline-variant); background: #fff; border-radius: 9999px; font: 500 12px/1 inherit; font-family: inherit; color: var(--on-surface-variant); cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
@@ -1036,7 +1035,8 @@
   .subtask-list { list-style: none; margin: 0; padding: 0; }
   .subtask-list li { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--outline-variant); font-size: 13px; }
   .subtask-list li label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; overflow-wrap: anywhere; }
-  .subtask-list li.done label span { text-decoration: line-through; color: var(--outline); }
+  .subtask-list li .sub-label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+  .subtask-list li.done label span, .subtask-list li.done .sub-label span { text-decoration: line-through; color: var(--outline); }
   .subtask-list .subtask-del .material-icons { font-size: 16px; }
   .subtask-add { display: flex; gap: 6px; margin-top: 6px; }
   .subtask-check {
@@ -1461,6 +1461,10 @@
   .fab-panel-title span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fab-panel-back { background: none; border: none; padding: 4px; cursor: pointer; color: inherit; display: flex; border-radius: 50%; }
   .fab-panel-back:hover { background: rgba(0,0,0,0.06); }
+  .fab-panel-done { margin-left: auto; color: var(--outline); }
+  .fab-panel-done[hidden] { display: none; }
+  .fab-panel-done[aria-pressed="true"] { color: var(--secondary); background: rgba(0,0,0,0.06); }
+  .fab-subs li.done .sub-text, .fab-opt.done .fab-opt-name { text-decoration: line-through; color: var(--outline); }
   .fab-panel-body { overflow-y: auto; overscroll-behavior: contain; padding: 6px 0; }
   .fab-list { display: flex; flex-direction: column; }
   .fab-opt {
@@ -1499,6 +1503,13 @@
   .fab-subs li:last-child { border-bottom: 0; }
   .fab-subs li[hidden] { display: none; }
   .fab-subs .material-icons { font-size: 16px; color: var(--outline); }
+  .fab-subs .sub-text { flex: 1; min-width: 0; }
+  .sub-text[role="button"] { cursor: text; padding: 3px 6px; border-radius: var(--r-sm); }
+  .sub-text[role="button"]:hover { background: var(--surface-low); }
+  .active-subtasks .sub-text[role="button"]:hover { background: rgba(255,255,255,0.14); }
+  .fab-subs .icon-btn { width: 28px; height: 28px; flex: none; }
+  .subtask-inline-input { flex: 1; min-width: 0; padding: 3px 6px; font: inherit; font-size: 13px; border: 1px solid var(--primary); border-radius: var(--r-sm); outline: none; background: #fff; color: #111; }
+  .active-subtasks .icon-btn { color: inherit; }
   @media (max-width: 1280px) {
     .fab { right: 16px; bottom: calc(80px + env(safe-area-inset-bottom)); }
   }
@@ -1903,6 +1914,7 @@
       <div class="fab-panel-head">
         <button type="button" class="fab-panel-back" id="fab-panel-back" aria-label="Volver a etiquetas"><span class="material-icons">arrow_back</span></button>
         <div class="fab-panel-title" id="fab-panel-title"></div>
+        <button type="button" class="fab-panel-back fab-panel-done" id="fab-panel-done" aria-pressed="false" title="Mostrar completadas" aria-label="Mostrar completadas" hidden><span class="material-icons">done_all</span></button>
       </div>
       <div class="fab-panel-body" id="fab-panel-body"></div>
     </div>
@@ -1915,11 +1927,11 @@
         <button type="button" class="fab-timer" id="fab-timer" aria-labelledby="fab-timer-label" tabindex="-1"><span class="material-icons" id="fab-timer-icon">play_arrow</span></button>
       </li>
       <li class="fab-action">
-        <span class="fab-action-label" id="fab-task-label">Nueva tarea</span>
+        <span class="fab-action-label" id="fab-task-label">Tarea</span>
         <button type="button" class="fab-task" id="fab-task" aria-labelledby="fab-task-label" tabindex="-1"><span class="material-icons">add_task</span></button>
       </li>
       <li class="fab-action">
-        <span class="fab-action-label" id="fab-subtask-label">Nueva subtarea</span>
+        <span class="fab-action-label" id="fab-subtask-label">Subtarea</span>
         <button type="button" class="fab-subtask" id="fab-subtask" aria-labelledby="fab-subtask-label" tabindex="-1"><span class="material-icons">playlist_add</span></button>
       </li>
     </ul>
@@ -2943,7 +2955,7 @@ function showView(name) {
 }
 
 // mode: null | 'timer' | 'task' | 'subtask'; labelId: undefined = paso de etiquetas, '' = sin etiqueta
-const fabState = { mode: null, labelId: undefined, taskId: undefined, busy: false };
+const fabState = { mode: null, labelId: undefined, taskId: undefined, busy: false, showDone: localStorage.getItem('tasktime_fab_show_done') === '1' };
 const isTaskDone_ = (t) => t.completed === true || String(t.completed || '') === 'true';
 
 function setFabOpen(open) {
@@ -2985,31 +2997,42 @@ function closeFabPanel() {
 }
 
 function renderFabPanel() {
-  const { mode, labelId, taskId } = fabState;
+  const { mode, labelId, taskId, showDone } = fabState;
   if (!mode) return;
   const body = $('#fab-panel-body');
   const active = state.tasks.filter(t => !isTaskDone_(t));
   const inLabel = (lid) => active.filter(t => (t.labelId || '') === lid);
+  // con showDone: todas las tareas de la etiqueta, pendientes primero
+  const listInLabel = (lid) => showDone && mode !== 'timer'
+    ? state.tasks.filter(t => (t.labelId || '') === lid).sort((a, b) => isTaskDone_(a) - isTaskDone_(b))
+    : inLabel(lid);
   const dot = (lid) => `<span class="fab-dot" style="background:${escapeHtml(lid ? labelColor(lid) : '#9aa0a6')}"></span>`;
   $('#fab-panel-back').setAttribute('aria-label', labelId === undefined ? 'Volver al menú' : taskId !== undefined ? 'Volver a tareas' : 'Volver a etiquetas');
+  const doneBtn = $('#fab-panel-done');
+  doneBtn.hidden = mode === 'timer' || labelId === undefined;
+  doneBtn.setAttribute('aria-pressed', String(showDone));
+  doneBtn.title = showDone ? 'Ocultar completadas' : 'Mostrar completadas';
+  doneBtn.setAttribute('aria-label', doneBtn.title);
+  const emptyTasks = `<div class="fab-empty">No hay tareas ${showDone && mode !== 'timer' ? '' : 'activas '}en esta etiqueta.</div>`;
 
   if (mode === 'subtask' && taskId !== undefined) {
     const t = taskById(taskId);
-    const pending = parseSubtasks(t).filter(s => !s.done);
+    const subs = parseSubtasks(t).filter(s => showDone || !s.done).sort((a, b) => !!a.done - !!b.done);
     $('#fab-panel-title').innerHTML = `${dot(labelId)}<span>${escapeHtml(t ? t.name : '')}</span>`;
-    body.innerHTML = `${pending.length
-        ? `<ul class="fab-subs">${pending.map(s => `<li><span class="material-icons">radio_button_unchecked</span><span>${escapeHtml(s.text)}</span></li>`).join('')}</ul>`
-        : '<div class="fab-empty">Sin subtareas pendientes.</div>'}
+    body.innerHTML = `${subs.length
+        ? `<ul class="fab-subs">${subs.map(s => `<li class="${s.done ? 'done' : ''}" data-sid="${escapeHtml(s.id)}"><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${subTextSpan(s.text)}</li>`).join('')}</ul>`
+        : `<div class="fab-empty">Sin subtareas${showDone ? '' : ' pendientes'}.</div>`}
       <form class="fab-new" id="fab-new-form">
         <input id="fab-new-name" maxlength="500" placeholder="Nueva subtarea" required autocomplete="off">
         <button type="submit" title="Añadir subtarea" aria-label="Añadir subtarea"><span class="material-icons">add</span></button>
       </form>`;
+    bindSubtaskTextEdit(body, li => ({ tid: taskId, sid: li.dataset.sid }), () => { if (fabState.taskId === taskId) renderFabPanel(); });
     $('#fab-new-name').focus();
     return;
   }
 
   if (labelId === undefined) {
-    $('#fab-panel-title').textContent = mode === 'timer' ? 'Iniciar timer · etiqueta' : mode === 'subtask' ? 'Nueva subtarea · etiqueta' : 'Nueva tarea · etiqueta';
+    $('#fab-panel-title').textContent = mode === 'timer' ? 'Iniciar timer · etiqueta' : mode === 'subtask' ? 'Subtarea · etiqueta' : 'Tarea · etiqueta';
     const opts = [...state.labels.map(l => ({ id: l.id, name: l.name })), { id: '', name: 'Sin etiqueta' }];
     body.innerHTML = `<div class="fab-list">${opts.map(o => {
       const n = inLabel(o.id).length;
@@ -3020,27 +3043,37 @@ function renderFabPanel() {
 
   $('#fab-panel-title').innerHTML = `${dot(labelId)}<span>${escapeHtml(labelId ? labelName(labelId) : 'Sin etiqueta')}</span>`;
   if (mode === 'subtask') {
-    const tasks = inLabel(labelId);
+    const tasks = listInLabel(labelId);
     body.innerHTML = tasks.length
       ? `<div class="fab-list">${tasks.map(t => {
           const n = parseSubtasks(t).filter(s => !s.done).length;
-          return `<button type="button" class="fab-opt" data-tid="${escapeHtml(t.id)}"><span class="fab-opt-name">${escapeHtml(t.name)}</span><span class="fab-opt-count">${n}</span><span class="material-icons">chevron_right</span></button>`;
+          return `<button type="button" class="fab-opt${isTaskDone_(t) ? ' done' : ''}" data-tid="${escapeHtml(t.id)}"><span class="fab-opt-name">${escapeHtml(t.name)}</span><span class="fab-opt-count">${n}</span><span class="material-icons">chevron_right</span></button>`;
         }).join('')}</div>`
-      : '<div class="fab-empty">No hay tareas activas en esta etiqueta.</div>';
+      : emptyTasks;
     return;
   }
-  const tasks = inLabel(labelId);
+  const tasks = listInLabel(labelId);
   const list = !tasks.length
-    ? '<div class="fab-empty">No hay tareas activas en esta etiqueta.</div>'
+    ? emptyTasks
     : mode === 'timer'
       ? `<div class="fab-list">${tasks.map(t => `<button type="button" class="fab-opt" data-tid="${escapeHtml(t.id)}"><span class="material-icons fab-opt-play">play_arrow</span><span class="fab-opt-name">${escapeHtml(t.name)}</span></button>`).join('')}</div>`
-      : `<ul class="fab-subs" id="fab-existing">${tasks.map(t => `<li data-name="${escapeHtml(t.name.toLowerCase())}"><span class="material-icons">task_alt</span><span>${escapeHtml(t.name)}</span></li>`).join('')}</ul>`;
+      : `<ul class="fab-subs" id="fab-existing">${tasks.map(t => { const d = isTaskDone_(t); return `<li class="${d ? 'done' : ''}" data-name="${escapeHtml(t.name.toLowerCase())}" data-tid="${escapeHtml(t.id)}"><input type="checkbox" class="subtask-check fab-task-check" ${d ? 'checked' : ''} aria-label="${d ? 'Reabrir tarea' : 'Marcar tarea como completada'}"><span class="sub-text" tabindex="0" role="button" title="Clic para editar">${escapeHtml(t.name)}</span></li>`; }).join('')}</ul>`;
   body.innerHTML = `${list}
     <form class="fab-new" id="fab-new-form">
       <input id="fab-new-name" placeholder="${mode === 'timer' ? 'O crea una nueva tarea…' : 'Nombre de la tarea'}" required autocomplete="off">
       <button type="submit" title="${mode === 'timer' ? 'Crear e iniciar' : 'Crear tarea'}" aria-label="${mode === 'timer' ? 'Crear e iniciar' : 'Crear tarea'}"><span class="material-icons">${mode === 'timer' ? 'play_arrow' : 'add'}</span></button>
     </form>`;
   if (mode === 'task') {
+    $$('#fab-existing .sub-text').forEach(sp => {
+      const go = () => {
+        const tid = sp.closest('li').dataset.tid;
+        editTextInline(sp, (taskById(tid) || {}).name || '', 'Editar tarea', 500,
+          name => updateTaskInline(tid, { name }).then(() => { if (fabState.mode === 'task') renderFabPanel(); }),
+          () => { if (fabState.mode === 'task') renderFabPanel(); });
+      };
+      sp.onclick = go;
+      sp.onkeydown = e => { if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); go(); } };
+    });
     const input = $('#fab-new-name');
     // filtra las existentes mientras se escribe para evitar duplicados
     input.addEventListener('input', () => {
@@ -3128,6 +3161,24 @@ function bindFab() {
     renderFabPanel();
   });
   $('#fab-panel-body').addEventListener('submit', (e) => { if (e.target.id === 'fab-new-form') onFabCreate(e); });
+  $('#fab-panel-body').addEventListener('change', (e) => {
+    if (e.target.classList.contains('fab-task-check')) {
+      const tid = e.target.closest('li').dataset.tid;
+      updateTaskInline(tid, { completed: e.target.checked ? 'true' : '' }).then(() => { if (fabState.mode === 'task') renderFabPanel(); });
+      renderFabPanel();
+      return;
+    }
+    if (!e.target.classList.contains('subtask-check')) return;
+    const tid = fabState.taskId;
+    const sid = e.target.closest('li').dataset.sid;
+    saveSubtasks(tid, parseSubtasks(taskById(tid)).map(s => s.id === sid ? { ...s, done: e.target.checked } : s));
+    renderFabPanel();
+  });
+  $('#fab-panel-done').addEventListener('click', () => {
+    fabState.showDone = !fabState.showDone;
+    localStorage.setItem('tasktime_fab_show_done', fabState.showDone ? '1' : '0');
+    renderFabPanel();
+  });
 }
 
 function renderFabTimer() {
@@ -4628,6 +4679,18 @@ let taskFilter = '';
 let taskOpenSubsOnly = false;
 let taskTab = 'active';
 var SUBTASK_ADD_FORM = `<form class="subtask-add"><input type="text" maxlength="500" placeholder="Añadir subtarea…" aria-label="Nueva subtarea"><button type="submit" class="icon-btn" aria-label="Añadir subtarea"><span class="material-icons">add</span></button></form>`;
+function subTextSpan(text, editable = true) {
+  return editable
+    ? `<span class="sub-text" tabindex="0" role="button" title="Clic para editar">${escapeHtml(text)}</span>`
+    : `<span class="sub-text">${escapeHtml(text)}</span>`;
+}
+function bindSubtaskTextEdit(host, ids, after) {
+  host.querySelectorAll('.sub-text[role="button"]').forEach(sp => {
+    const go = () => { const { tid, sid } = ids(sp.closest('li')); editSubtaskInline(sp, tid, sid, after); };
+    sp.onclick = go;
+    sp.onkeydown = e => { if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); go(); } };
+  });
+}
 const expandedTasks = new Set();
 const showDoneSubs = new Set();
 function parseSubtasks(t) {
@@ -4662,12 +4725,13 @@ function renderActiveSubtasks(host, allowAdd = true) {
   host.dataset.sig = sig;
   host.hidden = !tid || (!allowAdd && !pending.length);
   host.innerHTML = `<div class="active-subtasks-hdr">Subtareas${pending.length ? ` · ${pending.length} pendiente${pending.length === 1 ? '' : 's'}` : ''}</div>` +
-    `<ul class="subtask-list">${pending.map(s => `<li data-sid="${escapeHtml(s.id)}"><label><input type="checkbox" class="subtask-check"><span>${escapeHtml(s.text)}</span></label></li>`).join('')}</ul>` +
+    `<ul class="subtask-list">${pending.map(s => `<li data-sid="${escapeHtml(s.id)}"><div class="sub-label"><input type="checkbox" class="subtask-check" aria-label="Marcar como hecha">${subTextSpan(s.text, allowAdd)}</div></li>`).join('')}</ul>` +
     (allowAdd ? SUBTASK_ADD_FORM : '');
   host.querySelectorAll('.subtask-check').forEach(cb => cb.onchange = () => {
     const sid = cb.closest('li').dataset.sid;
     saveSubtasks(tid, parseSubtasks(taskById(tid)).map(s => s.id === sid ? { ...s, done: true } : s));
   });
+  bindSubtaskTextEdit(host, li => ({ tid, sid: li.dataset.sid }));
   const addForm = host.querySelector('.subtask-add');
   if (addForm) addForm.onsubmit = e => {
     e.preventDefault();
@@ -4680,6 +4744,34 @@ function addSubtask(tid, raw) {
   if (!text) return;
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   saveSubtasks(tid, [...parseSubtasks(taskById(tid)), { id, text, done: false }]);
+}
+function editSubtaskInline(span, tid, sid, after) {
+  const original = (parseSubtasks(taskById(tid)).find(s => s.id === sid) || {}).text || '';
+  editTextInline(span, original, 'Editar subtarea', 500,
+    text => saveSubtasks(tid, parseSubtasks(taskById(tid)).map(s => s.id === sid ? { ...s, text } : s)), after);
+}
+function editTextInline(span, original, ariaLabel, maxLength, onSave, after) {
+  if (!span) return;
+  const input = document.createElement('input');
+  input.type = 'text'; input.maxLength = maxLength; input.className = 'subtask-inline-input';
+  input.value = original;
+  input.setAttribute('aria-label', ariaLabel);
+  span.replaceWith(input);
+  input.focus(); input.select();
+  let finished = false;
+  const finish = save => {
+    if (finished) return;
+    finished = true;
+    const text = input.value.trim();
+    if (save && text && text !== original) onSave(text);
+    else if (input.isConnected) input.replaceWith(span);
+    if (after) after();
+  };
+  input.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+  };
+  input.onblur = () => finish(true);
 }
 function setTaskLabelMenu(p, open) {
   p.querySelector('.label-picker-menu').hidden = !open;
@@ -4805,7 +4897,6 @@ async function renderTasksView() {
     const subItem = s => `<li class="${s.done ? 'done' : ''}" data-sid="${escapeHtml(s.id)}">
                 <input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}">
                 <span class="subtask-text" tabindex="0" role="button" title="Clic para editar">${escapeHtml(s.text)}</span>
-                <button type="button" class="subtask-edit icon-btn" title="Editar subtarea" aria-label="Editar subtarea"><span class="material-icons">edit</span></button>
                 <button type="button" class="subtask-del icon-btn" title="Eliminar subtarea" aria-label="Eliminar subtarea"><span class="material-icons">close</span></button>
               </li>`;
     const pendingSubs = subs.filter(s => !s.done);
@@ -4980,7 +5071,6 @@ async function renderTasksView() {
       sp.onclick = () => startEdit(sp.closest('li'));
       sp.onkeydown = e => { if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); startEdit(sp.closest('li')); } };
     });
-    box.querySelectorAll('.subtask-edit').forEach(b => b.onclick = () => startEdit(b.closest('li')));
     const doneToggle = box.querySelector('.subtask-done-toggle');
     if (doneToggle) doneToggle.onclick = () => {
       const list = $(`#subtask-done-${tid}`);
@@ -5240,12 +5330,13 @@ function renderPendingSubtasks() {
     const chip = `<span class="chip" style="background:${lid ? labelColor(lid) : 'var(--outline)'}">${escapeHtml(lid ? labelName(lid) : 'Sin etiqueta')}</span>`;
     const pendingCount = items.filter(x => !x.s.done).length;
     return `<div class="pending-subs-group"><h4>${chip}<span class="count">${pendingCount}</span></h4><ul class="subtask-list">${items.map(({ t, s }) =>
-      `<li class="${s.done ? 'done' : ''}" data-tid="${escapeHtml(t.id)}" data-sid="${escapeHtml(s.id)}"><label><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}"><span class="pending-subs-body"><span>${escapeHtml(s.text)}</span> <span class="pending-subs-task">${escapeHtml(t.name)}</span></span></label></li>`).join('')}</ul></div>`;
+      `<li class="${s.done ? 'done' : ''}" data-tid="${escapeHtml(t.id)}" data-sid="${escapeHtml(s.id)}"><div class="sub-label"><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}"><span class="pending-subs-body">${subTextSpan(s.text)} <span class="pending-subs-task">${escapeHtml(t.name)}</span></span></div></li>`).join('')}</ul></div>`;
   }).join('');
   host.querySelectorAll('.subtask-check').forEach(cb => cb.onchange = () => {
     const { tid, sid } = cb.closest('li').dataset;
     saveSubtasks(tid, parseSubtasks(taskById(tid)).map(s => s.id === sid ? { ...s, done: cb.checked } : s));
   });
+  bindSubtaskTextEdit(host, li => ({ tid: li.dataset.tid, sid: li.dataset.sid }));
 }
 
 function renderActivityPanel(host, title, entries) {
