@@ -1482,6 +1482,7 @@
   .fab-action { display: flex; align-items: center; gap: 10px; opacity: 0; transform: translateY(16px) scale(.4); pointer-events: none; transition: opacity .18s ease, transform .2s ease; }
   .fab.open .fab-action { opacity: 1; transform: none; pointer-events: auto; }
   .fab.open .fab-action:nth-child(2) { transition-delay: .04s; }
+  .fab.open .fab-action:nth-child(3) { transition-delay: .08s; }
   .fab-action-label { background: rgba(33,33,33,0.85); color: #fff; font-size: 12px; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
   .fab-action button {
     width: 40px; height: 40px; border-radius: 50%; border: none; padding: 0; cursor: pointer;
@@ -1492,6 +1493,11 @@
   .fab-action .fab-timer { background: var(--secondary); }
   .fab-action .fab-timer.stop { background: #c62828; }
   .fab-action .fab-task { background: #f57c00; }
+  .fab-action .fab-subtask { background: #7b1fa2; }
+  .fab-subs { list-style: none; margin: 0; padding: 0 14px; font-size: 13px; }
+  .fab-subs li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--outline-variant); overflow-wrap: anywhere; }
+  .fab-subs li:last-child { border-bottom: 0; }
+  .fab-subs .material-icons { font-size: 16px; color: var(--outline); }
   @media (max-width: 1280px) {
     .fab { right: 16px; bottom: calc(80px + env(safe-area-inset-bottom)); }
   }
@@ -1910,6 +1916,10 @@
       <li class="fab-action">
         <span class="fab-action-label" id="fab-task-label">Nueva tarea</span>
         <button type="button" class="fab-task" id="fab-task" aria-labelledby="fab-task-label" tabindex="-1"><span class="material-icons">add_task</span></button>
+      </li>
+      <li class="fab-action">
+        <span class="fab-action-label" id="fab-subtask-label">Nueva subtarea</span>
+        <button type="button" class="fab-subtask" id="fab-subtask" aria-labelledby="fab-subtask-label" tabindex="-1"><span class="material-icons">playlist_add</span></button>
       </li>
     </ul>
   </div>
@@ -2931,8 +2941,8 @@ function showView(name) {
   renderView_(name);
 }
 
-// mode: null | 'timer' | 'task'; labelId: undefined = paso de etiquetas, '' = sin etiqueta
-const fabState = { mode: null, labelId: undefined, busy: false };
+// mode: null | 'timer' | 'task' | 'subtask'; labelId: undefined = paso de etiquetas, '' = sin etiqueta
+const fabState = { mode: null, labelId: undefined, taskId: undefined, busy: false };
 const isTaskDone_ = (t) => t.completed === true || String(t.completed || '') === 'true';
 
 function setFabOpen(open) {
@@ -2948,6 +2958,7 @@ function setFabOpen(open) {
 function openFabPanel(mode) {
   fabState.mode = mode;
   fabState.labelId = undefined;
+  fabState.taskId = undefined;
   setFabOpen(false);
   $('#fab').classList.add('panel-open');
   $('#fab-main').setAttribute('aria-expanded', 'true');
@@ -2964,6 +2975,7 @@ function syncFabBackdrop_() {
 function closeFabPanel() {
   fabState.mode = null;
   fabState.labelId = undefined;
+  fabState.taskId = undefined;
   const fab = $('#fab');
   if (!fab) return;
   fab.classList.remove('panel-open');
@@ -2972,16 +2984,31 @@ function closeFabPanel() {
 }
 
 function renderFabPanel() {
-  const { mode, labelId } = fabState;
+  const { mode, labelId, taskId } = fabState;
   if (!mode) return;
   const body = $('#fab-panel-body');
   const active = state.tasks.filter(t => !isTaskDone_(t));
   const inLabel = (lid) => active.filter(t => (t.labelId || '') === lid);
   const dot = (lid) => `<span class="fab-dot" style="background:${escapeHtml(lid ? labelColor(lid) : '#9aa0a6')}"></span>`;
-  $('#fab-panel-back').setAttribute('aria-label', labelId === undefined ? 'Volver al menú' : 'Volver a etiquetas');
+  $('#fab-panel-back').setAttribute('aria-label', labelId === undefined ? 'Volver al menú' : taskId !== undefined ? 'Volver a tareas' : 'Volver a etiquetas');
+
+  if (mode === 'subtask' && taskId !== undefined) {
+    const t = taskById(taskId);
+    const pending = parseSubtasks(t).filter(s => !s.done);
+    $('#fab-panel-title').innerHTML = `${dot(labelId)}<span>${escapeHtml(t ? t.name : '')}</span>`;
+    body.innerHTML = `${pending.length
+        ? `<ul class="fab-subs">${pending.map(s => `<li><span class="material-icons">radio_button_unchecked</span><span>${escapeHtml(s.text)}</span></li>`).join('')}</ul>`
+        : '<div class="fab-empty">Sin subtareas pendientes.</div>'}
+      <form class="fab-new" id="fab-new-form">
+        <input id="fab-new-name" maxlength="500" placeholder="Nueva subtarea" required autocomplete="off">
+        <button type="submit" title="Añadir subtarea" aria-label="Añadir subtarea"><span class="material-icons">add</span></button>
+      </form>`;
+    $('#fab-new-name').focus();
+    return;
+  }
 
   if (labelId === undefined) {
-    $('#fab-panel-title').textContent = mode === 'timer' ? 'Iniciar timer · etiqueta' : 'Nueva tarea · etiqueta';
+    $('#fab-panel-title').textContent = mode === 'timer' ? 'Iniciar timer · etiqueta' : mode === 'subtask' ? 'Nueva subtarea · etiqueta' : 'Nueva tarea · etiqueta';
     const opts = [...state.labels.map(l => ({ id: l.id, name: l.name })), { id: '', name: 'Sin etiqueta' }];
     body.innerHTML = `<div class="fab-list">${opts.map(o => {
       const n = inLabel(o.id).length;
@@ -2991,6 +3018,16 @@ function renderFabPanel() {
   }
 
   $('#fab-panel-title').innerHTML = `${dot(labelId)}<span>${escapeHtml(labelId ? labelName(labelId) : 'Sin etiqueta')}</span>`;
+  if (mode === 'subtask') {
+    const tasks = inLabel(labelId);
+    body.innerHTML = tasks.length
+      ? `<div class="fab-list">${tasks.map(t => {
+          const n = parseSubtasks(t).filter(s => !s.done).length;
+          return `<button type="button" class="fab-opt" data-tid="${escapeHtml(t.id)}"><span class="fab-opt-name">${escapeHtml(t.name)}</span><span class="fab-opt-count">${n}</span><span class="material-icons">chevron_right</span></button>`;
+        }).join('')}</div>`
+      : '<div class="fab-empty">No hay tareas activas en esta etiqueta.</div>';
+    return;
+  }
   const tasks = mode === 'timer' ? inLabel(labelId) : [];
   const list = mode === 'timer'
     ? (tasks.length
@@ -3010,7 +3047,12 @@ async function onFabCreate(e) {
   const input = $('#fab-new-name');
   const name = input.value.trim();
   if (!name || fabState.busy) return;
-  const { mode, labelId } = fabState;
+  const { mode, labelId, taskId } = fabState;
+  if (mode === 'subtask') {
+    addSubtask(taskId, name);
+    renderFabPanel();
+    return;
+  }
   fabState.busy = true;
   input.disabled = true;
   try {
@@ -3044,6 +3086,7 @@ function bindFab() {
   });
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    if (fabState.mode && fabState.taskId !== undefined) { fabState.taskId = undefined; renderFabPanel(); return; }
     if (fabState.mode && fabState.labelId !== undefined) { fabState.labelId = undefined; renderFabPanel(); return; }
     setFabOpen(false); closeFabPanel();
   });
@@ -3052,13 +3095,20 @@ function bindFab() {
     openFabPanel('timer');
   });
   $('#fab-task').addEventListener('click', () => openFabPanel('task'));
+  $('#fab-subtask').addEventListener('click', () => openFabPanel('subtask'));
   $('#fab-panel-back').addEventListener('click', () => {
+    if (fabState.taskId !== undefined) { fabState.taskId = undefined; renderFabPanel(); return; }
     if (fabState.labelId === undefined) { setFabOpen(true); return; }
     fabState.labelId = undefined; renderFabPanel();
   });
   $('#fab-panel-body').addEventListener('click', (e) => {
     const opt = e.target.closest('.fab-opt');
     if (!opt) return;
+    if (opt.dataset.tid && fabState.mode === 'subtask') {
+      fabState.taskId = opt.dataset.tid;
+      renderFabPanel();
+      return;
+    }
     if (opt.dataset.tid) {
       const tid = opt.dataset.tid;
       closeFabPanel();
