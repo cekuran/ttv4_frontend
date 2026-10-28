@@ -957,8 +957,45 @@
   .chip-filter:hover { border-color: var(--primary); color: var(--primary); }
   .chip-filter.active { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
   .chip-filter .dot { width: 8px; height: 8px; border-radius: 50%; }
-  .task-card { background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); padding: 16px 18px; display: flex; align-items: center; gap: 14px; margin-bottom: 10px; box-shadow: var(--shadow-1); transition: box-shadow .15s, transform .15s; }
+  .task-card { background: #fff; border: 1px solid var(--outline-variant); border-radius: var(--r-lg); padding: 14px 18px; margin-bottom: 10px; box-shadow: var(--shadow-1); transition: box-shadow .15s, transform .15s; }
   .task-card:hover { box-shadow: var(--shadow-2); }
+  .task-head { display: flex; align-items: center; gap: 14px; }
+  .task-card .task-name-text { display: inline-block; max-width: 100%; padding: 1px 6px; margin-left: -6px; border-radius: var(--r-sm); cursor: text; overflow-wrap: anywhere; }
+  .task-card .task-name-text:hover { background: var(--surface-low); }
+  .task-card .task-name-input { width: 100%; padding: 2px 6px; margin-left: -6px; font: inherit; font-size: 15px; font-weight: 600; border: 1px solid var(--primary); border-radius: var(--r-sm); outline: none; }
+  .task-card .task-label-picker .label-picker-btn {
+    display: inline-flex; align-items: center; gap: 6px; max-width: 220px; height: 28px;
+    padding: 2px 6px 2px 8px; background: #fff; color: var(--on-surface);
+    border: 1px solid var(--outline-variant); border-radius: 9999px; font-size: 12px; font-weight: 500;
+  }
+  .task-card .task-label-picker .label-picker-btn:hover, .task-card .task-label-picker .label-picker-btn[aria-expanded="true"] { background: var(--surface-low); border-color: var(--primary); }
+  .task-card .task-label-picker .label-picker-btn:focus-visible { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.12); }
+  .task-card .task-label-picker .label-picker-btn .material-icons { font-size: 16px; }
+  .task-card .task-label-picker .label-picker-btn .lp-caret { font-size: 16px; }
+  .task-body { margin: 12px 0 0 44px; padding-top: 10px; border-top: 1px solid var(--outline-variant); }
+  .subtask-progress { height: 4px; background: var(--surface-low); border-radius: 2px; overflow: hidden; margin-bottom: 6px; }
+  .subtask-progress > span { display: block; height: 100%; background: var(--secondary); transition: width .25s; }
+  .subtask-list li .subtask-text { flex: 1; min-width: 0; cursor: text; padding: 3px 6px; border-radius: var(--r-sm); overflow-wrap: anywhere; }
+  .subtask-list li .subtask-text:hover { background: var(--surface-low); }
+  .subtask-list li.done .subtask-text { text-decoration: line-through; color: var(--outline); }
+  .subtask-list li .subtask-edit-input { flex: 1; min-width: 0; padding: 3px 6px; font: inherit; font-size: 13px; border: 1px solid var(--primary); border-radius: var(--r-sm); outline: none; }
+  .subtask-list li .icon-btn { width: 28px; height: 28px; opacity: .35; transition: opacity .15s; }
+  .subtask-list li:hover .icon-btn, .subtask-list li:focus-within .icon-btn { opacity: 1; }
+  @media (hover: none) { .subtask-list li .icon-btn { opacity: 1; } }
+  .subtask-list .subtask-edit .material-icons { font-size: 16px; }
+  .task-body .subtask-list li:last-child { border-bottom: 0; }
+  .subtask-done-list { margin-top: 2px; }
+  .task-disclosure { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; margin-top: 8px; border: 1px solid var(--outline-variant); background: #fff; border-radius: 9999px; font: 500 12px/1 inherit; font-family: inherit; color: var(--on-surface-variant); cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+  .task-disclosure:hover { border-color: var(--primary); color: var(--primary); }
+  .task-disclosure[aria-expanded="true"] { background: rgba(16,43,138,0.06); border-color: var(--primary); color: var(--primary); }
+  .task-disclosure .material-icons { font-size: 16px; }
+  .task-disclosure .chev { transition: transform .2s; }
+  .task-disclosure[aria-expanded="true"] .chev { transform: rotate(180deg); }
+  .task-disclosure .badge { background: var(--surface-low); border-radius: 9999px; padding: 2px 7px; font-size: 11px; font-weight: 600; }
+  .task-disclosure[aria-expanded="true"] .badge { background: var(--primary); color: var(--on-primary); }
+  .task-logs { margin-top: 10px; background: var(--surface-low); border-left: 3px solid var(--primary); border-radius: var(--r-md); padding: 4px 12px 8px; }
+  .task-logs[hidden] { display: none; }
+  .task-logs-hdr { display: flex; justify-content: space-between; align-items: center; padding: 8px 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--primary); }
   .task-card .task-info { flex: 1; min-width: 0; }
   .task-card .task-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
   .task-card .task-meta { font-size: 12px; color: var(--on-surface-variant); display: flex; align-items: center; gap: 8px; }
@@ -1180,7 +1217,10 @@
     #log-table td.log-task { white-space: normal; overflow-wrap: anywhere; text-align: right; }
     #log-table td[data-label=""]::before { content: none; }
     #log-table td:last-child { justify-content: flex-end; padding-top: 6px; }
-    .task-card { flex-wrap: wrap; padding: 14px; gap: 8px 10px; }
+    .task-card { padding: 14px; }
+    .task-head { flex-wrap: wrap; gap: 8px 10px; }
+    .task-body { margin-left: 0; }
+    .task-toggle-done { order: 9; }
     /* ponytail: title + meta own the full first row — single-line clamp keeps long titles from breaking the card */
     .task-card .task-info { flex: 1 1 100%; min-width: 0; }
     .task-card .task-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1384,7 +1424,11 @@
   }
 
   /* === FAB (estilo Materialize) === */
-  .fab { position: fixed; right: 24px; bottom: 24px; z-index: 105; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 14px; }
+  .fab-backdrop { position: fixed; inset: 0; z-index: 104; background: rgba(15,23,42,0.18); animation: fab-fade .15s ease; touch-action: none; }
+  .fab-backdrop[hidden] { display: none; }
+  @keyframes fab-fade { from { opacity: 0; } to { opacity: 1; } }
+  .fab { pointer-events: none; position: fixed; right: 24px; bottom: 24px; z-index: 105; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 14px; }
+  .fab-main, .fab-panel { pointer-events: auto; }
   .fab-main {
     width: 56px; height: 56px; border-radius: 50%; border: none; padding: 0;
     background: var(--primary); color: var(--on-primary); cursor: pointer;
@@ -1409,7 +1453,7 @@
   .fab-panel-title span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fab-panel-back { background: none; border: none; padding: 4px; cursor: pointer; color: inherit; display: flex; border-radius: 50%; }
   .fab-panel-back:hover { background: rgba(0,0,0,0.06); }
-  .fab-panel-body { overflow-y: auto; padding: 6px 0; }
+  .fab-panel-body { overflow-y: auto; overscroll-behavior: contain; padding: 6px 0; }
   .fab-list { display: flex; flex-direction: column; }
   .fab-opt {
     display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px;
@@ -1426,7 +1470,7 @@
   .fab-new:first-child { border-top: none; margin-top: 0; }
   .fab-new input { flex: 1; min-width: 0; }
   .fab-new button { flex: none; width: 38px; height: 38px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-  .fab-actions { list-style: none; margin: 0; padding: 0 8px 0 0; display: flex; flex-direction: column-reverse; gap: 14px; align-items: flex-end; }
+  .fab-actions { pointer-events: none; list-style: none; margin: 0; padding: 0 8px 0 0; display: flex; flex-direction: column-reverse; gap: 14px; align-items: flex-end; }
   .fab-action { display: flex; align-items: center; gap: 10px; opacity: 0; transform: translateY(16px) scale(.4); pointer-events: none; transition: opacity .18s ease, transform .2s ease; }
   .fab.open .fab-action { opacity: 1; transform: none; pointer-events: auto; }
   .fab.open .fab-action:nth-child(2) { transition-delay: .04s; }
@@ -1830,6 +1874,7 @@
     </button>
   </div>
 
+  <div class="fab-backdrop" id="fab-backdrop" hidden></div>
   <div class="fab" id="fab">
     <div class="fab-panel" id="fab-panel" role="dialog" aria-labelledby="fab-panel-title" hidden>
       <div class="fab-panel-head">
@@ -2879,6 +2924,7 @@ function setFabOpen(open) {
   if (!fab) return;
   if (open) closeFabPanel();
   fab.classList.toggle('open', open);
+  syncFabBackdrop_();
   $('#fab-main').setAttribute('aria-expanded', String(open || !!fabState.mode));
   $$('#fab-actions button').forEach(b => { b.tabIndex = open ? 0 : -1; });
 }
@@ -2890,7 +2936,13 @@ function openFabPanel(mode) {
   $('#fab').classList.add('panel-open');
   $('#fab-main').setAttribute('aria-expanded', 'true');
   $('#fab-panel').hidden = false;
+  syncFabBackdrop_();
   renderFabPanel();
+}
+
+function syncFabBackdrop_() {
+  const fab = $('#fab');
+  $('#fab-backdrop').hidden = !(fab.classList.contains('open') || fab.classList.contains('panel-open'));
 }
 
 function closeFabPanel() {
@@ -2900,6 +2952,7 @@ function closeFabPanel() {
   if (!fab) return;
   fab.classList.remove('panel-open');
   $('#fab-panel').hidden = true;
+  syncFabBackdrop_();
 }
 
 function renderFabPanel() {
@@ -2967,6 +3020,7 @@ function bindFab() {
     if (fabState.mode) { closeFabPanel(); setFabOpen(false); return; }
     setFabOpen(!fab.classList.contains('open'));
   });
+  $('#fab-backdrop').addEventListener('click', (e) => { e.stopPropagation(); setFabOpen(false); closeFabPanel(); });
   // composedPath: el panel se re-renderiza al hacer click, así que e.target puede quedar desconectado
   document.addEventListener('click', (e) => {
     if (e.composedPath().includes(fab)) return;
@@ -4496,9 +4550,11 @@ async function onManualSubmit(e) {
 
 // ==== Tasks ====
 let taskFilter = '';
+let taskOpenSubsOnly = false;
 let taskTab = 'active';
 var SUBTASK_ADD_FORM = `<form class="subtask-add"><input type="text" maxlength="500" placeholder="Añadir subtarea…" aria-label="Nueva subtarea"><button type="submit" class="icon-btn" aria-label="Añadir subtarea"><span class="material-icons">add</span></button></form>`;
 const expandedTasks = new Set();
+const showDoneSubs = new Set();
 function parseSubtasks(t) {
   if (!t || !t.subtasks) return [];
   if (Array.isArray(t.subtasks)) return t.subtasks;
@@ -4550,6 +4606,29 @@ function addSubtask(tid, raw) {
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   saveSubtasks(tid, [...parseSubtasks(taskById(tid)), { id, text, done: false }]);
 }
+function setTaskLabelMenu(p, open) {
+  p.querySelector('.label-picker-menu').hidden = !open;
+  p.querySelector('.label-picker-btn').setAttribute('aria-expanded', String(open));
+}
+function closeTaskLabelMenus(except) {
+  $$('#task-table-wrap .task-label-picker').forEach(p => { if (p !== except) setTaskLabelMenu(p, false); });
+}
+document.addEventListener('click', e => closeTaskLabelMenus(e.target.closest('.task-label-picker')));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTaskLabelMenus(); });
+async function updateTaskInline(tid, patch) {
+  const prev = taskById(tid);
+  if (!prev) return;
+  state.tasks = state.tasks.map(x => x.id === tid ? { ...x, ...patch } : x);
+  refreshAll();
+  try {
+    const updated = await call('updateTask', tid, patch);
+    state.tasks = state.tasks.map(x => x.id === tid ? updated : x);
+  } catch (e) {
+    state.tasks = state.tasks.map(x => x.id === tid ? prev : x);
+    toast(e.message, 'warn');
+  }
+  refreshAll();
+}
 
 async function renderTasksView() {
   await ensureTaskLabelSelect();
@@ -4569,7 +4648,12 @@ async function renderTasksView() {
   const chips = $('#task-filter-chips');
   chips.innerHTML = `<button class="chip-filter ${taskFilter===''?'active':''}" data-lid="">All</button>` +
     state.labels.map(l => `<button class="chip-filter ${taskFilter===l.id?'active':''}" data-lid="${l.id}"><span class="dot" style="background:${l.color}"></span>${escapeHtml(l.name)}</button>`).join('') +
-    (taskFilter && labelById(taskFilter) ? `<button class="chip-filter" id="label-rename-btn" title="Editar nombre de la etiqueta" aria-label="Editar nombre de la etiqueta"><span class="material-icons" style="font-size:16px;">edit</span>Editar etiqueta</button>` : '');
+    (taskFilter && labelById(taskFilter) ? `<button class="chip-filter" id="label-rename-btn" title="Editar nombre de la etiqueta" aria-label="Editar nombre de la etiqueta"><span class="material-icons" style="font-size:16px;">edit</span>Editar etiqueta</button>` : '') +
+    `<button class="chip-filter${taskOpenSubsOnly ? ' active' : ''}" id="task-open-subs-filter" aria-pressed="${taskOpenSubsOnly}" title="Mostrar solo tareas con subtareas pendientes" style="margin-left:auto;"><span class="material-icons" style="font-size:16px;">checklist</span>Con subtareas pendientes</button>`;
+  $('#task-open-subs-filter').onclick = () => {
+    taskOpenSubsOnly = !taskOpenSubsOnly;
+    renderTasksView();
+  };
   $$('#task-filter-chips .chip-filter[data-lid]').forEach(b => b.onclick = () => {
     taskFilter = b.dataset.lid;
     renderTasksView();
@@ -4599,16 +4683,18 @@ async function renderTasksView() {
   $('#task-count-active').textContent = countActive ? `(${countActive})` : '';
   $('#task-count-completed').textContent = countDone ? `(${countDone})` : '';
 
-  const visible = taskFilter ? tabFiltered.filter(t => t.labelId === taskFilter) : tabFiltered;
+  const visible = tabFiltered.filter(t =>
+    (!taskFilter || t.labelId === taskFilter) &&
+    (!taskOpenSubsOnly || parseSubtasks(t).some(s => !s.done)));
 
   if (state.tasks.length === 0) {
     $('#task-table-wrap').innerHTML = `<div class="empty">No tasks yet. Add one above.</div>`;
     return;
   }
   if (visible.length === 0) {
-    const msg = taskTab === 'completed'
-      ? 'No completed tasks yet.'
-      : (taskFilter ? 'No tasks match this filter.' : 'No active tasks. Mark a task as done from its card.');
+    const msg = (taskFilter || taskOpenSubsOnly)
+      ? 'No tasks match this filter.'
+      : (taskTab === 'completed' ? 'No completed tasks yet.' : 'No active tasks. Mark a task as done from its card.');
     $('#task-table-wrap').innerHTML = `<div class="empty">${msg}</div>`;
     return;
   }
@@ -4624,7 +4710,17 @@ async function renderTasksView() {
     const entries = byTask[t.id] || [];
     const total = entries.reduce((s,e) => s + Number(e.durationMinutes || 0), 0);
     const labelObj = lid ? labelById(lid) : null;
-    const labelTag = labelObj ? `<span class="chip" style="background:${labelObj.color}">${escapeHtml(labelObj.name)}</span>` : '<span class="chip" style="background:var(--surface-low);color:var(--on-surface-variant);border:1px dashed var(--outline-variant);">Sin etiqueta</span>';
+    const lpOpt = (id, name, color) => `<button type="button" class="lp-opt${id === lid ? ' selected' : ''}" role="option" aria-selected="${id === lid}" data-lid="${escapeHtml(id)}">` +
+      (color ? `<span class="lp-dot" style="background:${color}"></span>` : '<span class="material-icons">label_outline</span>') +
+      `<span>${escapeHtml(name)}</span></button>`;
+    const labelTag = `<div class="label-picker task-label-picker" data-tid="${t.id}">
+            <button type="button" class="label-picker-btn" aria-haspopup="listbox" aria-expanded="false" title="Cambiar etiqueta">
+              <span class="material-icons" style="color:${labelObj ? labelObj.color : ''}">${labelObj ? 'label' : 'label_outline'}</span>
+              <span class="lp-name">${labelObj ? escapeHtml(labelObj.name) : 'Sin etiqueta'}</span>
+              <span class="material-icons lp-caret">expand_more</span>
+            </button>
+            <div class="label-picker-menu" role="listbox" hidden>${lpOpt('', 'Sin etiqueta', '') + state.labels.map(l => lpOpt(l.id, l.name, l.color)).join('')}</div>
+          </div>`;
     const isDone = t.completed === true || String(t.completed || '') === 'true';
     const isActiveTask = state.activeTimer && state.activeTimer.taskId === t.id;
     const playDisabled = (isDone || (state.activeTimer && !isActiveTask)) ? 'disabled' : '';
@@ -4632,31 +4728,47 @@ async function renderTasksView() {
     const subs = parseSubtasks(t);
     const subsDone = subs.filter(s => s.done).length;
     const subItem = s => `<li class="${s.done ? 'done' : ''}" data-sid="${escapeHtml(s.id)}">
-                <label><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''}><span>${escapeHtml(s.text)}</span></label>
-                <button type="button" class="subtask-del icon-btn" aria-label="Eliminar subtarea"><span class="material-icons">close</span></button>
+                <input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}">
+                <span class="subtask-text" tabindex="0" role="button" title="Clic para editar">${escapeHtml(s.text)}</span>
+                <button type="button" class="subtask-edit icon-btn" title="Editar subtarea" aria-label="Editar subtarea"><span class="material-icons">edit</span></button>
+                <button type="button" class="subtask-del icon-btn" title="Eliminar subtarea" aria-label="Eliminar subtarea"><span class="material-icons">close</span></button>
               </li>`;
     const pendingSubs = subs.filter(s => !s.done);
-    html += `<div class="task-card${state.activeTimer && state.activeTimer.taskId === t.id ? ' active' : ''}${isDone ? ' done' : ''}" data-tid="${t.id}">
-      <div class="task-info">
-        <div class="task-name">${escapeHtml(t.name)}</div>
-        <div class="task-meta">
-          ${labelTag}
-          <button class="task-edit-btn" data-id="${t.id}" title="Editar tarea" aria-label="Editar tarea"><span class="material-icons">edit</span></button>
-          <span>· ${entries.length} entr${entries.length===1?'y':'ies'}</span>
-          ${subs.length ? `<span class="subtask-count${subsDone === subs.length ? ' all' : ''}" title="Subtareas completadas"><span class="material-icons">checklist</span>${subsDone}/${subs.length}</span>` : ''}
-        </div>
-        <div class="subtasks" data-tid="${t.id}" style="margin:8px 0 0;"><ul class="subtask-list">${pendingSubs.map(subItem).join('')}</ul>${SUBTASK_ADD_FORM}</div>
-        <div class="task-expand" id="task-expand-${t.id}" style="display:${expandedTasks.has(t.id) ? 'block' : 'none'}; margin-top:10px;">
-          <div class="subtasks" data-tid="${t.id}">
-            <ul class="subtask-list">${subs.filter(s => s.done).map(subItem).join('')}</ul>
+    const doneSubs = subs.filter(s => s.done);
+    const doneOpen = showDoneSubs.has(t.id);
+    const logsOpen = expandedTasks.has(t.id);
+    html += `<div class="task-card${isActiveTask ? ' active' : ''}${isDone ? ' done' : ''}" data-tid="${t.id}">
+      <div class="task-head">
+        <button class="task-toggle-done" data-id="${t.id}" title="${isDone ? 'Reabrir tarea' : 'Marcar como completada'}" aria-label="${isDone ? 'Reabrir tarea' : 'Marcar como completada'}"><span class="material-icons">${isDone ? 'undo' : 'check'}</span></button>
+        <div class="task-info">
+          <div class="task-name"><span class="task-name-text" tabindex="0" role="button" title="Clic para editar el título">${escapeHtml(t.name)}</span></div>
+          <div class="task-meta">
+            ${labelTag}
+            ${subs.length ? `<span class="subtask-count${subsDone === subs.length ? ' all' : ''}" title="Subtareas completadas"><span class="material-icons">checklist</span>${subsDone}/${subs.length}</span>` : ''}
           </div>
+        </div>
+        <div class="task-total${total ? '' : ' zero'}" data-tid="${t.id}">${fmtHM(total)}<span class="task-live" style="display:none; margin-left:6px; color:var(--secondary); font-weight:600;"></span></div>
+        <button class="play-btn${isActiveTask ? ' stop' : ''}" data-id="${t.id}" title="${playTitle}" ${playDisabled} aria-label="${isActiveTask ? 'Stop timer' : 'Start timer'}"></button>
+        <button class="del icon-btn" data-id="${t.id}" title="Eliminar tarea" aria-label="Eliminar tarea"><span class="material-icons">delete</span></button>
+      </div>
+      <div class="task-body">
+        <div class="subtasks" data-tid="${t.id}">
+          ${subs.length ? `<div class="subtask-progress" title="${subsDone} de ${subs.length} completadas"><span style="width:${Math.round(subsDone / subs.length * 100)}%"></span></div>` : ''}
+          <ul class="subtask-list">${pendingSubs.map(subItem).join('')}</ul>
+          ${SUBTASK_ADD_FORM}
+          ${doneSubs.length ? `<button type="button" class="task-disclosure subtask-done-toggle" aria-expanded="${doneOpen}" aria-controls="subtask-done-${t.id}">
+            <span class="material-icons">task_alt</span>Completadas<span class="badge">${doneSubs.length}</span><span class="material-icons chev">expand_more</span>
+          </button>
+          <ul class="subtask-list subtask-done-list" id="subtask-done-${t.id}" ${doneOpen ? '' : 'hidden'}>${doneSubs.map(subItem).join('')}</ul>` : ''}
+        </div>
+        <button type="button" class="task-disclosure task-logs-toggle" data-tid="${t.id}" aria-expanded="${logsOpen}" aria-controls="task-logs-${t.id}">
+          <span class="material-icons">history</span><span class="lbl">${logsOpen ? 'Ocultar registros' : 'Ver registros'}</span><span class="badge">${entries.length}</span><span class="material-icons chev">expand_more</span>
+        </button>
+        <div class="task-logs" id="task-logs-${t.id}" ${logsOpen ? '' : 'hidden'}>
+          <div class="task-logs-hdr"><span>Registros de tiempo</span><span>Total ${fmtHM(total)}</span></div>
           <div class="task-entries" id="task-entries-${t.id}"></div>
         </div>
       </div>
-      <button class="task-toggle-done" data-id="${t.id}" title="${isDone ? 'Reabrir tarea' : 'Marcar como completada'}" aria-label="${isDone ? 'Reabrir tarea' : 'Marcar como completada'}"><span class="material-icons">${isDone ? 'undo' : 'check'}</span></button>
-      <div class="task-total${total ? '' : ' zero'}" data-tid="${t.id}">${fmtHM(total)}<span class="task-live" style="display:none; margin-left:6px; color:var(--secondary); font-weight:600;"></span></div>
-      <button class="play-btn${state.activeTimer && state.activeTimer.taskId === t.id ? ' stop' : ''}" data-id="${t.id}" title="${playTitle}" ${playDisabled} aria-label="${state.activeTimer && state.activeTimer.taskId === t.id ? 'Stop timer' : 'Start timer'}"></button>
-      <button class="del icon-btn" data-id="${t.id}" aria-label="Eliminar tarea"><span class="material-icons">delete</span></button>
     </div>`;
   });
   $('#task-table-wrap').innerHTML = html;
@@ -4666,7 +4778,7 @@ async function renderTasksView() {
     const entries = byTask[t.id] || [];
     const wrap = $(`#task-entries-${t.id}`);
     if (!wrap) return;
-    if (!entries.length) { wrap.innerHTML = `<div style="color:var(--outline); font-size:13px; padding:6px 0;">No entries logged yet.</div>`; return; }
+    if (!entries.length) { wrap.innerHTML = `<div style="color:var(--outline); font-size:13px; padding:6px 0;">Sin registros todavía. Pulsa ▶ para empezar a medir tiempo.</div>`; return; }
     wrap.innerHTML = `<table class="entries-sub"><thead><tr><th>Date</th><th>Start</th><th>End</th><th>Duration</th></tr></thead><tbody>` +
       entries.map(e => `<tr>
         <td>${fmtDate(e.startTime)}</td>
@@ -4688,7 +4800,51 @@ async function renderTasksView() {
     state.tasks = state.tasks.filter(t => t.id !== b.dataset.id);
     renderTasksView(); refreshAll();
   });
-  $$('#task-table-wrap .task-edit-btn').forEach(b => b.onclick = () => openEditTaskModal(b.dataset.id));
+  const startTitleEdit = tid => {
+    const span = $(`.task-card[data-tid="${tid}"] .task-name-text`);
+    const t = taskById(tid);
+    if (!span || !t) return;
+    const input = document.createElement('input');
+    input.type = 'text'; input.className = 'task-name-input';
+    input.value = t.name;
+    input.setAttribute('aria-label', 'Título de la tarea');
+    span.replaceWith(input);
+    input.focus(); input.select();
+    let finished = false;
+    const finish = save => {
+      if (finished) return;
+      finished = true;
+      const name = input.value.trim();
+      if (save && name && name !== t.name) updateTaskInline(tid, { name });
+      else input.replaceWith(span);
+    };
+    input.onkeydown = e => {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    };
+    input.onblur = () => finish(true);
+  };
+  $$('#task-table-wrap .task-name-text').forEach(sp => {
+    const tid = sp.closest('.task-card').dataset.tid;
+    sp.onclick = () => startTitleEdit(tid);
+    sp.onkeydown = e => { if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); startTitleEdit(tid); } };
+  });
+  $$('#task-table-wrap .task-label-picker').forEach(p => {
+    const btn = p.querySelector('.label-picker-btn');
+    btn.onclick = e => {
+      e.stopPropagation();
+      const open = p.querySelector('.label-picker-menu').hidden;
+      closeTaskLabelMenus();
+      setTaskLabelMenu(p, open);
+    };
+    p.querySelector('.label-picker-menu').onclick = e => {
+      const o = e.target.closest('.lp-opt');
+      if (!o) return;
+      setTaskLabelMenu(p, false);
+      const t = taskById(p.dataset.tid);
+      if (t && (t.labelId || '') !== o.dataset.lid) updateTaskInline(p.dataset.tid, { labelId: o.dataset.lid });
+    };
+  });
   $$('#task-table-wrap .task-toggle-done').forEach(b => b.onclick = async () => {
     const tid = b.dataset.id;
     const t = taskById(tid);
@@ -4700,16 +4856,14 @@ async function renderTasksView() {
       refreshAll();
     } catch (e) { toast(e.message, 'warn'); }
   });
-  // click card body to toggle checklist + entries
-  $$('#task-table-wrap .task-card').forEach(card => {
-    const tid = card.dataset.tid;
-    const row = $(`#task-expand-${tid}`);
-    if (row) card.querySelector('.task-info').addEventListener('click', e => {
-      if (e.target.closest('.task-edit-btn, .subtasks')) return;
-      const shown = row.style.display !== 'none';
-      row.style.display = shown ? 'none' : 'block';
-      if (shown) expandedTasks.delete(tid); else expandedTasks.add(tid);
-    });
+  $$('#task-table-wrap .task-logs-toggle').forEach(b => b.onclick = () => {
+    const tid = b.dataset.tid;
+    const panel = $(`#task-logs-${tid}`);
+    const open = panel.hidden;
+    panel.hidden = !open;
+    b.setAttribute('aria-expanded', open);
+    b.querySelector('.lbl').textContent = open ? 'Ocultar registros' : 'Ver registros';
+    if (open) expandedTasks.add(tid); else expandedTasks.delete(tid);
   });
   $$('#task-table-wrap .subtasks').forEach(box => {
     const tid = box.dataset.tid;
@@ -4722,6 +4876,43 @@ async function renderTasksView() {
       const sid = b.closest('li').dataset.sid;
       saveSubtasks(tid, current().filter(s => s.id !== sid));
     });
+    const startEdit = li => {
+      const span = li.querySelector('.subtask-text');
+      if (!span) return;
+      const sid = li.dataset.sid;
+      const original = (current().find(s => s.id === sid) || {}).text || '';
+      const input = document.createElement('input');
+      input.type = 'text'; input.maxLength = 500; input.className = 'subtask-edit-input';
+      input.value = original;
+      input.setAttribute('aria-label', 'Editar subtarea');
+      span.replaceWith(input);
+      input.focus(); input.select();
+      let finished = false;
+      const finish = save => {
+        if (finished) return;
+        finished = true;
+        const text = input.value.trim();
+        if (save && text && text !== original) saveSubtasks(tid, current().map(s => s.id === sid ? { ...s, text } : s));
+        else input.replaceWith(span);
+      };
+      input.onkeydown = e => {
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+      };
+      input.onblur = () => finish(true);
+    };
+    box.querySelectorAll('.subtask-text').forEach(sp => {
+      sp.onclick = () => startEdit(sp.closest('li'));
+      sp.onkeydown = e => { if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); startEdit(sp.closest('li')); } };
+    });
+    box.querySelectorAll('.subtask-edit').forEach(b => b.onclick = () => startEdit(b.closest('li')));
+    const doneToggle = box.querySelector('.subtask-done-toggle');
+    if (doneToggle) doneToggle.onclick = () => {
+      const list = $(`#subtask-done-${tid}`);
+      list.hidden = !list.hidden;
+      doneToggle.setAttribute('aria-expanded', !list.hidden);
+      if (list.hidden) showDoneSubs.delete(tid); else showDoneSubs.add(tid);
+    };
     const addForm = box.querySelector('.subtask-add');
     if (addForm) addForm.onsubmit = e => {
       e.preventDefault();
