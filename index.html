@@ -1032,7 +1032,8 @@
   .task-card .subtask-count .material-icons { font-size: 14px; }
   .task-card .subtask-count.all { color: var(--secondary); font-weight: 600; }
   .subtasks { margin-bottom: 10px; cursor: default; }
-  .task-notes { margin-bottom: 10px; }
+  .task-notes { margin-top: 8px; }
+  .task-notes[hidden] { display: none; }
   .active-notes { margin-top: 10px; }
   .active-notes[hidden] { display: none; }
   .active-notes-toggle { display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.12); color: inherit; border: 0; border-radius: var(--r-sm); padding: 4px 8px; font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1; cursor: pointer; }
@@ -4749,6 +4750,7 @@ function bindSubtaskTextEdit(host, ids, after) {
 }
 const expandedTasks = new Set();
 const showDoneSubs = new Set();
+const notesOpenTasks = new Set();
 function parseSubtasks(t) {
   if (!t || !t.subtasks) return [];
   if (Array.isArray(t.subtasks)) return t.subtasks;
@@ -4959,6 +4961,7 @@ async function renderTasksView() {
     const doneSubs = subs.filter(s => s.done);
     const doneOpen = showDoneSubs.has(t.id);
     const logsOpen = expandedTasks.has(t.id);
+    const notesOpen = notesOpenTasks.has(t.id);
     html += `<div class="task-card${isActiveTask ? ' active' : ''}${isDone ? ' done' : ''}" data-tid="${t.id}">
       <div class="task-head">
         <button class="task-toggle-done" data-id="${t.id}" title="${isDone ? 'Reabrir tarea' : 'Marcar como completada'}" aria-label="${isDone ? 'Reabrir tarea' : 'Marcar como completada'}"><span class="material-icons">${isDone ? 'undo' : 'check'}</span></button>
@@ -4984,7 +4987,10 @@ async function renderTasksView() {
           </button>
           <ul class="subtask-list subtask-done-list" id="subtask-done-${t.id}" ${doneOpen ? '' : 'hidden'}>${doneSubs.map(subItem).join('')}</ul>` : ''}
         </div>
-        <div class="task-notes">
+        <button type="button" class="task-disclosure task-notes-toggle" data-tid="${t.id}" aria-expanded="${notesOpen}" aria-controls="task-notes-${t.id}">
+          <span class="material-icons">${t.notes ? 'sticky_note_2' : 'note_add'}</span><span class="lbl">${notesOpen ? 'Ocultar notas' : (t.notes ? 'Ver notas' : 'Añadir notas')}</span><span class="material-icons chev">expand_more</span>
+        </button>
+        <div class="task-notes" id="task-notes-${t.id}" ${notesOpen ? '' : 'hidden'}>
           <textarea class="task-notes-input" data-tid="${t.id}" maxlength="5000" rows="2" placeholder="Añadir notas…" aria-label="Notas de la tarea">${escapeHtml(t.notes || '')}</textarea>
         </div>
         <button type="button" class="task-disclosure task-logs-toggle" data-tid="${t.id}" aria-expanded="${logsOpen}" aria-controls="task-logs-${t.id}">
@@ -5054,6 +5060,25 @@ async function renderTasksView() {
     const tid = sp.closest('.task-card').dataset.tid;
     sp.onclick = () => startTitleEdit(tid);
     sp.onkeydown = e => { if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); startTitleEdit(tid); } };
+  });
+  $$('#task-table-wrap .task-notes-toggle').forEach(b => {
+    // Evita que el blur del textarea re-pinte la lista antes de recibir el click.
+    b.onmousedown = e => e.preventDefault();
+    b.onclick = () => {
+      const tid = b.dataset.tid;
+      const panel = $(`#task-notes-${tid}`);
+      const ta = panel.querySelector('textarea');
+      if (document.activeElement === ta) ta.blur();
+      const open = !notesOpenTasks.has(tid);
+      if (open) notesOpenTasks.add(tid); else notesOpenTasks.delete(tid);
+      const curPanel = $(`#task-notes-${tid}`), curBtn = $(`#task-table-wrap .task-notes-toggle[data-tid="${tid}"]`);
+      if (!curPanel || !curBtn) return;
+      const hasNotes = !!(taskById(tid) || {}).notes;
+      curPanel.hidden = !open;
+      curBtn.setAttribute('aria-expanded', open);
+      curBtn.querySelector('.lbl').textContent = open ? 'Ocultar notas' : (hasNotes ? 'Ver notas' : 'Añadir notas');
+      if (open && !hasNotes) curPanel.querySelector('textarea').focus();
+    };
   });
   $$('#task-table-wrap .task-notes-input').forEach(ta => {
     ta.onblur = () => {
