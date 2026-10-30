@@ -1040,7 +1040,9 @@
   .active-notes-toggle .material-icons { font-size: 16px; }
   .active-notes-toggle .chev { transition: transform .2s; }
   .active-notes-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
-  .active-notes-body { margin-top: 6px; padding: 8px 10px; background: rgba(255,255,255,0.10); border-radius: var(--r-sm); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow-y: auto; }
+  .active-notes-body { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; padding: 8px 10px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.28); border-radius: var(--r-sm); color: inherit; font: inherit; font-size: 13px; resize: vertical; min-height: 60px; max-height: 240px; }
+  .active-notes-body:focus { outline: none; border-color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.18); }
+  .active-notes-body::placeholder { color: inherit; opacity: .7; }
   .active-notes-body[hidden] { display: none; }
   .task-notes textarea { width: 100%; box-sizing: border-box; min-height: 56px; resize: vertical; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--outline-variant); border-radius: var(--r-sm); background: var(--surface-low); color: inherit; }
   .task-notes textarea:focus { outline: none; border-color: var(--primary); background: #fff; }
@@ -4392,17 +4394,34 @@ function renderActiveNotes(host) {
   const notes = tid ? String((taskById(tid) || {}).notes || '') : '';
   const sig = tid + '|' + activeNotesOpen + '|' + notes;
   if (host.dataset.sig === sig) return;
+  const ta = host.querySelector('textarea');
+  if (ta && document.activeElement === ta) return;
   host.dataset.sig = sig;
-  host.hidden = !notes;
-  if (!notes) { host.innerHTML = ''; return; }
+  host.hidden = !tid;
+  if (!tid) { host.innerHTML = ''; return; }
+  const label = activeNotesOpen ? 'Ocultar notas' : (notes ? 'Ver notas' : 'Añadir notas');
   host.innerHTML = `<button type="button" class="active-notes-toggle" aria-expanded="${activeNotesOpen}" aria-controls="active-notes-body">
-      <span class="material-icons">sticky_note_2</span>${activeNotesOpen ? 'Ocultar notas' : 'Ver notas'}<span class="material-icons chev">expand_more</span>
+      <span class="material-icons">${notes ? 'sticky_note_2' : 'note_add'}</span>${label}<span class="material-icons chev">expand_more</span>
     </button>
-    <div class="active-notes-body" id="active-notes-body" ${activeNotesOpen ? '' : 'hidden'}>${escapeHtml(notes)}</div>`;
-  host.querySelector('.active-notes-toggle').onclick = () => {
+    <textarea class="active-notes-body" id="active-notes-body" maxlength="5000" rows="3" placeholder="Escribe notas para esta tarea…" aria-label="Notas de la tarea en curso" ${activeNotesOpen ? '' : 'hidden'}>${escapeHtml(notes)}</textarea>`;
+  const toggle = host.querySelector('.active-notes-toggle');
+  // Evita que el blur del textarea re-pinte el botón antes de recibir el click.
+  toggle.onmousedown = e => e.preventDefault();
+  toggle.onclick = () => {
+    const cur = host.querySelector('textarea');
+    if (cur && document.activeElement === cur) cur.blur();
     activeNotesOpen = !activeNotesOpen;
     localStorage.setItem('tasktime_active_notes', activeNotesOpen ? '1' : '0');
     renderActiveNotes(host);
+    if (activeNotesOpen && !notes) host.querySelector('textarea').focus();
+  };
+  const area = host.querySelector('textarea');
+  area.onblur = () => {
+    const t = taskById(tid);
+    if (t && area.value !== String(t.notes || '')) updateTaskInline(tid, { notes: area.value });
+  };
+  area.onkeydown = e => {
+    if (e.key === 'Escape') { area.value = notes; area.blur(); }
   };
 }
 
