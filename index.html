@@ -1032,6 +1032,11 @@
   .task-card .subtask-count .material-icons { font-size: 14px; }
   .task-card .subtask-count.all { color: var(--secondary); font-weight: 600; }
   .subtasks { margin-bottom: 10px; cursor: default; }
+  .task-notes { margin-bottom: 10px; }
+  .task-notes textarea { width: 100%; box-sizing: border-box; min-height: 56px; resize: vertical; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--outline-variant); border-radius: var(--r-sm); background: var(--surface-low); color: inherit; }
+  .task-notes textarea:focus { outline: none; border-color: var(--primary); background: #fff; }
+  .task-card .notes-flag { display: inline-flex; align-items: center; }
+  .task-card .notes-flag .material-icons { font-size: 14px; }
   .subtask-list { list-style: none; margin: 0; padding: 0; }
   .subtask-list li { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--outline-variant); font-size: 13px; }
   .subtask-list li label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; overflow-wrap: anywhere; }
@@ -4911,6 +4916,7 @@ async function renderTasksView() {
           <div class="task-meta">
             ${labelTag}
             ${subs.length ? `<span class="subtask-count${subsDone === subs.length ? ' all' : ''}" title="Subtareas completadas"><span class="material-icons">checklist</span>${subsDone}/${subs.length}</span>` : ''}
+            ${t.notes ? `<span class="notes-flag" title="Tiene notas"><span class="material-icons">sticky_note_2</span></span>` : ''}
           </div>
         </div>
         <div class="task-total${total ? '' : ' zero'}" data-tid="${t.id}">${fmtHM(total)}<span class="task-live" style="display:none; margin-left:6px; color:var(--secondary); font-weight:600;"></span></div>
@@ -4918,6 +4924,9 @@ async function renderTasksView() {
         <button class="del icon-btn" data-id="${t.id}" title="Eliminar tarea" aria-label="Eliminar tarea"><span class="material-icons">delete</span></button>
       </div>
       <div class="task-body">
+        <div class="task-notes">
+          <textarea class="task-notes-input" data-tid="${t.id}" maxlength="5000" rows="2" placeholder="Añadir notas…" aria-label="Notas de la tarea">${escapeHtml(t.notes || '')}</textarea>
+        </div>
         <div class="subtasks" data-tid="${t.id}">
           ${subs.length ? `<div class="subtask-progress" title="${subsDone} de ${subs.length} completadas"><span style="width:${Math.round(subsDone / subs.length * 100)}%"></span></div>` : ''}
           <ul class="subtask-list">${pendingSubs.map(subItem).join('')}</ul>
@@ -4994,6 +5003,15 @@ async function renderTasksView() {
     const tid = sp.closest('.task-card').dataset.tid;
     sp.onclick = () => startTitleEdit(tid);
     sp.onkeydown = e => { if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); startTitleEdit(tid); } };
+  });
+  $$('#task-table-wrap .task-notes-input').forEach(ta => {
+    ta.onblur = () => {
+      const t = taskById(ta.dataset.tid);
+      if (t && ta.value !== String(t.notes || '')) updateTaskInline(ta.dataset.tid, { notes: ta.value });
+    };
+    ta.onkeydown = e => {
+      if (e.key === 'Escape') { ta.value = String((taskById(ta.dataset.tid) || {}).notes || ''); ta.blur(); }
+    };
   });
   $$('#task-table-wrap .task-label-picker').forEach(p => {
     const btn = p.querySelector('.label-picker-btn');
