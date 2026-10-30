@@ -1033,6 +1033,15 @@
   .task-card .subtask-count.all { color: var(--secondary); font-weight: 600; }
   .subtasks { margin-bottom: 10px; cursor: default; }
   .task-notes { margin-bottom: 10px; }
+  .active-notes { margin-top: 10px; }
+  .active-notes[hidden] { display: none; }
+  .active-notes-toggle { display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.12); color: inherit; border: 0; border-radius: var(--r-sm); padding: 4px 8px; font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1; cursor: pointer; }
+  .active-notes-toggle:hover { background: rgba(255,255,255,0.22); }
+  .active-notes-toggle .material-icons { font-size: 16px; }
+  .active-notes-toggle .chev { transition: transform .2s; }
+  .active-notes-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
+  .active-notes-body { margin-top: 6px; padding: 8px 10px; background: rgba(255,255,255,0.10); border-radius: var(--r-sm); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow-y: auto; }
+  .active-notes-body[hidden] { display: none; }
   .task-notes textarea { width: 100%; box-sizing: border-box; min-height: 56px; resize: vertical; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--outline-variant); border-radius: var(--r-sm); background: var(--surface-low); color: inherit; }
   .task-notes textarea:focus { outline: none; border-color: var(--primary); background: #fff; }
   .task-card .notes-flag { display: inline-flex; align-items: center; }
@@ -1614,6 +1623,7 @@
           <div class="name" id="active-task-name">—</div>
           <div class="elapsed" id="active-elapsed">00:00:00</div>
           <div class="active-subtasks" id="active-subtasks" aria-label="Subtareas pendientes" hidden></div>
+          <div class="active-notes" id="active-notes" hidden></div>
         </div>
         <button class="stop-btn" id="stop-btn">Stop</button>
       </div>
@@ -4372,6 +4382,28 @@ function renderActiveCard() {
     card.hidden = true;
   }
   renderActiveSubtasks($('#active-subtasks'));
+  renderActiveNotes($('#active-notes'));
+}
+
+let activeNotesOpen = localStorage.getItem('tasktime_active_notes') === '1';
+function renderActiveNotes(host) {
+  if (!host) return;
+  const tid = state.activeTimer ? state.activeTimer.taskId : '';
+  const notes = tid ? String((taskById(tid) || {}).notes || '') : '';
+  const sig = tid + '|' + activeNotesOpen + '|' + notes;
+  if (host.dataset.sig === sig) return;
+  host.dataset.sig = sig;
+  host.hidden = !notes;
+  if (!notes) { host.innerHTML = ''; return; }
+  host.innerHTML = `<button type="button" class="active-notes-toggle" aria-expanded="${activeNotesOpen}" aria-controls="active-notes-body">
+      <span class="material-icons">sticky_note_2</span>${activeNotesOpen ? 'Ocultar notas' : 'Ver notas'}<span class="material-icons chev">expand_more</span>
+    </button>
+    <div class="active-notes-body" id="active-notes-body" ${activeNotesOpen ? '' : 'hidden'}>${escapeHtml(notes)}</div>`;
+  host.querySelector('.active-notes-toggle').onclick = () => {
+    activeNotesOpen = !activeNotesOpen;
+    localStorage.setItem('tasktime_active_notes', activeNotesOpen ? '1' : '0');
+    renderActiveNotes(host);
+  };
 }
 
 // ponytail: pinta card/widget con el color de la etiqueta activa; sin etiqueta → gradiente default
@@ -4924,9 +4956,6 @@ async function renderTasksView() {
         <button class="del icon-btn" data-id="${t.id}" title="Eliminar tarea" aria-label="Eliminar tarea"><span class="material-icons">delete</span></button>
       </div>
       <div class="task-body">
-        <div class="task-notes">
-          <textarea class="task-notes-input" data-tid="${t.id}" maxlength="5000" rows="2" placeholder="Añadir notas…" aria-label="Notas de la tarea">${escapeHtml(t.notes || '')}</textarea>
-        </div>
         <div class="subtasks" data-tid="${t.id}">
           ${subs.length ? `<div class="subtask-progress" title="${subsDone} de ${subs.length} completadas"><span style="width:${Math.round(subsDone / subs.length * 100)}%"></span></div>` : ''}
           <ul class="subtask-list">${pendingSubs.map(subItem).join('')}</ul>
@@ -4935,6 +4964,9 @@ async function renderTasksView() {
             <span class="material-icons">task_alt</span>Completadas<span class="badge">${doneSubs.length}</span><span class="material-icons chev">expand_more</span>
           </button>
           <ul class="subtask-list subtask-done-list" id="subtask-done-${t.id}" ${doneOpen ? '' : 'hidden'}>${doneSubs.map(subItem).join('')}</ul>` : ''}
+        </div>
+        <div class="task-notes">
+          <textarea class="task-notes-input" data-tid="${t.id}" maxlength="5000" rows="2" placeholder="Añadir notas…" aria-label="Notas de la tarea">${escapeHtml(t.notes || '')}</textarea>
         </div>
         <button type="button" class="task-disclosure task-logs-toggle" data-tid="${t.id}" aria-expanded="${logsOpen}" aria-controls="task-logs-${t.id}">
           <span class="material-icons">history</span><span class="lbl">${logsOpen ? 'Ocultar registros' : 'Ver registros'}</span><span class="badge">${entries.length}</span><span class="material-icons chev">expand_more</span>
