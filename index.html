@@ -81,6 +81,8 @@
   button.del { background: transparent; color: var(--on-surface-variant); border: 0; padding: 5px 12px; font-size: 12px; cursor: pointer; }
   button.del:hover { background: rgba(186,26,26,0.08); color: var(--error); }
   button.del:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  button.edit-entry { background: transparent; color: var(--on-surface-variant); border: 0; padding: 5px 8px; cursor: pointer; }
+  button.edit-entry:hover { background: rgba(0,0,0,0.06); color: var(--primary); }
   table.data { background: white; border-collapse: collapse; width: 100%; box-shadow: var(--shadow-1); border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--outline-variant); }
   #log-table tbody tr.grp-row.collapsed { display: none; }
   table.data th, table.data td { padding: 12px 14px; border-bottom: 1px solid var(--outline-variant); text-align: left; vertical-align: middle; }
@@ -2184,6 +2186,41 @@
       <div class="name" id="entry-details-name">—</div>
       <div class="elapsed" id="entry-details-elapsed">00m</div>
       <div class="meta" id="entry-details-meta">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit time entry modal (pencil icon in each log row) -->
+<div class="ac-modal" id="edit-entry-modal" hidden>
+  <div class="ac-modal-overlay" data-modal-close></div>
+  <div class="ac-modal-card" role="dialog" aria-modal="true" aria-labelledby="edit-entry-title">
+    <div class="ac-modal-header">
+      <h2 id="edit-entry-title">Editar entrada</h2>
+      <button class="ac-icon-btn" data-modal-close aria-label="Cerrar"><span class="material-icons">close</span></button>
+    </div>
+    <form id="form-edit-entry" class="ac-modal-body">
+      <input type="hidden" id="ee-id">
+      <div>
+        <label for="ee-task">Tarea</label>
+        <select id="ee-task" required></select>
+      </div>
+      <div>
+        <label for="ee-start">Inicio</label>
+        <input type="datetime-local" id="ee-start" required>
+      </div>
+      <div>
+        <label for="ee-end">Fin</label>
+        <input type="datetime-local" id="ee-end" required>
+      </div>
+      <div>
+        <label for="ee-notes">Notas</label>
+        <input type="text" id="ee-notes" maxlength="500">
+      </div>
+    </form>
+    <div class="ac-modal-actions">
+      <div class="ac-modal-spacer"></div>
+      <button type="button" class="ac-btn-secondary" data-modal-close>Cancelar</button>
+      <button type="submit" form="form-edit-entry" class="ac-btn-primary">Guardar</button>
     </div>
   </div>
 </div>
@@ -4640,7 +4677,7 @@ function renderLogs() {
       <td data-label="End">${fmtTime(e.endTime)}</td>
       <td data-label="Duration"><b>${fmtHM(Number(e.durationMinutes))}</b></td>
       <td data-label="Source" style="color:#5f6368; font-size:12px;">${escapeHtml(e.source || '')}</td>
-      <td data-label=""><button class="del icon-btn" data-id="${e.id}" aria-label="Eliminar entrada"><span class="material-icons">delete</span></button></td>`;
+      <td data-label=""><button class="edit-entry icon-btn" data-id="${e.id}" aria-label="Editar entrada" title="Editar entrada"><span class="material-icons">edit</span></button><button class="del icon-btn" data-id="${e.id}" aria-label="Eliminar entrada"><span class="material-icons">delete</span></button></td>`;
   };
 
   const groupBy = $('#log-group').value;
@@ -4694,6 +4731,7 @@ function renderLogs() {
     state.entries = state.entries.filter(e => e.id !== b.dataset.id);
     renderLogs();
   });
+  $$('#log-summary .edit-entry').forEach(b => b.onclick = () => openEditEntryModal(b.dataset.id));
   $$('#log-summary .grp-hdr').forEach(hdr => hdr.onclick = () => {
     const gid = hdr.dataset.gid;
     const btn = hdr.querySelector('.fold-btn');
@@ -6800,6 +6838,37 @@ async function onEditTaskSubmit(ev) {
   } catch (e) { toast(e.message, 'warn'); }
 }
 
+// === Edit time entry modal (pencil icon in each log row) ===
+function openEditEntryModal(id) {
+  const e = state.entries.find(x => x.id === id);
+  if (!e) return;
+  $('#ee-id').value = id;
+  populateTaskSelect($('#ee-task'));
+  $('#ee-task').value = e.taskId;
+  $('#ee-start').value = toLocalInput(new Date(e.startTime));
+  $('#ee-end').value = toLocalInput(new Date(e.endTime));
+  $('#ee-notes').value = e.notes || '';
+  $('#edit-entry-modal').hidden = false;
+  setTimeout(() => $('#ee-start').focus(), 50);
+}
+function closeEditEntryModal() { $('#edit-entry-modal').hidden = true; }
+
+async function onEditEntrySubmit(ev) {
+  ev.preventDefault();
+  const id = $('#ee-id').value;
+  const taskId = $('#ee-task').value;
+  const startD = parseLocalInput($('#ee-start').value), endD = parseLocalInput($('#ee-end').value);
+  if (!taskId) { toast('Elige una tarea', 'warn'); return; }
+  if (isNaN(startD) || isNaN(endD)) { toast('Inicio/fin inválidos', 'warn'); return; }
+  if (endD <= startD) { toast('El fin debe ser posterior al inicio', 'warn'); return; }
+  try {
+    const [updated, ...extra] = await call('updateEntry', id, { taskId, startTime: startD.toISOString(), endTime: endD.toISOString(), notes: $('#ee-notes').value, tz: USER_TZ });
+    state.entries = [...state.entries.map(x => x.id === id ? updated : x), ...extra];
+    closeEditEntryModal();
+    refreshAll();
+  } catch (e) { toast(e.message, 'warn'); }
+}
+
 // === Edit routine modal (pencil icon next to each defined routine) ===
 function openEditRoutineModal(rid) {
   const r = state.routines.find(x => x.id === rid);
@@ -6937,6 +7006,7 @@ function bindAdmin() {
     if (!$('#edit-sheet-modal').hidden)    closeEditSheetModal();
     if (!$('#view-sheet-id-modal').hidden) closeSheetIdModal();
     if (!$('#edit-task-modal').hidden)     closeEditTaskModal();
+    if (!$('#edit-entry-modal').hidden)    closeEditEntryModal();
     if (!$('#edit-routine-modal').hidden)  closeEditRoutineModal();
     if (!$('#new-user-modal').hidden)      closeNewUserModal();
     if (!$('#new-sheet-modal').hidden)     closeNewSheetModal();
@@ -6951,6 +7021,10 @@ function bindAdmin() {
   // Edit task modal (pencil icon in each task card)
   $$('#edit-task-modal [data-modal-close]').forEach(el => el.addEventListener('click', closeEditTaskModal));
   $('#form-edit-task').addEventListener('submit', onEditTaskSubmit);
+
+  // Edit time entry modal (pencil icon in each log row)
+  $$('#edit-entry-modal [data-modal-close]').forEach(el => el.addEventListener('click', closeEditEntryModal));
+  $('#form-edit-entry').addEventListener('submit', onEditEntrySubmit);
 
   // Edit routine modal (pencil icon next to each defined routine)
   $$('#edit-routine-modal [data-modal-close]').forEach(el => el.addEventListener('click', closeEditRoutineModal));
