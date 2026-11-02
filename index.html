@@ -1501,6 +1501,12 @@
   .fab-new:first-child { border-top: none; margin-top: 0; }
   .fab-new input { flex: 1; min-width: 0; }
   .fab-new button { flex: none; width: 38px; height: 38px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .fab-routine-group { padding: 4px 14px; }
+  .fab-routine-group h3 { margin: 4px 0; color: var(--on-surface-variant); font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .fab-routine-group .fab-subs { padding: 0; }
+  .fab-routine-form { flex-wrap: wrap; }
+  .fab-routine-form input { flex: 1 1 100%; }
+  .fab-routine-form select { flex: 1; min-width: 0; }
   .fab-actions { pointer-events: none; list-style: none; margin: 0; padding: 0 8px 0 0; display: flex; flex-direction: column-reverse; gap: 14px; align-items: flex-end; }
   .fab-action { display: flex; align-items: center; gap: 10px; opacity: 0; transform: translateY(16px) scale(.4); pointer-events: none; transition: opacity .18s ease, transform .2s ease; }
   .fab.open .fab-action { opacity: 1; transform: none; pointer-events: auto; }
@@ -1517,6 +1523,7 @@
   .fab-action .fab-timer.stop { background: #c62828; }
   .fab-action .fab-task { background: #f57c00; }
   .fab-action .fab-subtask { background: #7b1fa2; }
+  .fab-action .fab-routine { background: #00897b; }
   .fab-subs { list-style: none; margin: 0; padding: 0 14px; font-size: 13px; }
   .fab-subs li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--outline-variant); overflow-wrap: anywhere; }
   .fab-subs li:last-child { border-bottom: 0; }
@@ -1956,6 +1963,10 @@
       <li class="fab-action">
         <span class="fab-action-label" id="fab-subtask-label">Subtarea</span>
         <button type="button" class="fab-subtask" id="fab-subtask" aria-labelledby="fab-subtask-label" tabindex="-1"><span class="material-icons">playlist_add</span></button>
+      </li>
+      <li class="fab-action">
+        <span class="fab-action-label" id="fab-routine-label">Recurrentes</span>
+        <button type="button" class="fab-routine" id="fab-routine" aria-labelledby="fab-routine-label" tabindex="-1"><span class="material-icons">event_repeat</span></button>
       </li>
     </ul>
   </div>
@@ -3058,6 +3069,23 @@ function renderFabPanel() {
   const { mode, labelId, taskId, showDone } = fabState;
   if (!mode) return;
   const body = $('#fab-panel-body');
+  if (mode === 'routine') {
+    $('#fab-panel-title').textContent = 'Recurrentes';
+    const groups = [
+      { period: 'daily', title: 'Hoy', items: state.routineStatus.today || [] },
+      { period: 'weekly', title: 'Esta semana', items: state.routineStatus.week || [] },
+      { period: 'monthly', title: 'Este mes', items: state.routineStatus.month || [] }
+    ];
+    body.innerHTML = `${groups.map(group => `<section class="fab-routine-group"><h3>${group.title}</h3>${group.items.length
+      ? `<ul class="fab-subs">${group.items.map(item => `<li class="${item.completed ? 'done' : ''}"><input type="checkbox" class="subtask-check fab-routine-check" data-rid="${escapeHtml(item.routine.id)}" data-period="${group.period}" data-key="${escapeHtml(item.periodKey)}" ${item.completed ? 'checked' : ''} aria-label="${item.completed ? 'Desmarcar' : 'Marcar como hecha'}: ${escapeHtml(item.routine.name)}">${subTextSpan(item.routine.name, false)}<button type="button" class="fab-delete" data-delete-routine="${escapeHtml(item.routine.id)}" title="Eliminar recurrente" aria-label="Eliminar recurrente ${escapeHtml(item.routine.name)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul>`
+      : `<div class="fab-empty">Sin recurrentes.</div>`}</section>`).join('')}
+      <form class="fab-new fab-routine-form" id="fab-routine-form">
+        <input id="fab-routine-name" maxlength="120" placeholder="Nueva recurrente" required autocomplete="off" aria-label="Nombre de la recurrente">
+        <select id="fab-routine-period" aria-label="Periodo de la recurrente"><option value="daily">Diaria</option><option value="weekly">Semanal</option><option value="monthly">Mensual</option></select>
+        <button type="submit" title="Añadir recurrente" aria-label="Añadir recurrente"><span class="material-icons">add</span></button>
+      </form>`;
+    return;
+  }
   const active = state.tasks.filter(t => !isTaskDone_(t));
   const inLabel = (lid) => active.filter(t => (t.labelId || '') === lid);
   // con showDone: todas las tareas de la etiqueta, pendientes primero
@@ -3181,7 +3209,7 @@ function bindFab() {
   $('#fab-backdrop').addEventListener('click', (e) => { e.stopPropagation(); setFabOpen(false); closeFabPanel(); });
   // composedPath: el panel se re-renderiza al hacer click, así que e.target puede quedar desconectado
   document.addEventListener('click', (e) => {
-    if (e.composedPath().includes(fab)) return;
+    if (e.composedPath().includes(fab) || e.target.closest('#confirm-modal')) return;
     setFabOpen(false); closeFabPanel();
   });
   document.addEventListener('keydown', (e) => {
@@ -3196,12 +3224,16 @@ function bindFab() {
   });
   $('#fab-task').addEventListener('click', () => openFabPanel('task'));
   $('#fab-subtask').addEventListener('click', () => openFabPanel('subtask'));
+  $('#fab-routine').addEventListener('click', () => openFabPanel('routine'));
   $('#fab-panel-back').addEventListener('click', () => {
     if (fabState.taskId !== undefined) { fabState.taskId = undefined; renderFabPanel(); return; }
+    if (fabState.mode === 'routine') { closeFabPanel(); setFabOpen(true); return; }
     if (fabState.labelId === undefined) { setFabOpen(true); return; }
     fabState.labelId = undefined; renderFabPanel();
   });
   $('#fab-panel-body').addEventListener('click', (e) => {
+    const deleteRoutineButton = e.target.closest('[data-delete-routine]');
+    if (deleteRoutineButton) { onFabDeleteRoutine(deleteRoutineButton.dataset.deleteRoutine); return; }
     const deleteTaskButton = e.target.closest('[data-delete-task]');
     if (deleteTaskButton) { onFabDeleteTask(deleteTaskButton.dataset.deleteTask); return; }
     const deleteSubtaskButton = e.target.closest('[data-delete-subtask]');
@@ -3222,8 +3254,19 @@ function bindFab() {
     fabState.labelId = opt.dataset.lid;
     renderFabPanel();
   });
-  $('#fab-panel-body').addEventListener('submit', (e) => { if (e.target.id === 'fab-new-form') onFabCreate(e); });
-  $('#fab-panel-body').addEventListener('change', (e) => {
+  $('#fab-panel-body').addEventListener('submit', (e) => {
+    if (e.target.id === 'fab-new-form') onFabCreate(e);
+    if (e.target.id === 'fab-routine-form') onFabRoutineCreate(e);
+  });
+  $('#fab-panel-body').addEventListener('change', async (e) => {
+    if (e.target.classList.contains('fab-routine-check')) {
+      const { rid, period, key } = e.target.dataset;
+      const pending = toggleRutina(rid, period, key);
+      renderFabPanel();
+      await pending;
+      if (fabState.mode === 'routine') renderFabPanel();
+      return;
+    }
     if (e.target.classList.contains('fab-task-check')) {
       const tid = e.target.closest('li').dataset.tid;
       updateTaskInline(tid, { completed: e.target.checked ? 'true' : '' }).then(() => { if (fabState.mode === 'task') renderFabPanel(); });
@@ -3268,6 +3311,39 @@ async function onFabDeleteSubtask(subtaskId) {
   if (!await showConfirm('Eliminar subtarea', `¿Eliminar la subtarea "${subtask.text}"?`, 'Eliminar')) return;
   await saveSubtasks(taskId, parseSubtasks(task).filter(s => s.id !== subtaskId));
   renderFabPanel();
+}
+
+async function onFabDeleteRoutine(routineId) {
+  const routine = state.routines.find(r => String(r.id) === String(routineId));
+  if (!routine || fabState.busy) return;
+  if (!await showConfirm('Eliminar recurrente', `¿Eliminar la tarea recurrente "${routine.name}"? Sus completaciones pasadas también se borran.`, 'Eliminar')) return;
+  fabState.busy = true;
+  try {
+    applyRoutinesPayload_(await call('deleteRoutine', routineId));
+    refreshAll();
+    renderFabPanel();
+  } catch (err) {
+    toast(err.message, 'warn');
+  } finally {
+    fabState.busy = false;
+  }
+}
+
+async function onFabRoutineCreate(e) {
+  e.preventDefault();
+  const name = $('#fab-routine-name').value.trim();
+  const period = $('#fab-routine-period').value;
+  if (!name || fabState.busy) return;
+  fabState.busy = true;
+  try {
+    applyRoutinesPayload_(await call('createRoutine', name, period));
+    refreshAll();
+    renderFabPanel();
+  } catch (err) {
+    toast(err.message, 'warn');
+  } finally {
+    fabState.busy = false;
+  }
 }
 
 function renderFabTimer() {
