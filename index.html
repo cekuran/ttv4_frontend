@@ -1523,6 +1523,9 @@
   .fab-subs li[hidden] { display: none; }
   .fab-subs .material-icons { font-size: 16px; color: var(--outline); }
   .fab-subs .sub-text { flex: 1; min-width: 0; }
+  .fab-subs .fab-delete { width: 30px; height: 30px; flex: none; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 50%; padding: 0; color: var(--error); background: transparent; cursor: pointer; }
+  .fab-subs .fab-delete:hover, .fab-subs .fab-delete:focus-visible { background: rgba(198,40,40,0.08); }
+  .fab-subs .fab-delete .material-icons { color: inherit; font-size: 18px; }
   .sub-text[role="button"] { cursor: text; padding: 3px 6px; border-radius: var(--r-sm); }
   .sub-text[role="button"]:hover { background: var(--surface-low); }
   .active-subtasks .sub-text[role="button"]:hover { background: rgba(255,255,255,0.14); }
@@ -3075,7 +3078,7 @@ function renderFabPanel() {
     const subs = parseSubtasks(t).filter(s => showDone || !s.done).sort((a, b) => !!a.done - !!b.done);
     $('#fab-panel-title').innerHTML = `${dot(labelId)}<span>${escapeHtml(t ? t.name : '')}</span>`;
     body.innerHTML = `${subs.length
-        ? `<ul class="fab-subs">${subs.map(s => `<li class="${s.done ? 'done' : ''}" data-sid="${escapeHtml(s.id)}"><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${subTextSpan(s.text)}</li>`).join('')}</ul>`
+        ? `<ul class="fab-subs">${subs.map(s => `<li class="${s.done ? 'done' : ''}" data-sid="${escapeHtml(s.id)}"><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${subTextSpan(s.text)}<button type="button" class="fab-delete" data-delete-subtask="${escapeHtml(s.id)}" title="Eliminar subtarea" aria-label="Eliminar subtarea ${escapeHtml(s.text)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul>`
         : `<div class="fab-empty">Sin subtareas${showDone ? '' : ' pendientes'}.</div>`}
       <form class="fab-new" id="fab-new-form">
         <input id="fab-new-name" maxlength="500" placeholder="Nueva subtarea" required autocomplete="off">
@@ -3112,7 +3115,7 @@ function renderFabPanel() {
     ? emptyTasks
     : mode === 'timer'
       ? `<div class="fab-list">${tasks.map(t => `<button type="button" class="fab-opt" data-tid="${escapeHtml(t.id)}"><span class="material-icons fab-opt-play">play_arrow</span><span class="fab-opt-name">${escapeHtml(t.name)}</span></button>`).join('')}</div>`
-      : `<ul class="fab-subs" id="fab-existing">${tasks.map(t => { const d = isTaskDone_(t); return `<li class="${d ? 'done' : ''}" data-name="${escapeHtml(t.name.toLowerCase())}" data-tid="${escapeHtml(t.id)}"><input type="checkbox" class="subtask-check fab-task-check" ${d ? 'checked' : ''} aria-label="${d ? 'Reabrir tarea' : 'Marcar tarea como completada'}"><span class="sub-text" tabindex="0" role="button" title="Clic para editar">${escapeHtml(t.name)}</span></li>`; }).join('')}</ul>`;
+      : `<ul class="fab-subs" id="fab-existing">${tasks.map(t => { const d = isTaskDone_(t); return `<li class="${d ? 'done' : ''}" data-name="${escapeHtml(t.name.toLowerCase())}" data-tid="${escapeHtml(t.id)}"><input type="checkbox" class="subtask-check fab-task-check" ${d ? 'checked' : ''} aria-label="${d ? 'Reabrir tarea' : 'Marcar tarea como completada'}"><span class="sub-text" tabindex="0" role="button" title="Clic para editar">${escapeHtml(t.name)}</span><button type="button" class="fab-delete" data-delete-task="${escapeHtml(t.id)}" title="Eliminar tarea" aria-label="Eliminar tarea ${escapeHtml(t.name)}"><span class="material-icons">delete</span></button></li>`; }).join('')}</ul>`;
   body.innerHTML = `${list}
     <form class="fab-new" id="fab-new-form">
       <input id="fab-new-name" placeholder="${mode === 'timer' ? 'O crea una nueva tarea…' : 'Nombre de la tarea'}" required autocomplete="off">
@@ -3199,6 +3202,10 @@ function bindFab() {
     fabState.labelId = undefined; renderFabPanel();
   });
   $('#fab-panel-body').addEventListener('click', (e) => {
+    const deleteTaskButton = e.target.closest('[data-delete-task]');
+    if (deleteTaskButton) { onFabDeleteTask(deleteTaskButton.dataset.deleteTask); return; }
+    const deleteSubtaskButton = e.target.closest('[data-delete-subtask]');
+    if (deleteSubtaskButton) { onFabDeleteSubtask(deleteSubtaskButton.dataset.deleteSubtask); return; }
     const opt = e.target.closest('.fab-opt');
     if (!opt) return;
     if (opt.dataset.tid && fabState.mode === 'subtask') {
@@ -3234,6 +3241,33 @@ function bindFab() {
     localStorage.setItem('tasktime_fab_show_done', fabState.showDone ? '1' : '0');
     renderFabPanel();
   });
+}
+
+async function onFabDeleteTask(taskId) {
+  const task = taskById(taskId);
+  if (!task || fabState.busy) return;
+  if (!await showConfirm('Eliminar tarea', `¿Eliminar "${task.name}" y sus subtareas? Las entradas pasadas se conservan pero se muestran como "(deleted)".`, 'Eliminar')) return;
+  fabState.busy = true;
+  try {
+    await call('deleteTask', taskId);
+    state.tasks = state.tasks.filter(t => t.id !== taskId);
+    refreshAll();
+    renderFabPanel();
+  } catch (err) {
+    toast(err.message, 'warn');
+  } finally {
+    fabState.busy = false;
+  }
+}
+
+async function onFabDeleteSubtask(subtaskId) {
+  const taskId = fabState.taskId;
+  const task = taskById(taskId);
+  const subtask = parseSubtasks(task).find(s => s.id === subtaskId);
+  if (!task || !subtask || fabState.busy) return;
+  if (!await showConfirm('Eliminar subtarea', `¿Eliminar la subtarea "${subtask.text}"?`, 'Eliminar')) return;
+  await saveSubtasks(taskId, parseSubtasks(task).filter(s => s.id !== subtaskId));
+  renderFabPanel();
 }
 
 function renderFabTimer() {
