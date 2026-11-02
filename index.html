@@ -4921,6 +4921,13 @@ async function saveSubtasks(tid, list) {
   }
   rerender();
 }
+async function confirmDeleteSubtask_(tid, sid) {
+  const task = taskById(tid);
+  const subtask = parseSubtasks(task).find(s => String(s.id) === String(sid));
+  if (!task || !subtask) return;
+  if (!await showConfirm('Eliminar subtarea', `¿Eliminar la subtarea "${subtask.text}"?`, 'Eliminar')) return;
+  await saveSubtasks(tid, parseSubtasks(taskById(tid)).filter(s => String(s.id) !== String(sid)));
+}
 // Pendientes de la tarea con timer activo; firma evita re-pintar (y perder foco) sin cambios.
 function renderActiveSubtasks(host, allowAdd = true) {
   if (!host) return;
@@ -4931,11 +4938,15 @@ function renderActiveSubtasks(host, allowAdd = true) {
   host.dataset.sig = sig;
   host.hidden = !tid || (!allowAdd && !pending.length);
   host.innerHTML = `<div class="active-subtasks-hdr">Subtareas${pending.length ? ` · ${pending.length} pendiente${pending.length === 1 ? '' : 's'}` : ''}</div>` +
-    `<ul class="subtask-list">${pending.map(s => `<li data-sid="${escapeHtml(s.id)}"><div class="sub-label"><input type="checkbox" class="subtask-check" aria-label="Marcar como hecha">${subTextSpan(s.text, allowAdd)}</div></li>`).join('')}</ul>` +
+    `<ul class="subtask-list">${pending.map(s => `<li data-sid="${escapeHtml(s.id)}"><div class="sub-label"><input type="checkbox" class="subtask-check" aria-label="Marcar como hecha">${subTextSpan(s.text, allowAdd)}</div><button type="button" class="icon-btn subtask-del" title="Eliminar subtarea" aria-label="Eliminar subtarea ${escapeHtml(s.text)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul>` +
     (allowAdd ? SUBTASK_ADD_FORM : '');
   host.querySelectorAll('.subtask-check').forEach(cb => cb.onchange = () => {
     const sid = cb.closest('li').dataset.sid;
     saveSubtasks(tid, parseSubtasks(taskById(tid)).map(s => s.id === sid ? { ...s, done: true } : s));
+  });
+  host.querySelectorAll('.subtask-del').forEach(button => button.onclick = () => {
+    const sid = button.closest('li').dataset.sid;
+    confirmDeleteSubtask_(tid, sid);
   });
   bindSubtaskTextEdit(host, li => ({ tid, sid: li.dataset.sid }));
   const addForm = host.querySelector('.subtask-add');
@@ -5572,11 +5583,15 @@ function renderPendingSubtasks() {
     const chip = `<span class="chip" style="background:${lid ? labelColor(lid) : 'var(--outline)'}">${escapeHtml(lid ? labelName(lid) : 'Sin etiqueta')}</span>`;
     const pendingCount = items.filter(x => !x.s.done).length;
     return `<div class="pending-subs-group"><h4>${chip}<span class="count">${pendingCount}</span></h4><ul class="subtask-list">${items.map(({ t, s }) =>
-      `<li class="${s.done ? 'done' : ''}" data-tid="${escapeHtml(t.id)}" data-sid="${escapeHtml(s.id)}"><div class="sub-label"><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}"><span class="pending-subs-body">${subTextSpan(s.text)} <span class="pending-subs-task">${escapeHtml(t.name)}</span></span></div></li>`).join('')}</ul></div>`;
+      `<li class="${s.done ? 'done' : ''}" data-tid="${escapeHtml(t.id)}" data-sid="${escapeHtml(s.id)}"><div class="sub-label"><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}"><span class="pending-subs-body">${subTextSpan(s.text)} <span class="pending-subs-task">${escapeHtml(t.name)}</span></span></div><button type="button" class="icon-btn subtask-del" title="Eliminar subtarea" aria-label="Eliminar subtarea ${escapeHtml(s.text)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul></div>`;
   }).join('');
   host.querySelectorAll('.subtask-check').forEach(cb => cb.onchange = () => {
     const { tid, sid } = cb.closest('li').dataset;
     saveSubtasks(tid, parseSubtasks(taskById(tid)).map(s => s.id === sid ? { ...s, done: cb.checked } : s));
+  });
+  host.querySelectorAll('.subtask-del').forEach(button => button.onclick = () => {
+    const { tid, sid } = button.closest('li').dataset;
+    confirmDeleteSubtask_(tid, sid);
   });
   bindSubtaskTextEdit(host, li => ({ tid: li.dataset.tid, sid: li.dataset.sid }));
 }
