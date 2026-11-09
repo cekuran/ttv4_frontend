@@ -1099,20 +1099,33 @@
   .pending-subs .subtask-list li.done .pending-subs-task { text-decoration: none; }
   .pending-subs .subtask-list li.done .pending-subs-body { color: inherit; }
   .subtask-add input { flex: 1; min-width: 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--outline-variant); border-radius: var(--r-sm); font-family: inherit; }
-  .subtask-add .subtask-add-due, .fab-new .subtask-add-due { flex: 0 0 auto; width: auto; padding: 4px 6px; font-size: 12px; }
-  .active-subtasks .subtask-add-due, .active-subtasks .subtask-due-input:not(.due-overdue):not(.due-today):not(.due-soon) { color-scheme: dark; color: inherit; border-color: rgba(255,255,255,0.4); }
+
   /* === Deadlines de subtareas === */
-  .subtask-due-input { flex: 0 0 auto; width: auto; padding: 2px 6px; font-size: 12px; border-radius: var(--r-sm); background: transparent; }
-  .subtask-due-input:not(.has-due) { opacity: .35; }
-  .subtask-list li:hover .subtask-due-input, .subtask-due-input:focus { opacity: 1; }
-  @media (hover: none) { .subtask-due-input:not(.has-due) { opacity: .6; } }
+  /* El <input type=date> va invisible encima del chip: el tap abre el selector nativo y el click en desktop llama a showPicker(). */
+  .subtask-due { position: relative; flex: 0 0 auto; align-self: center; display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 9999px; font-size: 11px; font-weight: 600; white-space: nowrap; color: var(--on-surface-variant); cursor: pointer; }
+  .subtask-due .material-icons { font-size: 16px; }
+  .subtask-due.has-due { background: var(--surface-low); }
+  .subtask-due:not(.has-due) { opacity: .45; padding: 4px; }
+  .subtask-due:hover, .subtask-due:focus-within { opacity: 1; color: var(--primary); background: var(--surface-low); }
+  .subtask-due:focus-within { outline: 2px solid var(--primary); outline-offset: 1px; }
+  @media (hover: none) { .subtask-due:not(.has-due) { opacity: .7; } }
+  .subtask-due input { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; padding: 0; margin: 0; border: 0; opacity: 0; cursor: pointer; }
+  .subtask-add .subtask-due, .fab-new .subtask-due { padding: 6px; }
+  .active-subtasks .subtask-due { color: inherit; opacity: .8; }
+  .active-subtasks .subtask-due:hover, .active-subtasks .subtask-due:focus-within, .active-subtasks .subtask-due.has-due { opacity: 1; color: inherit; background: rgba(255,255,255,0.2); }
+  .active-subtasks .subtask-due:focus-within { outline-color: #fff; }
   .due-badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; white-space: nowrap; background: var(--surface-low); color: var(--on-surface-variant); }
   .due-badge .material-icons { font-size: 13px; }
-  .due-overdue.due-badge, .subtask-due-input.due-overdue { color: var(--error); background: rgba(186,26,26,0.08); border-color: var(--error); }
-  .due-today.due-badge, .subtask-due-input.due-today { color: #b45309; background: #fff7ed; border-color: #f59e0b; }
-  .due-soon.due-badge, .subtask-due-input.due-soon { color: #8a6d00; background: #fffbea; border-color: #eab308; }
+  .due-badge.due-overdue, .subtask-due.due-overdue, .active-subtasks .subtask-due.due-overdue { color: var(--error); background: rgba(186,26,26,0.08); }
+  .due-badge.due-today, .subtask-due.due-today, .active-subtasks .subtask-due.due-today { color: #b45309; background: #fff7ed; }
+  .due-badge.due-soon, .subtask-due.due-soon, .active-subtasks .subtask-due.due-soon { color: #8a6d00; background: #fffbea; }
   .active-subtasks .due-badge { background: rgba(255,255,255,0.2); color: inherit; }
-  .active-subtasks .due-badge.due-overdue { background: #fff; color: var(--error); }
+  .active-subtasks .due-badge.due-overdue, .active-subtasks .subtask-due.due-overdue { background: #fff; }
+  @media (max-width: 1280px) {
+    .subtask-list li, .fab-subs li { flex-wrap: wrap; }
+    .subtask-list li:has(> .subtask-due.has-due)::after, .fab-subs li:has(> .subtask-due.has-due)::after { content: ''; order: 9; flex-basis: 100%; height: 0; }
+    .subtask-list li > .subtask-due.has-due, .fab-subs li > .subtask-due.has-due { order: 10; margin-left: 22px; }
+  }
   .chip-filter .count { font-weight: 600; opacity: .8; }
   .chip-filter.due-overdue:not(.active) { color: var(--error); border-color: rgba(186,26,26,0.4); }
   .chip-filter.due-today:not(.active) { color: #b45309; border-color: #f59e0b; }
@@ -3128,7 +3141,7 @@ function renderFabPanel() {
         : `<div class="fab-empty">Sin subtareas${showDone ? '' : ' pendientes'}.</div>`}
       <form class="fab-new" id="fab-new-form">
         <input id="fab-new-name" maxlength="500" placeholder="Nueva subtarea" required autocomplete="off">
-        <input type="date" id="fab-new-due" class="subtask-add-due" title="Fecha límite (opcional)" aria-label="Fecha límite (opcional)">
+        ${DUE_ADD_PICKER.replace('class="subtask-add-due"', 'id="fab-new-due" class="subtask-add-due"')}
         <button type="submit" title="Añadir subtarea" aria-label="Añadir subtarea"><span class="material-icons">add</span></button>
       </form>`;
     bindSubtaskTextEdit(body, li => ({ tid: taskId, sid: li.dataset.sid }), () => { if (fabState.taskId === taskId) renderFabPanel(); });
@@ -4907,7 +4920,8 @@ async function onManualSubmit(e) {
 let taskFilter = '';
 let taskOpenSubsOnly = false;
 let taskTab = 'active';
-var SUBTASK_ADD_FORM = `<form class="subtask-add"><input type="text" maxlength="500" placeholder="Añadir subtarea…" aria-label="Nueva subtarea"><input type="date" class="subtask-add-due" title="Fecha límite (opcional)" aria-label="Fecha límite (opcional)"><button type="submit" class="icon-btn" aria-label="Añadir subtarea"><span class="material-icons">add</span></button></form>`;
+var DUE_ADD_PICKER = `<span class="subtask-due" title="Fecha límite (opcional)"><span class="material-icons">event</span><input type="date" class="subtask-add-due" aria-label="Fecha límite (opcional)"></span>`;
+var SUBTASK_ADD_FORM = `<form class="subtask-add"><input type="text" maxlength="500" placeholder="Añadir subtarea…" aria-label="Nueva subtarea">${DUE_ADD_PICKER}<button type="submit" class="icon-btn" aria-label="Añadir subtarea"><span class="material-icons">add</span></button></form>`;
 function subTextSpan(text, editable = true) {
   return editable
     ? `<span class="sub-text" tabindex="0" role="button" title="Clic para editar">${escapeHtml(text)}</span>`
@@ -4932,17 +4946,41 @@ function subDueStatus(s) {
   if (s.due === today) return 'today';
   return s.due <= localDay(Date.now() + DUE_SOON_DAYS * 86400000) ? 'soon' : 'later';
 }
+function dueLabel_(due, st) {
+  const [, m, d] = due.split('-');
+  return st === 'today' ? 'Hoy' : st === 'overdue' ? `Vencida · ${d}/${m}` : `${d}/${m}`;
+}
 function dueBadge(s) {
   const st = subDueStatus(s);
   if (!st) return '';
   const [y, m, d] = s.due.split('-');
-  const txt = st === 'today' ? 'Hoy' : st === 'overdue' ? `Vencida · ${d}/${m}` : `${d}/${m}`;
-  return `<span class="due-badge due-${st}" title="Fecha límite: ${d}/${m}/${y}"><span class="material-icons">event</span>${txt}</span>`;
+  return `<span class="due-badge due-${st}" title="Fecha límite: ${d}/${m}/${y}"><span class="material-icons">event</span>${dueLabel_(s.due, st)}</span>`;
 }
 function dueInput(s) {
   const st = subDueStatus(s);
-  return `<input type="date" class="subtask-due-input${s.due ? ' has-due' : ''}${st ? ' due-' + st : ''}" value="${escapeHtml(s.due || '')}" title="Fecha límite" aria-label="Fecha límite de la subtarea">`;
+  const due = /^\d{4}-\d{2}-\d{2}$/.test(s.due || '') ? s.due : '';
+  const title = due ? `Fecha límite: ${due.split('-').reverse().join('/')}` : 'Añadir fecha límite';
+  return `<span class="subtask-due${due ? ' has-due' : ''}${st ? ' due-' + st : ''}" title="${title}"><span class="material-icons">event</span>${due ? `<span class="due-text">${dueLabel_(due, st)}</span>` : ''}<input type="date" class="subtask-due-input" value="${due}" aria-label="${title}"></span>`;
 }
+// Abre el selector nativo desde el icono (desktop: el click en el input no siempre lo abre).
+document.addEventListener('click', e => {
+  const inp = e.target.closest && e.target.closest('.subtask-due input');
+  if (inp && inp.showPicker) { try { inp.showPicker(); } catch (_) {} }
+});
+document.addEventListener('keydown', e => {
+  const inp = e.target.closest && e.target.closest('.subtask-due input');
+  if (inp && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); try { inp.showPicker(); } catch (_) {} }
+});
+// El picker del formulario de alta no guarda nada: sólo refleja la fecha elegida en el chip.
+document.addEventListener('change', e => {
+  if (!e.target.classList || !e.target.classList.contains('subtask-add-due')) return;
+  const wrap = e.target.closest('.subtask-due'), v = e.target.value;
+  wrap.classList.toggle('has-due', !!v);
+  let txt = wrap.querySelector('.due-text');
+  if (!txt) { txt = document.createElement('span'); txt.className = 'due-text'; e.target.before(txt); }
+  txt.textContent = v ? v.split('-').reverse().slice(0, 2).join('/') : '';
+  wrap.title = v ? `Fecha límite: ${v.split('-').reverse().join('/')}` : 'Fecha límite (opcional)';
+});
 function setSubtaskDue(tid, sid, due) {
   saveSubtasks(tid, parseSubtasks(taskById(tid)).map(s => s.id === sid ? { ...s, due: due || undefined } : s));
 }
