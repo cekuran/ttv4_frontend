@@ -1099,6 +1099,23 @@
   .pending-subs .subtask-list li.done .pending-subs-task { text-decoration: none; }
   .pending-subs .subtask-list li.done .pending-subs-body { color: inherit; }
   .subtask-add input { flex: 1; min-width: 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--outline-variant); border-radius: var(--r-sm); font-family: inherit; }
+  .subtask-add .subtask-add-due, .fab-new .subtask-add-due { flex: 0 0 auto; width: auto; padding: 4px 6px; font-size: 12px; }
+  .active-subtasks .subtask-add-due { color-scheme: dark; }
+  /* === Deadlines de subtareas === */
+  .subtask-due-input { flex: 0 0 auto; width: auto; padding: 2px 6px; font-size: 12px; border-radius: var(--r-sm); background: transparent; }
+  .subtask-due-input:not(.has-due) { opacity: .35; }
+  .subtask-list li:hover .subtask-due-input, .subtask-due-input:focus { opacity: 1; }
+  @media (hover: none) { .subtask-due-input:not(.has-due) { opacity: .6; } }
+  .due-badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; white-space: nowrap; background: var(--surface-low); color: var(--on-surface-variant); }
+  .due-badge .material-icons { font-size: 13px; }
+  .due-overdue.due-badge, .subtask-due-input.due-overdue { color: var(--error); background: rgba(186,26,26,0.08); border-color: var(--error); }
+  .due-today.due-badge, .subtask-due-input.due-today { color: #b45309; background: #fff7ed; border-color: #f59e0b; }
+  .due-soon.due-badge, .subtask-due-input.due-soon { color: #8a6d00; background: #fffbea; border-color: #eab308; }
+  .active-subtasks .due-badge { background: rgba(255,255,255,0.2); color: inherit; }
+  .active-subtasks .due-badge.due-overdue { background: #fff; color: var(--error); }
+  .chip-filter .count { font-weight: 600; opacity: .8; }
+  .chip-filter.due-overdue:not(.active) { color: var(--error); border-color: rgba(186,26,26,0.4); }
+  .chip-filter.due-today:not(.active) { color: #b45309; border-color: #f59e0b; }
   .task-card.done .task-name { text-decoration: line-through; color: var(--outline); }
   .task-card.done .task-meta { opacity: .7; }
   .task-card.done .task-total { color: var(--outline); font-weight: normal; }
@@ -1688,6 +1705,7 @@
           <span>Subtareas pendientes</span>
           <button type="button" class="chip-filter" id="pending-subs-done-toggle" aria-pressed="false" style="text-transform:none; letter-spacing:normal; padding:4px 10px; font-size:12px;"><span class="material-icons" style="font-size:16px;">done_all</span>Mostrar completadas</button>
         </h3>
+        <div class="chip-row" id="pending-subs-due-filter"></div>
         <div id="pending-subs-list"></div>
       </div>
 
@@ -3106,10 +3124,11 @@ function renderFabPanel() {
     const subs = parseSubtasks(t).filter(s => showDone || !s.done).sort((a, b) => !!a.done - !!b.done);
     $('#fab-panel-title').innerHTML = `${dot(labelId)}<span>${escapeHtml(t ? t.name : '')}</span>`;
     body.innerHTML = `${subs.length
-        ? `<ul class="fab-subs">${subs.map(s => `<li class="${s.done ? 'done' : ''}" data-sid="${escapeHtml(s.id)}"><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${subTextSpan(s.text)}<button type="button" class="fab-delete" data-delete-subtask="${escapeHtml(s.id)}" title="Eliminar subtarea" aria-label="Eliminar subtarea ${escapeHtml(s.text)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul>`
+        ? `<ul class="fab-subs">${subs.map(s => `<li class="${s.done ? 'done' : ''}" data-sid="${escapeHtml(s.id)}"><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${subTextSpan(s.text)}${dueBadge(s)}<button type="button" class="fab-delete" data-delete-subtask="${escapeHtml(s.id)}" title="Eliminar subtarea" aria-label="Eliminar subtarea ${escapeHtml(s.text)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul>`
         : `<div class="fab-empty">Sin subtareas${showDone ? '' : ' pendientes'}.</div>`}
       <form class="fab-new" id="fab-new-form">
         <input id="fab-new-name" maxlength="500" placeholder="Nueva subtarea" required autocomplete="off">
+        <input type="date" id="fab-new-due" class="subtask-add-due" title="Fecha límite (opcional)" aria-label="Fecha límite (opcional)">
         <button type="submit" title="Añadir subtarea" aria-label="Añadir subtarea"><span class="material-icons">add</span></button>
       </form>`;
     bindSubtaskTextEdit(body, li => ({ tid: taskId, sid: li.dataset.sid }), () => { if (fabState.taskId === taskId) renderFabPanel(); });
@@ -3177,7 +3196,7 @@ async function onFabCreate(e) {
   if (!name || fabState.busy) return;
   const { mode, labelId, taskId } = fabState;
   if (mode === 'subtask') {
-    addSubtask(taskId, name);
+    addSubtask(taskId, name, $('#fab-new-due').value);
     renderFabPanel();
     return;
   }
@@ -4883,7 +4902,7 @@ async function onManualSubmit(e) {
 let taskFilter = '';
 let taskOpenSubsOnly = false;
 let taskTab = 'active';
-var SUBTASK_ADD_FORM = `<form class="subtask-add"><input type="text" maxlength="500" placeholder="Añadir subtarea…" aria-label="Nueva subtarea"><button type="submit" class="icon-btn" aria-label="Añadir subtarea"><span class="material-icons">add</span></button></form>`;
+var SUBTASK_ADD_FORM = `<form class="subtask-add"><input type="text" maxlength="500" placeholder="Añadir subtarea…" aria-label="Nueva subtarea"><input type="date" class="subtask-add-due" title="Fecha límite (opcional)" aria-label="Fecha límite (opcional)"><button type="submit" class="icon-btn" aria-label="Añadir subtarea"><span class="material-icons">add</span></button></form>`;
 function subTextSpan(text, editable = true) {
   return editable
     ? `<span class="sub-text" tabindex="0" role="button" title="Clic para editar">${escapeHtml(text)}</span>`
@@ -4899,6 +4918,29 @@ function bindSubtaskTextEdit(host, ids, after) {
 const expandedTasks = new Set();
 const showDoneSubs = new Set();
 const notesOpenTasks = new Set();
+const DUE_SOON_DAYS = 7;
+// '' sin fecha o hecha; 'overdue' | 'today' | 'soon' (próximos DUE_SOON_DAYS días) | 'later'
+function subDueStatus(s) {
+  if (!s || !s.due || s.done) return '';
+  const today = localDay(Date.now());
+  if (s.due < today) return 'overdue';
+  if (s.due === today) return 'today';
+  return s.due <= localDay(Date.now() + DUE_SOON_DAYS * 86400000) ? 'soon' : 'later';
+}
+function dueBadge(s) {
+  const st = subDueStatus(s);
+  if (!st) return '';
+  const [y, m, d] = s.due.split('-');
+  const txt = st === 'today' ? 'Hoy' : st === 'overdue' ? `Vencida · ${d}/${m}` : `${d}/${m}`;
+  return `<span class="due-badge due-${st}" title="Fecha límite: ${d}/${m}/${y}"><span class="material-icons">event</span>${txt}</span>`;
+}
+function dueInput(s) {
+  const st = subDueStatus(s);
+  return `<input type="date" class="subtask-due-input${s.due ? ' has-due' : ''}${st ? ' due-' + st : ''}" value="${escapeHtml(s.due || '')}" title="Fecha límite" aria-label="Fecha límite de la subtarea">`;
+}
+function setSubtaskDue(tid, sid, due) {
+  saveSubtasks(tid, parseSubtasks(taskById(tid)).map(s => s.id === sid ? { ...s, due: due || undefined } : s));
+}
 function parseSubtasks(t) {
   if (!t || !t.subtasks) return [];
   if (Array.isArray(t.subtasks)) return t.subtasks;
@@ -4938,7 +4980,7 @@ function renderActiveSubtasks(host, allowAdd = true) {
   host.dataset.sig = sig;
   host.hidden = !tid || (!allowAdd && !pending.length);
   host.innerHTML = `<div class="active-subtasks-hdr">Subtareas${pending.length ? ` · ${pending.length} pendiente${pending.length === 1 ? '' : 's'}` : ''}</div>` +
-    `<ul class="subtask-list">${pending.map(s => `<li data-sid="${escapeHtml(s.id)}"><div class="sub-label"><input type="checkbox" class="subtask-check" aria-label="Marcar como hecha">${subTextSpan(s.text, allowAdd)}</div><button type="button" class="icon-btn subtask-del" title="Eliminar subtarea" aria-label="Eliminar subtarea ${escapeHtml(s.text)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul>` +
+    `<ul class="subtask-list">${pending.map(s => `<li data-sid="${escapeHtml(s.id)}"><div class="sub-label"><input type="checkbox" class="subtask-check" aria-label="Marcar como hecha">${subTextSpan(s.text, allowAdd)}${dueBadge(s)}</div><button type="button" class="icon-btn subtask-del" title="Eliminar subtarea" aria-label="Eliminar subtarea ${escapeHtml(s.text)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul>` +
     (allowAdd ? SUBTASK_ADD_FORM : '');
   host.querySelectorAll('.subtask-check').forEach(cb => cb.onchange = () => {
     const sid = cb.closest('li').dataset.sid;
@@ -4952,15 +4994,15 @@ function renderActiveSubtasks(host, allowAdd = true) {
   const addForm = host.querySelector('.subtask-add');
   if (addForm) addForm.onsubmit = e => {
     e.preventDefault();
-    addSubtask(tid, e.target.querySelector('input').value);
+    addSubtask(tid, e.target.querySelector('input').value, e.target.querySelector('.subtask-add-due').value);
     setTimeout(() => { const i = host.querySelector('.subtask-add input'); if (i) i.focus(); }, 0);
   };
 }
-function addSubtask(tid, raw) {
+function addSubtask(tid, raw, due) {
   const text = String(raw || '').trim();
   if (!text) return;
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  saveSubtasks(tid, [...parseSubtasks(taskById(tid)), { id, text, done: false }]);
+  saveSubtasks(tid, [...parseSubtasks(taskById(tid)), { id, text, done: false, ...(due ? { due } : {}) }]);
 }
 function editSubtaskInline(span, tid, sid, after) {
   const original = (parseSubtasks(taskById(tid)).find(s => s.id === sid) || {}).text || '';
@@ -5114,10 +5156,12 @@ async function renderTasksView() {
     const subItem = s => `<li class="${s.done ? 'done' : ''}" data-sid="${escapeHtml(s.id)}">
                 <input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}">
                 <span class="subtask-text" tabindex="0" role="button" title="Clic para editar">${escapeHtml(s.text)}</span>
+                ${s.done ? '' : dueInput(s)}
                 <button type="button" class="subtask-del icon-btn" title="Eliminar subtarea" aria-label="Eliminar subtarea"><span class="material-icons">close</span></button>
               </li>`;
     const pendingSubs = subs.filter(s => !s.done);
     const doneSubs = subs.filter(s => s.done);
+    const worstDue = ['overdue', 'today', 'soon'].find(st => pendingSubs.some(s => subDueStatus(s) === st));
     const doneOpen = showDoneSubs.has(t.id);
     const logsOpen = expandedTasks.has(t.id);
     const notesOpen = notesOpenTasks.has(t.id);
@@ -5129,6 +5173,7 @@ async function renderTasksView() {
           <div class="task-meta">
             ${labelTag}
             ${subs.length ? `<span class="subtask-count${subsDone === subs.length ? ' all' : ''}" title="Subtareas completadas"><span class="material-icons">checklist</span>${subsDone}/${subs.length}</span>` : ''}
+            ${worstDue ? `<span class="due-badge due-${worstDue}" title="Subtareas con fecha límite"><span class="material-icons">event</span>${{ overdue: 'Vencida', today: 'Vence hoy', soon: 'Por vencer' }[worstDue]}</span>` : ''}
             ${t.notes ? `<span class="notes-flag" title="Tiene notas"><span class="material-icons">sticky_note_2</span></span>` : ''}
           </div>
         </div>
@@ -5295,6 +5340,7 @@ async function renderTasksView() {
       const sid = b.closest('li').dataset.sid;
       saveSubtasks(tid, current().filter(s => s.id !== sid));
     });
+    box.querySelectorAll('.subtask-due-input').forEach(inp => inp.onchange = () => setSubtaskDue(tid, inp.closest('li').dataset.sid, inp.value));
     const startEdit = li => {
       const span = li.querySelector('.subtask-text');
       if (!span) return;
@@ -5334,7 +5380,7 @@ async function renderTasksView() {
     const addForm = box.querySelector('.subtask-add');
     if (addForm) addForm.onsubmit = e => {
       e.preventDefault();
-      addSubtask(tid, e.target.querySelector('input').value);
+      addSubtask(tid, e.target.querySelector('input').value, e.target.querySelector('.subtask-add-due').value);
       setTimeout(() => { const i = $(`.task-card[data-tid="${tid}"] .subtask-add input`); if (i) i.focus(); }, 0);
     };
   });
@@ -5551,6 +5597,8 @@ function renderDashboard() {
 }
 
 let pendingSubsShowDone = localStorage.getItem('tasktime_pending_subs_done') === '1';
+let pendingSubsDueFilter = localStorage.getItem('tasktime_pending_subs_due') || '';
+const DUE_FILTER_EMPTY = { overdue: 'vencidas', today: 'que venzan hoy', soon: `por vencer en los próximos ${DUE_SOON_DAYS} días` };
 function renderPendingSubtasks() {
   const host = $('#pending-subs-list');
   if (!host) return;
@@ -5564,17 +5612,35 @@ function renderPendingSubtasks() {
       renderPendingSubtasks();
     };
   }
+  const dueCounts = { overdue: 0, today: 0, soon: 0 };
+  state.tasks.forEach(t => {
+    if (isTaskDone_(t)) return;
+    parseSubtasks(t).forEach(s => { const st = subDueStatus(s); if (st in dueCounts) dueCounts[st]++; });
+  });
+  const fhost = $('#pending-subs-due-filter');
+  if (fhost) {
+    const chip = (k, label) => `<button type="button" class="chip-filter${pendingSubsDueFilter === k ? ' active' : ''}${k ? ' due-' + k : ''}" data-due="${k}" aria-pressed="${pendingSubsDueFilter === k}">${label}${k ? ` <span class="count">${dueCounts[k]}</span>` : ''}</button>`;
+    fhost.innerHTML = chip('', 'Todas') + chip('overdue', 'Vencidas') + chip('today', 'Vencen hoy') + chip('soon', 'Por vencer');
+    fhost.querySelectorAll('[data-due]').forEach(b => b.onclick = () => {
+      pendingSubsDueFilter = b.dataset.due;
+      localStorage.setItem('tasktime_pending_subs_due', pendingSubsDueFilter);
+      renderPendingSubtasks();
+    });
+  }
   const groups = new Map();
   state.tasks.forEach(t => {
-    if (t.completed === true || String(t.completed || '') === 'true') return;
-    const subs = parseSubtasks(t).filter(s => pendingSubsShowDone || !s.done);
+    if (isTaskDone_(t)) return;
+    const subs = parseSubtasks(t).filter(s => pendingSubsDueFilter ? subDueStatus(s) === pendingSubsDueFilter : (pendingSubsShowDone || !s.done));
     if (!subs.length) return;
     const lid = t.labelId || '';
     if (!groups.has(lid)) groups.set(lid, []);
     subs.forEach(s => groups.get(lid).push({ t, s }));
   });
-  groups.forEach(items => items.sort((a, b) => !!a.s.done - !!b.s.done));
-  if (!groups.size) { host.innerHTML = `<div class="empty-row">No hay subtareas${pendingSubsShowDone ? '' : ' pendientes'}.</div>`; return; }
+  groups.forEach(items => items.sort((a, b) => (!!a.s.done - !!b.s.done) || (a.s.due || '9999').localeCompare(b.s.due || '9999')));
+  if (!groups.size) {
+    host.innerHTML = `<div class="empty-row">No hay subtareas ${pendingSubsDueFilter ? DUE_FILTER_EMPTY[pendingSubsDueFilter] : (pendingSubsShowDone ? '' : 'pendientes')}.</div>`;
+    return;
+  }
   // Orden de etiquetas como en state.labels; "Sin etiqueta" al final.
   const order = state.labels.map(l => l.id).filter(id => groups.has(id));
   if (groups.has('')) order.push('');
@@ -5583,7 +5649,7 @@ function renderPendingSubtasks() {
     const chip = `<span class="chip" style="background:${lid ? labelColor(lid) : 'var(--outline)'}">${escapeHtml(lid ? labelName(lid) : 'Sin etiqueta')}</span>`;
     const pendingCount = items.filter(x => !x.s.done).length;
     return `<div class="pending-subs-group"><h4>${chip}<span class="count">${pendingCount}</span></h4><ul class="subtask-list">${items.map(({ t, s }) =>
-      `<li class="${s.done ? 'done' : ''}" data-tid="${escapeHtml(t.id)}" data-sid="${escapeHtml(s.id)}"><div class="sub-label"><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}"><span class="pending-subs-body">${subTextSpan(s.text)} <span class="pending-subs-task">${escapeHtml(t.name)}</span></span></div><button type="button" class="icon-btn subtask-del" title="Eliminar subtarea" aria-label="Eliminar subtarea ${escapeHtml(s.text)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul></div>`;
+      `<li class="${s.done ? 'done' : ''}" data-tid="${escapeHtml(t.id)}" data-sid="${escapeHtml(s.id)}"><div class="sub-label"><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}"><span class="pending-subs-body">${subTextSpan(s.text)} <span class="pending-subs-task">${escapeHtml(t.name)}</span></span></div>${s.done ? '' : dueInput(s)}<button type="button" class="icon-btn subtask-del" title="Eliminar subtarea" aria-label="Eliminar subtarea ${escapeHtml(s.text)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul></div>`;
   }).join('');
   host.querySelectorAll('.subtask-check').forEach(cb => cb.onchange = () => {
     const { tid, sid } = cb.closest('li').dataset;
@@ -5592,6 +5658,10 @@ function renderPendingSubtasks() {
   host.querySelectorAll('.subtask-del').forEach(button => button.onclick = () => {
     const { tid, sid } = button.closest('li').dataset;
     confirmDeleteSubtask_(tid, sid);
+  });
+  host.querySelectorAll('.subtask-due-input').forEach(inp => inp.onchange = () => {
+    const { tid, sid } = inp.closest('li').dataset;
+    setSubtaskDue(tid, sid, inp.value);
   });
   bindSubtaskTextEdit(host, li => ({ tid: li.dataset.tid, sid: li.dataset.sid }));
 }
