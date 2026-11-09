@@ -1100,7 +1100,7 @@
   .pending-subs .subtask-list li.done .pending-subs-body { color: inherit; }
   .subtask-add input { flex: 1; min-width: 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--outline-variant); border-radius: var(--r-sm); font-family: inherit; }
   .subtask-add .subtask-add-due, .fab-new .subtask-add-due { flex: 0 0 auto; width: auto; padding: 4px 6px; font-size: 12px; }
-  .active-subtasks .subtask-add-due { color-scheme: dark; }
+  .active-subtasks .subtask-add-due, .active-subtasks .subtask-due-input:not(.due-overdue):not(.due-today):not(.due-soon) { color-scheme: dark; color: inherit; border-color: rgba(255,255,255,0.4); }
   /* === Deadlines de subtareas === */
   .subtask-due-input { flex: 0 0 auto; width: auto; padding: 2px 6px; font-size: 12px; border-radius: var(--r-sm); background: transparent; }
   .subtask-due-input:not(.has-due) { opacity: .35; }
@@ -2399,7 +2399,7 @@ function labelColor(id)  { const l = labelById(id); return l ? l.color : '#9aa0a
 // ==== Backend API ====
 // API_URL is rewritten by tools/Set-ApiDeployment.ps1 (option 1).
 // Default targets the local Cloudflare Worker (npm run dev in proxy/).
-const API_URL = 'https://tasktime-cors-proxy.marquezhh.workers.dev';
+const API_URL = 'https://familiamarquez.ddns.net/tasktime/';
 
 // ==== Auth ====
 const AUTH_TOKEN_KEY = 'tasktime_auth_token';
@@ -3124,7 +3124,7 @@ function renderFabPanel() {
     const subs = parseSubtasks(t).filter(s => showDone || !s.done).sort((a, b) => !!a.done - !!b.done);
     $('#fab-panel-title').innerHTML = `${dot(labelId)}<span>${escapeHtml(t ? t.name : '')}</span>`;
     body.innerHTML = `${subs.length
-        ? `<ul class="fab-subs">${subs.map(s => `<li class="${s.done ? 'done' : ''}" data-sid="${escapeHtml(s.id)}"><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${subTextSpan(s.text)}${dueBadge(s)}<button type="button" class="fab-delete" data-delete-subtask="${escapeHtml(s.id)}" title="Eliminar subtarea" aria-label="Eliminar subtarea ${escapeHtml(s.text)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul>`
+        ? `<ul class="fab-subs">${subs.map(s => `<li class="${s.done ? 'done' : ''}" data-sid="${escapeHtml(s.id)}"><input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''} aria-label="${s.done ? 'Marcar como pendiente' : 'Marcar como hecha'}">${subTextSpan(s.text)}${s.done ? '' : dueInput(s)}<button type="button" class="fab-delete" data-delete-subtask="${escapeHtml(s.id)}" title="Eliminar subtarea" aria-label="Eliminar subtarea ${escapeHtml(s.text)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul>`
         : `<div class="fab-empty">Sin subtareas${showDone ? '' : ' pendientes'}.</div>`}
       <form class="fab-new" id="fab-new-form">
         <input id="fab-new-name" maxlength="500" placeholder="Nueva subtarea" required autocomplete="off">
@@ -3289,6 +3289,11 @@ function bindFab() {
     if (e.target.classList.contains('fab-task-check')) {
       const tid = e.target.closest('li').dataset.tid;
       updateTaskInline(tid, { completed: e.target.checked ? 'true' : '' }).then(() => { if (fabState.mode === 'task') renderFabPanel(); });
+      renderFabPanel();
+      return;
+    }
+    if (e.target.classList.contains('subtask-due-input')) {
+      setSubtaskDue(fabState.taskId, e.target.closest('li').dataset.sid, e.target.value);
       renderFabPanel();
       return;
     }
@@ -4980,7 +4985,7 @@ function renderActiveSubtasks(host, allowAdd = true) {
   host.dataset.sig = sig;
   host.hidden = !tid || (!allowAdd && !pending.length);
   host.innerHTML = `<div class="active-subtasks-hdr">Subtareas${pending.length ? ` · ${pending.length} pendiente${pending.length === 1 ? '' : 's'}` : ''}</div>` +
-    `<ul class="subtask-list">${pending.map(s => `<li data-sid="${escapeHtml(s.id)}"><div class="sub-label"><input type="checkbox" class="subtask-check" aria-label="Marcar como hecha">${subTextSpan(s.text, allowAdd)}${dueBadge(s)}</div><button type="button" class="icon-btn subtask-del" title="Eliminar subtarea" aria-label="Eliminar subtarea ${escapeHtml(s.text)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul>` +
+    `<ul class="subtask-list">${pending.map(s => `<li data-sid="${escapeHtml(s.id)}"><div class="sub-label"><input type="checkbox" class="subtask-check" aria-label="Marcar como hecha">${subTextSpan(s.text, allowAdd)}${allowAdd ? '' : dueBadge(s)}</div>${allowAdd ? dueInput(s) : ''}<button type="button" class="icon-btn subtask-del" title="Eliminar subtarea" aria-label="Eliminar subtarea ${escapeHtml(s.text)}"><span class="material-icons">delete</span></button></li>`).join('')}</ul>` +
     (allowAdd ? SUBTASK_ADD_FORM : '');
   host.querySelectorAll('.subtask-check').forEach(cb => cb.onchange = () => {
     const sid = cb.closest('li').dataset.sid;
@@ -4990,6 +4995,7 @@ function renderActiveSubtasks(host, allowAdd = true) {
     const sid = button.closest('li').dataset.sid;
     confirmDeleteSubtask_(tid, sid);
   });
+  host.querySelectorAll('.subtask-due-input').forEach(inp => inp.onchange = () => setSubtaskDue(tid, inp.closest('li').dataset.sid, inp.value));
   bindSubtaskTextEdit(host, li => ({ tid, sid: li.dataset.sid }));
   const addForm = host.querySelector('.subtask-add');
   if (addForm) addForm.onsubmit = e => {
