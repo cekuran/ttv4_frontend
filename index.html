@@ -4946,20 +4946,23 @@ function subDueStatus(s) {
   if (s.due === today) return 'today';
   return s.due <= localDay(Date.now() + DUE_SOON_DAYS * 86400000) ? 'soon' : 'later';
 }
+// 'yyyy-mm-dd' → '9 Nov' (withYear → '9 Nov 2026')
+function fmtDue_(due, withYear) {
+  const [y, m, d] = due.split('-');
+  return `${+d} ${MONTH_SHORT[+m - 1]}${withYear ? ' ' + y : ''}`;
+}
 function dueLabel_(due, st) {
-  const [, m, d] = due.split('-');
-  return st === 'today' ? 'Hoy' : st === 'overdue' ? `Vencida · ${d}/${m}` : `${d}/${m}`;
+  return st === 'today' ? 'Hoy' : st === 'overdue' ? `Vencida · ${fmtDue_(due)}` : fmtDue_(due);
 }
 function dueBadge(s) {
   const st = subDueStatus(s);
   if (!st) return '';
-  const [y, m, d] = s.due.split('-');
-  return `<span class="due-badge due-${st}" title="Fecha límite: ${d}/${m}/${y}"><span class="material-icons">event</span>${dueLabel_(s.due, st)}</span>`;
+  return `<span class="due-badge due-${st}" title="Fecha límite: ${fmtDue_(s.due, true)}"><span class="material-icons">event</span>${dueLabel_(s.due, st)}</span>`;
 }
 function dueInput(s) {
   const st = subDueStatus(s);
   const due = /^\d{4}-\d{2}-\d{2}$/.test(s.due || '') ? s.due : '';
-  const title = due ? `Fecha límite: ${due.split('-').reverse().join('/')}` : 'Añadir fecha límite';
+  const title = due ? `Fecha límite: ${fmtDue_(due, true)}` : 'Añadir fecha límite';
   return `<span class="subtask-due${due ? ' has-due' : ''}${st ? ' due-' + st : ''}" title="${title}"><span class="material-icons">event</span>${due ? `<span class="due-text">${dueLabel_(due, st)}</span>` : ''}<input type="date" class="subtask-due-input" value="${due}" aria-label="${title}"></span>`;
 }
 // Abre el selector nativo desde el icono (desktop: el click en el input no siempre lo abre).
@@ -4978,8 +4981,8 @@ document.addEventListener('change', e => {
   wrap.classList.toggle('has-due', !!v);
   let txt = wrap.querySelector('.due-text');
   if (!txt) { txt = document.createElement('span'); txt.className = 'due-text'; e.target.before(txt); }
-  txt.textContent = v ? v.split('-').reverse().slice(0, 2).join('/') : '';
-  wrap.title = v ? `Fecha límite: ${v.split('-').reverse().join('/')}` : 'Fecha límite (opcional)';
+  txt.textContent = v ? fmtDue_(v) : '';
+  wrap.title = v ? `Fecha límite: ${fmtDue_(v, true)}` : 'Fecha límite (opcional)';
 });
 function setSubtaskDue(tid, sid, due) {
   saveSubtasks(tid, parseSubtasks(taskById(tid)).map(s => s.id === sid ? { ...s, due: due || undefined } : s));
