@@ -1068,7 +1068,10 @@
   .md-toolbar button .material-icons { font-size: 16px; }
   .md-toolbar .md-hint { font-size: 11px; color: var(--outline); }
   .md-body { margin-top: 6px; font-size: 13px; line-height: 1.5; color: var(--on-surface); overflow-wrap: anywhere; }
-  .md-body:empty { display: none; }
+  .md-body.md-editable { cursor: text; border-radius: var(--r-sm); }
+  .md-body.md-editable:hover { background: var(--surface-low); }
+  .md-body .md-empty { color: var(--outline); font-style: italic; }
+  .task-notes textarea[hidden] { display: none; }
   .md-body p { margin: 0 0 6px; }
   .md-body p:last-child { margin-bottom: 0; }
   .md-body ul, .md-body ol { margin: 4px 0; padding-left: 20px; }
@@ -2559,6 +2562,57 @@ function bindMdEditor(root, ta, preview) {
 // no las leyera como fórmula). Se quita al mostrar: si no, "- viñeta" vuelve con la
 // comilla pegada y el markdown no se ve.
 const noteText = (t) => String((t && t.notes) || '').replace(/^'(?=[=+\-@])/, '');
+
+// --- Panel de notas: se ve el markdown renderizado; el textarea (editor) sólo aparece
+// --- cuando el usuario hace clic sobre el texto.
+const notesEditTasks = new Set();
+
+function notesPanelHtml(tid) {
+  const notes = noteText(taskById(tid));
+  const editing = notesEditTasks.has(tid);
+  const body = notes ? mdToHtml(notes) : '<p class="md-empty">Sin notas — clic para editar.</p>';
+  return (editing ? mdToolbarHtml() : '') +
+    `<textarea class="task-notes-input" data-tid="${tid}" maxlength="5000" rows="2" placeholder="Añadir notas… (soporta markdown)" aria-label="Notas de la tarea"${editing ? '' : ' hidden'}>${escapeHtml(notes)}</textarea>` +
+    `<div class="md-body${editing ? '' : ' md-editable'}"${editing ? '' : ' role="button" tabindex="0" title="Clic para editar"'}>${body}</div>`;
+}
+
+function wireNotesPanel(panel) {
+  const tid = panel.dataset.tid;
+  const ta = panel.querySelector('textarea');
+  const body = panel.querySelector('.md-body');
+  if (ta) {
+    ta.onblur = () => {
+      const t = taskById(tid);
+      const val = ta.value;
+      notesEditTasks.delete(tid);
+      if (t && val !== noteText(t)) updateTaskInline(tid, { notes: val });  // el re-pintado ya sale de edición
+      else renderNotesPanel(tid);                                          // sin cambios: sólo quitar el editor
+    };
+    ta.onkeydown = e => {
+      if (e.key === 'Escape') { ta.value = noteText(taskById(tid)); ta.blur(); }
+    };
+    if (!ta.hidden) bindMdEditor(panel, ta, body);   // sólo en modo edición (si no, el preview es fijo)
+  }
+  if (body && !notesEditTasks.has(tid)) {
+    body.onclick = e => { if (!e.target.closest('a')) startNotesEdit(tid); };
+    body.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startNotesEdit(tid); } };
+  }
+}
+
+function renderNotesPanel(tid) {
+  const panel = document.getElementById('task-notes-' + tid);
+  if (!panel) return null;
+  panel.innerHTML = notesPanelHtml(tid);
+  wireNotesPanel(panel);
+  return panel;
+}
+
+function startNotesEdit(tid) {
+  notesEditTasks.add(tid);
+  const panel = renderNotesPanel(tid);
+  const ta = panel && panel.querySelector('textarea');
+  if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+}
 /* MD-END */
 // Local (not UTC) yyyy-mm-dd — for date-range defaults so bounds match how entries are compared/displayed
 const localDay = (d) => {
@@ -4738,11 +4792,12 @@ function renderActiveCard() {
 }
 
 let activeNotesOpen = localStorage.getItem('tasktime_active_notes') === '1';
+let activeNotesEditing = false;
 function renderActiveNotes(host) {
   if (!host) return;
   const tid = state.activeTimer ? state.activeTimer.taskId : '';
   const notes = tid ? noteText(taskById(tid)) : '';
-  const sig = tid + '|' + activeNotesOpen + '|' + notes;
+  const sig = tid + '|' + activeNotesOpen + '|' + activeNotesEditing + '|' + notes;
   if (host.dataset.sig === sig) return;
   const ta = host.querySelector('textarea');
   if (ta && document.activeElement === ta) return;
@@ -4750,34 +4805,57 @@ function renderActiveNotes(host) {
   host.hidden = !tid;
   if (!tid) { host.innerHTML = ''; return; }
   const label = activeNotesOpen ? 'Ocultar notas' : (notes ? 'Ver notas' : 'Añadir notas');
+  const body = notes ? mdToHtml(notes) : '<p class="md-empty">Sin notas — clic para editar.</p>';
   host.innerHTML = `<button type="button" class="active-notes-toggle" aria-expanded="${activeNotesOpen}" aria-controls="active-notes-body">
       <span class="material-icons">${notes ? 'sticky_note_2' : 'note_add'}</span>${label}<span class="material-icons chev">expand_more</span>
     </button>
     <div class="md-editor" ${activeNotesOpen ? '' : 'hidden'}>
-      ${mdToolbarHtml()}
-      <textarea class="active-notes-body" id="active-notes-body" maxlength="5000" rows="3" placeholder="Escribe notas para esta tarea… (soporta markdown)" aria-label="Notas de la tarea en curso">${escapeHtml(notes)}</textarea>
-      <div class="md-body">${mdToHtml(notes)}</div>
+      ${activeNotesEditing ? mdToolbarHtml() : ''}
+      <textarea class="active-notes-body" id="active-notes-body" maxlength="5000" rows="3" placeholder="Escribe notas para esta tarea… (soporta markdown)" aria-label="Notas de la tarea en curso"${activeNotesEditing ? '' : ' hidden'}>${escapeHtml(notes)}</textarea>
+      <div class="md-body${activeNotesEditing ? '' : ' md-editable'}"${activeNotesEditing ? '' : ' role="button" tabindex="0" title="Clic para editar"'}>${body}</div>
     </div>`;
   const toggle = host.querySelector('.active-notes-toggle');
   // Evita que el blur del textarea re-pinte el botón antes de recibir el click.
   toggle.onmousedown = e => e.preventDefault();
   toggle.onclick = () => {
-    const cur = host.querySelector('textarea');
-    if (cur && document.activeElement === cur) cur.blur();
     activeNotesOpen = !activeNotesOpen;
     localStorage.setItem('tasktime_active_notes', activeNotesOpen ? '1' : '0');
+    if (!activeNotesOpen) {
+      activeNotesEditing = false;
+      const cur = host.querySelector('textarea');
+      if (cur && document.activeElement === cur) cur.blur();
+    } else if (!notes) {
+      activeNotesEditing = true;      // panel recién abierto y sin notas → a editar
+    }
     renderActiveNotes(host);
-    if (activeNotesOpen && !notes) host.querySelector('textarea').focus();
+    if (activeNotesEditing) {
+      const area = host.querySelector('textarea');
+      if (area) area.focus();
+    }
   };
   const area = host.querySelector('textarea');
   area.onblur = () => {
     const t = taskById(tid);
-    if (t && area.value !== noteText(t)) updateTaskInline(tid, { notes: area.value });
+    const val = area.value;
+    activeNotesEditing = false;
+    if (t && val !== noteText(t)) updateTaskInline(tid, { notes: val });
+    else renderActiveNotes(host);
   };
   area.onkeydown = e => {
     if (e.key === 'Escape') { area.value = notes; area.blur(); }
   };
-  bindMdEditor(host, area, host.querySelector('.md-body'));
+  const bodyEl = host.querySelector('.md-body');
+  if (bodyEl && !activeNotesEditing) {
+    bodyEl.onclick = e => {
+      if (e.target.closest('a')) return;
+      activeNotesEditing = true;
+      renderActiveNotes(host);
+      const el = host.querySelector('textarea');
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    };
+    bodyEl.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); bodyEl.click(); } };
+  }
+  if (activeNotesEditing) bindMdEditor(host, area, bodyEl);
 }
 
 // ponytail: pinta card/widget con el color de la etiqueta activa; sin etiqueta → gradiente default
@@ -5444,10 +5522,8 @@ async function renderTasksView() {
         <button type="button" class="task-disclosure task-notes-toggle" data-tid="${t.id}" aria-expanded="${notesOpen}" aria-controls="task-notes-${t.id}">
           <span class="material-icons">${t.notes ? 'sticky_note_2' : 'note_add'}</span><span class="lbl">${notesOpen ? 'Ocultar notas' : (t.notes ? 'Ver notas' : 'Añadir notas')}</span><span class="material-icons chev">expand_more</span>
         </button>
-        <div class="task-notes" id="task-notes-${t.id}" ${notesOpen ? '' : 'hidden'}>
-          ${mdToolbarHtml()}
-          <textarea class="task-notes-input" data-tid="${t.id}" maxlength="5000" rows="2" placeholder="Añadir notas… (soporta markdown)" aria-label="Notas de la tarea">${escapeHtml(noteText(t))}</textarea>
-          <div class="md-body">${mdToHtml(noteText(t))}</div>
+        <div class="task-notes" id="task-notes-${t.id}" data-tid="${t.id}" ${notesOpen ? '' : 'hidden'}>
+          ${notesPanelHtml(t.id)}
         </div>
         <button type="button" class="task-disclosure task-logs-toggle" data-tid="${t.id}" aria-expanded="${logsOpen}" aria-controls="task-logs-${t.id}">
           <span class="material-icons">history</span><span class="lbl">${logsOpen ? 'Ocultar registros' : 'Ver registros'}</span><span class="badge">${entries.length}</span><span class="material-icons chev">expand_more</span>
@@ -5522,9 +5598,6 @@ async function renderTasksView() {
     b.onmousedown = e => e.preventDefault();
     b.onclick = () => {
       const tid = b.dataset.tid;
-      const panel = $(`#task-notes-${tid}`);
-      const ta = panel.querySelector('textarea');
-      if (document.activeElement === ta) ta.blur();
       const open = !notesOpenTasks.has(tid);
       if (open) notesOpenTasks.add(tid); else notesOpenTasks.delete(tid);
       const curPanel = $(`#task-notes-${tid}`), curBtn = $(`#task-table-wrap .task-notes-toggle[data-tid="${tid}"]`);
@@ -5533,21 +5606,16 @@ async function renderTasksView() {
       curPanel.hidden = !open;
       curBtn.setAttribute('aria-expanded', open);
       curBtn.querySelector('.lbl').textContent = open ? 'Ocultar notas' : (hasNotes ? 'Ver notas' : 'Añadir notas');
-      if (open && !hasNotes) curPanel.querySelector('textarea').focus();
+      if (!open) {
+        notesEditTasks.delete(tid);                                  // al cerrar, fuera de edición
+        const ta = curPanel.querySelector('textarea');
+        if (ta && document.activeElement === ta) ta.blur();          // guarda y re-pinta
+      } else if (!hasNotes) {
+        startNotesEdit(tid);
+      }
     };
   });
-  $$('#task-table-wrap .task-notes-input').forEach(ta => {
-    ta.onblur = () => {
-      const t = taskById(ta.dataset.tid);
-      if (t && ta.value !== noteText(t)) updateTaskInline(ta.dataset.tid, { notes: ta.value });
-    };
-    ta.onkeydown = e => {
-      if (e.key === 'Escape') { ta.value = noteText(taskById(ta.dataset.tid)); ta.blur(); }
-    };
-  });
-  $$('#task-table-wrap .task-notes').forEach(panel => {
-    bindMdEditor(panel, panel.querySelector('textarea'), panel.querySelector('.md-body'));
-  });
+  $$('#task-table-wrap .task-notes').forEach(panel => wireNotesPanel(panel));
   $$('#task-table-wrap .task-label-picker').forEach(p => {
     const btn = p.querySelector('.label-picker-btn');
     btn.onclick = e => {
