@@ -786,15 +786,15 @@
   /* ponytail: el bloque de info del modal se alinea a la izquierda y el nombre hace wrap si se corta */
   .active-card.timer-modal-card .info { text-align: left; }
   .active-card.timer-modal-card .info .name { word-wrap: break-word; overflow-wrap: anywhere; line-height: 1.25; }
-  /* ponytail: eliminar entrada desde el modal de la línea — botón sobre el color de la etiqueta */
-  .entry-details-del[hidden] { display: none; } /* el display:inline-flex de .ac-icon-btn pisa el [hidden] del UA */
-  .active-card.timer-modal-card .entry-details-del {
-    flex-shrink: 0;
-    align-self: flex-end; /* abajo a la derecha: el close está arriba a la derecha */
+  /* ponytail: editar/eliminar entrada desde el modal de la línea — botones sobre el color de la etiqueta */
+  .entry-details-actions { display: flex; gap: 6px; align-self: flex-end; flex-shrink: 0; }
+  .entry-details-actions[hidden] { display: none; } /* el display:flex pisa el [hidden] del UA */
+  .active-card.timer-modal-card .entry-details-act {
     color: rgba(255,255,255,0.85);
     background: rgba(255,255,255,0.10);
     border-radius: 50%;
   }
+  .active-card.timer-modal-card .entry-details-act:hover { background: rgba(255,255,255,0.22); color: white; }
   .active-card.timer-modal-card .entry-details-del:hover { background: rgba(186,26,26,0.45); color: white; }
 
   .ac-btn-danger {
@@ -2242,7 +2242,10 @@
       <div class="elapsed" id="entry-details-elapsed">00m</div>
       <div class="meta" id="entry-details-meta">—</div>
     </div>
-    <button class="ac-icon-btn entry-details-del" id="entry-details-del" hidden aria-label="Eliminar entrada" title="Eliminar entrada"><span class="material-icons">delete</span></button>
+    <div class="entry-details-actions" id="entry-details-actions" hidden>
+      <button class="ac-icon-btn entry-details-act" id="entry-details-edit" aria-label="Editar entrada" title="Editar entrada"><span class="material-icons">edit</span></button>
+      <button class="ac-icon-btn entry-details-act entry-details-del" id="entry-details-del" aria-label="Eliminar entrada" title="Eliminar entrada"><span class="material-icons">delete</span></button>
+    </div>
   </div>
 </div>
 
@@ -3469,6 +3472,7 @@ function bindGlobal() {
   // ponytail: cierre del modal de detalles de entrada (overlay + botón close)
   $$('#entry-details-modal [data-modal-close]').forEach(el => el.addEventListener('click', () => { $('#entry-details-modal').hidden = true; }));
   $('#entry-details-del').addEventListener('click', onEntryDetailsDelete);
+  $('#entry-details-edit').addEventListener('click', onEntryDetailsEdit);
   // ponytail: re-render de la línea del día al cambiar el ancho del wrap (mismo patrón que stats-chart)
   if (state.dayTimelineResizeObs) state.dayTimelineResizeObs.disconnect();
   let tlRafId = 0;
@@ -4700,7 +4704,7 @@ function openEntryDetails(entry) {
   const range   = `${fmtTime(entry.startTime)} – ${fmtTime(entry.endTime)}`;
   $('#entry-details-meta').textContent    = dateStr ? `${dateStr} · ${range}` : range;
   entryDetailsEntry = entry;
-  $('#entry-details-del').hidden = false;
+  $('#entry-details-actions').hidden = false;
   paintModalByLabel($('#entry-details-modal'), lid);
   $('#entry-details-modal').hidden = false;
 }
@@ -4711,10 +4715,19 @@ function openGroupDetails({ lid, label, name, minutes, meta }) {
   $('#entry-details-name').textContent    = name;
   $('#entry-details-elapsed').textContent = fmtHM(minutes);
   $('#entry-details-meta').textContent    = meta;
-  entryDetailsEntry = null; // es un total agregado: no hay una entrada que borrar
-  $('#entry-details-del').hidden = true;
+  entryDetailsEntry = null; // es un total agregado: no hay una entrada que editar/borrar
+  $('#entry-details-actions').hidden = true;
   paintModalByLabel($('#entry-details-modal'), lid);
   $('#entry-details-modal').hidden = false;
+}
+
+// ponytail: editar la entrada seleccionada desde el modal de la línea (día/semana)
+function onEntryDetailsEdit() {
+  const entry = entryDetailsEntry;
+  if (!entry) return;
+  // Cerrar antes de editar: el modal de detalles queda atrás con los datos viejos
+  $('#entry-details-modal').hidden = true;
+  openEditEntryModal(entry.id);
 }
 
 // ponytail: eliminar la entrada seleccionada desde el modal de la línea (día/semana)
