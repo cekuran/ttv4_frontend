@@ -1061,6 +1061,36 @@
   .task-notes textarea:focus { outline: none; border-color: var(--primary); background: #fff; }
   .task-card .notes-flag { display: inline-flex; align-items: center; }
   .task-card .notes-flag .material-icons { font-size: 14px; }
+  /* Notas en markdown: botonera + vista previa renderizada */
+  .md-toolbar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin: 6px 0 4px; }
+  .md-toolbar button { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 26px; padding: 0 6px; border: 1px solid var(--outline-variant); border-radius: var(--r-sm); background: #fff; color: var(--on-surface-variant); cursor: pointer; font-size: 12px; line-height: 1; }
+  .md-toolbar button:hover { background: var(--surface-low); }
+  .md-toolbar button .material-icons { font-size: 16px; }
+  .md-toolbar .md-hint { font-size: 11px; color: var(--outline); }
+  .md-body { margin-top: 6px; font-size: 13px; line-height: 1.5; color: var(--on-surface); overflow-wrap: anywhere; }
+  .md-body:empty { display: none; }
+  .md-body p { margin: 0 0 6px; }
+  .md-body p:last-child { margin-bottom: 0; }
+  .md-body ul, .md-body ol { margin: 4px 0; padding-left: 20px; }
+  .md-body li { margin: 2px 0; }
+  .md-body a { color: var(--primary); }
+  .md-body code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; background: var(--surface-container); padding: 1px 4px; border-radius: var(--r-sm); }
+  .md-body pre { margin: 4px 0; padding: 8px; background: var(--surface-low); border: 1px solid var(--outline-variant); border-radius: var(--r-sm); overflow-x: auto; }
+  .md-body pre code { background: none; padding: 0; }
+  .md-body table.md-table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 12px; }
+  .md-body .md-table th, .md-body .md-table td { border: 1px solid var(--outline-variant); padding: 4px 6px; text-align: left; }
+  .md-body .md-table th { background: var(--surface-low); font-weight: 600; }
+  .md-body blockquote { margin: 4px 0; padding-left: 8px; border-left: 3px solid var(--outline-variant); color: var(--on-surface-variant); }
+  .md-body h1 { font-size: 15px; margin: 6px 0 2px; }
+  .md-body h2 { font-size: 14px; margin: 6px 0 2px; }
+  .md-body h3, .md-body h4, .md-body h5, .md-body h6 { font-size: 13px; margin: 6px 0 2px; }
+  /* Notas de la tarea en curso: la tarjeta tiene fondo de color → texto heredado */
+  .active-notes .md-toolbar button { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.3); color: inherit; }
+  .active-notes .md-body { color: inherit; }
+  .active-notes .md-body a { color: inherit; text-decoration: underline; }
+  .active-notes .md-body code, .active-notes .md-body pre { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.28); }
+  .active-notes .md-body .md-table th { background: rgba(255,255,255,0.14); }
+  .active-notes .md-body .md-table th, .active-notes .md-body .md-table td { border-color: rgba(255,255,255,0.3); }
   .subtask-list { list-style: none; margin: 0; padding: 0; }
   .subtask-list li { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--outline-variant); font-size: 13px; }
   .subtask-list li label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; overflow-wrap: anywhere; }
@@ -2411,6 +2441,125 @@ const parseLocalInput = (v) => {
   return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
 };
 const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* MD-BEGIN */
+// --- Notas de tarea en markdown (negrita, cursiva, enlaces, viñetas, tablas) ---
+// Renderer propio y mínimo: escapa el HTML ANTES de aplicar el markdown, así que no
+// hay XSS; los enlaces sólo admiten http/https/mailto.
+function mdInline(s) {
+  return String(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+    .replace(/(^|[^_\w])_([^_\n]+)_/g, '$1<em>$2</em>')
+    .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+    .replace(/\[([^\]]*)\]\(([^)\s]+)\)/g, (m, txt, url) =>
+      /^(https?:|mailto:)/i.test(url) ? '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + txt + '</a>' : txt);
+}
+
+function mdToHtml(src) {
+  const lines = String(src == null ? '' : src).replace(/\r\n?/g, '\n').split('\n');
+  let html = '', para = [], list = null, table = false;
+  const flush = () => { if (para.length) { html += '<p>' + para.join('<br>') + '</p>'; para = []; } };
+  const closeList = () => { if (list) { html += '</' + list + '>'; list = null; } };
+  const closeTable = () => { if (table) { html += '</tbody></table>'; table = false; } };
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i], t = raw.trim();
+    if (t.length > 2 && t[0] === '|' && t[t.length - 1] === '|') {
+      const cells = t.slice(1, -1).split('|').map(c => c.trim());
+      if (cells.every(c => /^:?-+:?$/.test(c))) continue;                 // |---|---|
+      flush(); closeList();
+      const row = tag => cells.map(c => '<' + tag + '>' + mdInline(escapeHtml(c)) + '</' + tag + '>').join('');
+      if (table) html += '<tr>' + row('td') + '</tr>';
+      else { html += '<table class="md-table"><thead><tr>' + row('th') + '</tr></thead><tbody>'; table = true; }
+      continue;
+    }
+    closeTable();
+    const li = t.match(/^(?:[-*+]|\d+[.)])\s+(.+)$/);
+    if (li) {
+      flush();
+      const type = /^\d/.test(t) ? 'ol' : 'ul';
+      if (list !== type) { closeList(); html += '<' + type + '>'; list = type; }
+      html += '<li>' + mdInline(escapeHtml(li[1])) + '</li>';
+      continue;
+    }
+    closeList();
+    const h = t.match(/^(#{1,6})\s+(.+)$/);
+    if (h) { flush(); const n = h[1].length; html += '<h' + n + '>' + mdInline(escapeHtml(h[2])) + '</h' + n + '>'; continue; }
+    if (/^>\s?/.test(t)) { flush(); html += '<blockquote>' + mdInline(escapeHtml(t.replace(/^>\s?/, ''))) + '</blockquote>'; continue; }
+    if (t.slice(0, 3) === '```') {
+      flush();
+      const buf = [];
+      for (i++; i < lines.length && lines[i].trim().slice(0, 3) !== '```'; i++) buf.push(escapeHtml(lines[i]));
+      html += '<pre><code>' + buf.join('\n') + '</code></pre>';
+      continue;
+    }
+    if (!t) { flush(); continue; }
+    para.push(mdInline(escapeHtml(raw)));
+  }
+  flush(); closeList(); closeTable();
+  return html;
+}
+
+// Botonera para escribir markdown sin teclear la sintaxis.
+function mdToolbarHtml() {
+  return '<div class="md-toolbar">' +
+    '<button type="button" data-md="bold" title="Negrita" aria-label="Negrita"><b>N</b></button>' +
+    '<button type="button" data-md="italic" title="Cursiva" aria-label="Cursiva"><i>N</i></button>' +
+    '<button type="button" data-md="link" title="Enlace" aria-label="Enlace"><span class="material-icons">link</span></button>' +
+    '<button type="button" data-md="ul" title="Viñeta" aria-label="Viñeta"><span class="material-icons">format_list_bulleted</span></button>' +
+    '<button type="button" data-md="ol" title="Lista numerada" aria-label="Lista numerada"><span class="material-icons">format_list_numbered</span></button>' +
+    '<button type="button" data-md="table" title="Tabla" aria-label="Tabla"><span class="material-icons">border_all</span></button>' +
+    '<span class="md-hint">**negrita** · *cursiva* · [enlace](url) · - viñeta</span>' +
+    '</div>';
+}
+
+// Envuelve la selección del textarea con la sintaxis markdown indicada.
+function mdInsert(ta, kind) {
+  const s = ta.selectionStart, e = ta.selectionEnd, sel = ta.value.slice(s, e);
+  let text = '', from = 0, to = 0;
+  if (kind === 'bold' || kind === 'italic' || kind === 'strike') {
+    const mark = kind === 'bold' ? '**' : kind === 'italic' ? '*' : '~~';
+    const inner = sel || 'texto';
+    text = mark + inner + mark;
+    from = mark.length; to = from + inner.length;
+  } else if (kind === 'link') {
+    const label = sel || 'texto';
+    const url = /^https?:\/\//i.test(sel) ? sel : 'https://';
+    text = '[' + label + '](' + url + ')';
+    from = label.length + 3; to = from + url.length;
+  } else if (kind === 'ul' || kind === 'ol') {
+    const mark = kind === 'ul' ? '- ' : '1. ';
+    text = sel ? sel.split('\n').map(l => mark + l).join('\n') : mark;
+  } else {
+    text = '| Col 1 | Col 2 |\n| --- | --- |\n|  |  |';
+    from = to = text.lastIndexOf('\n') + 3;
+  }
+  ta.focus();
+  ta.setRangeText(text, s, e, 'end');
+  ta.setSelectionRange(s + from, s + to);
+}
+
+// Toolbar + vista previa en vivo sobre el textarea de notas.
+function bindMdEditor(root, ta, preview) {
+  if (!ta || !preview) return;
+  const render = () => { preview.innerHTML = mdToHtml(ta.value); };
+  ta.addEventListener('input', render);
+  render();
+  const bar = root.querySelector('.md-toolbar');
+  if (!bar) return;
+  bar.querySelectorAll('button[data-md]').forEach(b => {
+    b.onmousedown = e => e.preventDefault();   // sin blur: conserva el caret y no re-pinta el panel
+    b.onclick = () => { mdInsert(ta, b.dataset.md); render(); };
+  });
+}
+
+// Las notas se guardaban con un "'" delante si empezaban por = + - @ (para que Sheets
+// no las leyera como fórmula). Se quita al mostrar: si no, "- viñeta" vuelve con la
+// comilla pegada y el markdown no se ve.
+const noteText = (t) => String((t && t.notes) || '').replace(/^'(?=[=+\-@])/, '');
+/* MD-END */
 // Local (not UTC) yyyy-mm-dd — for date-range defaults so bounds match how entries are compared/displayed
 const localDay = (d) => {
   const x = new Date(d), p = n => String(n).padStart(2,'0');
@@ -4592,7 +4741,7 @@ let activeNotesOpen = localStorage.getItem('tasktime_active_notes') === '1';
 function renderActiveNotes(host) {
   if (!host) return;
   const tid = state.activeTimer ? state.activeTimer.taskId : '';
-  const notes = tid ? String((taskById(tid) || {}).notes || '') : '';
+  const notes = tid ? noteText(taskById(tid)) : '';
   const sig = tid + '|' + activeNotesOpen + '|' + notes;
   if (host.dataset.sig === sig) return;
   const ta = host.querySelector('textarea');
@@ -4604,7 +4753,11 @@ function renderActiveNotes(host) {
   host.innerHTML = `<button type="button" class="active-notes-toggle" aria-expanded="${activeNotesOpen}" aria-controls="active-notes-body">
       <span class="material-icons">${notes ? 'sticky_note_2' : 'note_add'}</span>${label}<span class="material-icons chev">expand_more</span>
     </button>
-    <textarea class="active-notes-body" id="active-notes-body" maxlength="5000" rows="3" placeholder="Escribe notas para esta tarea…" aria-label="Notas de la tarea en curso" ${activeNotesOpen ? '' : 'hidden'}>${escapeHtml(notes)}</textarea>`;
+    <div class="md-editor" ${activeNotesOpen ? '' : 'hidden'}>
+      ${mdToolbarHtml()}
+      <textarea class="active-notes-body" id="active-notes-body" maxlength="5000" rows="3" placeholder="Escribe notas para esta tarea… (soporta markdown)" aria-label="Notas de la tarea en curso">${escapeHtml(notes)}</textarea>
+      <div class="md-body">${mdToHtml(notes)}</div>
+    </div>`;
   const toggle = host.querySelector('.active-notes-toggle');
   // Evita que el blur del textarea re-pinte el botón antes de recibir el click.
   toggle.onmousedown = e => e.preventDefault();
@@ -4619,11 +4772,12 @@ function renderActiveNotes(host) {
   const area = host.querySelector('textarea');
   area.onblur = () => {
     const t = taskById(tid);
-    if (t && area.value !== String(t.notes || '')) updateTaskInline(tid, { notes: area.value });
+    if (t && area.value !== noteText(t)) updateTaskInline(tid, { notes: area.value });
   };
   area.onkeydown = e => {
     if (e.key === 'Escape') { area.value = notes; area.blur(); }
   };
+  bindMdEditor(host, area, host.querySelector('.md-body'));
 }
 
 // ponytail: pinta card/widget con el color de la etiqueta activa; sin etiqueta → gradiente default
@@ -5291,7 +5445,9 @@ async function renderTasksView() {
           <span class="material-icons">${t.notes ? 'sticky_note_2' : 'note_add'}</span><span class="lbl">${notesOpen ? 'Ocultar notas' : (t.notes ? 'Ver notas' : 'Añadir notas')}</span><span class="material-icons chev">expand_more</span>
         </button>
         <div class="task-notes" id="task-notes-${t.id}" ${notesOpen ? '' : 'hidden'}>
-          <textarea class="task-notes-input" data-tid="${t.id}" maxlength="5000" rows="2" placeholder="Añadir notas…" aria-label="Notas de la tarea">${escapeHtml(t.notes || '')}</textarea>
+          ${mdToolbarHtml()}
+          <textarea class="task-notes-input" data-tid="${t.id}" maxlength="5000" rows="2" placeholder="Añadir notas… (soporta markdown)" aria-label="Notas de la tarea">${escapeHtml(noteText(t))}</textarea>
+          <div class="md-body">${mdToHtml(noteText(t))}</div>
         </div>
         <button type="button" class="task-disclosure task-logs-toggle" data-tid="${t.id}" aria-expanded="${logsOpen}" aria-controls="task-logs-${t.id}">
           <span class="material-icons">history</span><span class="lbl">${logsOpen ? 'Ocultar registros' : 'Ver registros'}</span><span class="badge">${entries.length}</span><span class="material-icons chev">expand_more</span>
@@ -5383,11 +5539,14 @@ async function renderTasksView() {
   $$('#task-table-wrap .task-notes-input').forEach(ta => {
     ta.onblur = () => {
       const t = taskById(ta.dataset.tid);
-      if (t && ta.value !== String(t.notes || '')) updateTaskInline(ta.dataset.tid, { notes: ta.value });
+      if (t && ta.value !== noteText(t)) updateTaskInline(ta.dataset.tid, { notes: ta.value });
     };
     ta.onkeydown = e => {
-      if (e.key === 'Escape') { ta.value = String((taskById(ta.dataset.tid) || {}).notes || ''); ta.blur(); }
+      if (e.key === 'Escape') { ta.value = noteText(taskById(ta.dataset.tid)); ta.blur(); }
     };
+  });
+  $$('#task-table-wrap .task-notes').forEach(panel => {
+    bindMdEditor(panel, panel.querySelector('textarea'), panel.querySelector('.md-body'));
   });
   $$('#task-table-wrap .task-label-picker').forEach(p => {
     const btn = p.querySelector('.label-picker-btn');
