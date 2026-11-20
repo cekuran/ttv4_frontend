@@ -5921,7 +5921,7 @@ function renderDashboard() {
 
 let pendingSubsShowDone = localStorage.getItem('tasktime_pending_subs_done') === '1';
 let pendingSubsDueFilter = localStorage.getItem('tasktime_pending_subs_due') || '';
-const DUE_FILTER_EMPTY = { overdue: 'vencidas', today: 'que venzan hoy', soon: `por vencer en los próximos ${DUE_SOON_DAYS} días` };
+const DUE_FILTER_EMPTY = { dated: 'con fecha límite', overdue: 'vencidas', today: 'que venzan hoy', soon: `por vencer en los próximos ${DUE_SOON_DAYS} días` };
 function renderPendingSubtasks() {
   const host = $('#pending-subs-list');
   if (!host) return;
@@ -5935,15 +5935,17 @@ function renderPendingSubtasks() {
       renderPendingSubtasks();
     };
   }
-  const dueCounts = { overdue: 0, today: 0, soon: 0 };
+  const dueCounts = { dated: 0, overdue: 0, today: 0, soon: 0 };
+  // 'dated' = cualquier subtarea pendiente con fecha, sin importar su estado de vencimiento.
+  const matchesDue = (s, k) => k === 'dated' ? !!subDueStatus(s) : subDueStatus(s) === k;
   state.tasks.forEach(t => {
     if (isTaskDone_(t)) return;
-    parseSubtasks(t).forEach(s => { const st = subDueStatus(s); if (st in dueCounts) dueCounts[st]++; });
+    parseSubtasks(t).forEach(s => { const st = subDueStatus(s); if (st) dueCounts.dated++; if (st in dueCounts) dueCounts[st]++; });
   });
   const fhost = $('#pending-subs-due-filter');
   if (fhost) {
     const chip = (k, label) => `<button type="button" class="chip-filter${pendingSubsDueFilter === k ? ' active' : ''}${k ? ' due-' + k : ''}" data-due="${k}" aria-pressed="${pendingSubsDueFilter === k}">${label}${k ? ` <span class="count">${dueCounts[k]}</span>` : ''}</button>`;
-    fhost.innerHTML = chip('', 'Todas') + chip('overdue', 'Vencidas') + chip('today', 'Vencen hoy') + chip('soon', 'Por vencer');
+    fhost.innerHTML = chip('', 'Todas') + chip('dated', 'Con fecha') + chip('overdue', 'Vencidas') + chip('today', 'Vencen hoy') + chip('soon', 'Por vencer');
     fhost.querySelectorAll('[data-due]').forEach(b => b.onclick = () => {
       pendingSubsDueFilter = b.dataset.due;
       localStorage.setItem('tasktime_pending_subs_due', pendingSubsDueFilter);
@@ -5953,7 +5955,7 @@ function renderPendingSubtasks() {
   const groups = new Map();
   state.tasks.forEach(t => {
     if (isTaskDone_(t)) return;
-    const subs = parseSubtasks(t).filter(s => pendingSubsDueFilter ? subDueStatus(s) === pendingSubsDueFilter : (pendingSubsShowDone || !s.done));
+    const subs = parseSubtasks(t).filter(s => pendingSubsDueFilter ? matchesDue(s, pendingSubsDueFilter) : (pendingSubsShowDone || !s.done));
     if (!subs.length) return;
     const lid = t.labelId || '';
     if (!groups.has(lid)) groups.set(lid, []);
